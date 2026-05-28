@@ -131,7 +131,7 @@ services:
         ipv4_address: ${BACKEND_HOST:-172.20.0.5}
 
   hoj-frontend:
-    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_frontend
+    image: hoj-frontend:custom
     container_name: hoj-frontend
     restart: always
     environment:
@@ -302,9 +302,9 @@ services:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
       - MYSQL_DATABASE_NAME=hoj
       - AGENT_SERVER_PORT=${AGENT_PORT:-9003}
-      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_KEY=${LLM_API_KEY:-sk-8b78a9e5ac8c4aa3bfd114e25a0cc458}
       - LLM_API_BASE=${LLM_API_BASE:-https://api.deepseek.com}
-      - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-v4-flsh}
       - LLM_DAILY_LIMIT=${LLM_DAILY_LIMIT:-50}
     networks:
       hoj-network:

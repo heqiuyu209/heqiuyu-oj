@@ -830,6 +830,7 @@
         </el-button>
       </el-form>
     </el-dialog>
+    <AISidebar />
   </div>
 </template>
 
@@ -854,6 +855,7 @@ import CodeMirror from "@/components/oj/common/CodeMirror.vue";
 import Pagination from "@/components/oj/common/Pagination";
 import ProblemHorizontalMenu from "@/components/oj/common/ProblemHorizontalMenu";
 import Markdown from "@/components/oj/common/Markdown";
+import AISidebar from "@/components/oj/common/AISidebar";
 // 只显示这些状态的图形占用
 const filtedStatus = ["wa", "ce", "ac", "pa", "tle", "mle", "re", "pe"];
 
@@ -863,7 +865,8 @@ export default {
     CodeMirror,
     Pagination,
     ProblemHorizontalMenu,
-    Markdown
+    Markdown,
+    AISidebar
   },
   data() {
     return {

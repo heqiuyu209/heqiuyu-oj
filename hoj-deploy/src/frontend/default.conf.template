@@ -3,9 +3,9 @@ server {
 	server_name ${SERVER_NAME};
 	root /usr/share/nginx/html;
 
-    # Behavior collection (high throughput, separate location)
+    # Behavior collection
     location /api/beacon {
-        proxy_pass http://${BEHAVIOR_SERVER_HOST:-172.20.0.9}:${BEHAVIOR_SERVER_PORT:-9090};
+        proxy_pass http://${BEHAVIOR_SERVER_HOST}:${BEHAVIOR_SERVER_PORT};
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_buffering off;
@@ -14,31 +14,28 @@ server {
 
     # Profile service
     location /profile/ {
-        proxy_pass http://${PROFILE_SERVER_HOST:-172.20.0.10}:${PROFILE_SERVER_PORT:-9001}/;
+        proxy_pass http://${PROFILE_SERVER_HOST}:${PROFILE_SERVER_PORT}/;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
     }
 
     # Recommend service
     location /recommend/ {
-        proxy_pass http://${RECOMMEND_SERVER_HOST:-172.20.0.11}:${RECOMMEND_SERVER_PORT:-9002}/;
+        proxy_pass http://${RECOMMEND_SERVER_HOST}:${RECOMMEND_SERVER_PORT}/;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 30s;
     }
 
     # AI Agent service
     location /agent/ {
-        proxy_pass http://${AGENT_SERVER_HOST:-172.20.0.12}:${AGENT_SERVER_PORT:-9003}/;
+        proxy_pass http://${AGENT_SERVER_HOST}:${AGENT_SERVER_PORT}/;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
         proxy_buffering off;
     }

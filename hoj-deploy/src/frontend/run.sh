@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
-set -eu 
+set -eu
+ENV_VARS='${SERVER_NAME} ${BACKEND_SERVER_HOST} ${BACKEND_SERVER_PORT} ${BEHAVIOR_SERVER_HOST} ${BEHAVIOR_SERVER_PORT} ${PROFILE_SERVER_HOST} ${PROFILE_SERVER_PORT} ${RECOMMEND_SERVER_HOST} ${RECOMMEND_SERVER_PORT} ${AGENT_SERVER_HOST} ${AGENT_SERVER_PORT}'
 if [ "$USE_HTTPS" == "true" ]; then
-	envsubst '${SERVER_NAME} ${BACKEND_SERVER_HOST} ${BACKEND_SERVER_PORT} ${BEHAVIOR_SERVER_HOST} ${BEHAVIOR_SERVER_PORT}' < /etc/nginx/conf.d/default.conf.ssl.template > /etc/nginx/conf.d/default.conf
+	envsubst "$ENV_VARS" < /etc/nginx/conf.d/default.conf.ssl.template > /etc/nginx/conf.d/default.conf
 else
-	envsubst '${SERVER_NAME} ${BACKEND_SERVER_HOST} ${BACKEND_SERVER_PORT} ${BEHAVIOR_SERVER_HOST} ${BEHAVIOR_SERVER_PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+	envsubst "$ENV_VARS" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
 fi
 exec "$@"

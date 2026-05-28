@@ -223,6 +223,7 @@
         </el-tabs>
       </div>
     </el-card>
+    <ProfileRadar :uid="profile.uid" v-if="profile.uid" />
   </div>
 </template>
 <script>
@@ -236,11 +237,13 @@ import { CalendarHeatmap } from 'vue-calendar-heatmap'
 import { PROBLEM_LEVEL } from '@/common/constants';
 import utils from '@/common/utils';
 import Markdown from '@/components/oj/common/Markdown';
+import ProfileRadar from '@/components/oj/common/ProfileRadar';
 export default {
   components: {
     Avatar,
     CalendarHeatmap,
-    Markdown
+    Markdown,
+    ProfileRadar
   },
   data() {
     return {
