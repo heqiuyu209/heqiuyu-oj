@@ -75,6 +75,9 @@
 <script>
 export default {
   name: 'AISidebar',
+  props: {
+    editorCode: { type: String, default: '' }
+  },
   data() {
     return {
       visible: false,
@@ -103,22 +106,23 @@ export default {
       return m ? parseInt(m[1]) : null;
     },
     uid() {
-      return this.$store.state.user ? this.$store.state.user.uid : null;
+      const info = this.$store.getters.userInfo || {};
+      return info.uid || null;
     },
   },
   mounted() {
+    this.inContest = true; // 默认安全：比赛模式，等API确认后再开放
     if (this.uid) {
       this.fetchStatus();
       this.startPolling();
     }
-    this.inContest = !!this.currentContestId;
   },
   beforeDestroy() {
     if (this.pollTimer) clearInterval(this.pollTimer);
   },
   watch: {
     '$route'() {
-      this.inContest = !!this.currentContestId;
+      this.inContest = true; // 路由切换时先锁定，等fetchStatus确认
       this.currentHint = null;
       this.hintLevel = 1;
       this.chatReply = null;
@@ -161,7 +165,7 @@ export default {
       this.hintLoading = true;
       try {
         const resp = await this.$http.post('/agent/api/agent/hint', {
-          uid: this.uid, pid: this.currentProblemId, level,
+          uid: this.uid, pid: this.currentProblemId, level, code: this.editorCode,
         });
         this.currentHint = resp.data.hint;
         this.hintLevel = resp.data.level;
@@ -177,7 +181,7 @@ export default {
       this.chatLoading = true;
       try {
         const resp = await this.$http.post('/agent/api/agent/chat', {
-          uid: this.uid, pid: this.currentProblemId, message: this.chatInput,
+          uid: this.uid, pid: this.currentProblemId, message: this.chatInput, code: this.editorCode,
         });
         this.chatReply = resp.data.reply;
       } catch(e) {

@@ -146,6 +146,8 @@ services:
       - RECOMMEND_SERVER_PORT=${RECOMMEND_PORT:-9002}
       - AGENT_SERVER_HOST=${AGENT_HOST:-172.20.0.12}
       - AGENT_SERVER_PORT=${AGENT_PORT:-9003}
+      - VJUDGE_SERVER_HOST=${VJUDGE_HOST:-172.20.0.13}
+      - VJUDGE_SERVER_PORT=${VJUDGE_PORT:-9004}
       - USE_HTTPS=false
     ports:
       - "80:80"
@@ -302,10 +304,11 @@ services:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
       - MYSQL_DATABASE_NAME=hoj
       - AGENT_SERVER_PORT=${AGENT_PORT:-9003}
-      - LLM_API_KEY=${LLM_API_KEY:-sk-8b78a9e5ac8c4aa3bfd114e25a0cc458}
+      - LLM_API_KEY=${LLM_API_KEY}
       - LLM_API_BASE=${LLM_API_BASE:-https://api.deepseek.com}
-      - LLM_MODEL=${LLM_MODEL:-deepseek-v4-flsh}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
       - LLM_DAILY_LIMIT=${LLM_DAILY_LIMIT:-50}
+      - BACKEND_URL=http://${BACKEND_HOST:-172.20.0.5}:${BACKEND_PORT:-6688}
     networks:
       hoj-network:
         ipv4_address: ${AGENT_HOST:-172.20.0.12}
@@ -314,6 +317,28 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  hoj-vjudge:
+    build:
+      context: ../src/vjudge
+    image: hoj-vjudge:latest
+    container_name: hoj-vjudge
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_DATABASE_NAME=hoj
+      - VJUDGE_SERVER_PORT=${VJUDGE_PORT:-9004}
+      - ENCRYPTION_KEY=${VJUDGE_ENCRYPTION_KEY:-hoj-vjudge-key-2026}
+    networks:
+      hoj-network:
+        ipv4_address: ${VJUDGE_HOST:-172.20.0.13}
 
   hoj-mysql-checker:
     image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_database_checker

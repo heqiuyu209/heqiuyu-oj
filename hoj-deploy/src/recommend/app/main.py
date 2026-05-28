@@ -64,7 +64,7 @@ async def query(sql, params=None):
             return await cur.fetchall()
 
 
-async def get_user_profile(uid: int) -> dict:
+async def get_user_profile(uid: str) -> dict:
     rows = await query("SELECT * FROM user_profile WHERE uid = %s", (uid,))
     if not rows:
         return {
@@ -84,13 +84,14 @@ async def get_user_profile(uid: int) -> dict:
     }
 
 
-async def get_available_problems(tag: str, min_diff: int, max_diff: int, exclude_uid: int, limit: int = 20):
+async def get_available_problems(tag: str, min_diff: int, max_diff: int, exclude_uid: str, limit: int = 20):
     """Get problems matching tag and difficulty range, excluding solved ones."""
     rows = await query("""
-        SELECT p.id as pid, p.title, p.difficulty, pt.tag_name
+        SELECT p.id as pid, p.title, p.difficulty, t.name as tag_name
         FROM problem p
         LEFT JOIN problem_tag pt ON p.id = pt.pid
-        WHERE pt.tag_name LIKE %s
+        LEFT JOIN tag t ON pt.tid = t.id
+        WHERE t.name LIKE %s
           AND p.difficulty BETWEEN %s AND %s
           AND p.id NOT IN (
             SELECT DISTINCT pid FROM behavior_event
@@ -103,7 +104,7 @@ async def get_available_problems(tag: str, min_diff: int, max_diff: int, exclude
     return rows
 
 
-async def recommend_by_weak_points(uid: int, profile: dict, limit: int = 10) -> list:
+async def recommend_by_weak_points(uid: str, profile: dict, limit: int = 10) -> list:
     """Core recommendation: find weakest tags and recommend problems."""
     algo_keys = [
         ('dp', profile.get('dp_score', 0)),
@@ -151,7 +152,7 @@ async def recommend_by_weak_points(uid: int, profile: dict, limit: int = 10) -> 
     return result
 
 
-async def recommend_learning_path(uid: int, profile: dict) -> list:
+async def recommend_learning_path(uid: str, profile: dict) -> list:
     """Suggest next topics in learning path based on prerequisites."""
     algo_keys = {
         'dp': profile.get('dp_score', 0),
@@ -224,7 +225,7 @@ async def health():
 
 
 @app.get("/api/recommend/{uid}")
-async def recommend(uid: int, limit: int = 10, type: str = 'weak_point'):
+async def recommend(uid: str, limit: int = 10, type: str = 'weak_point'):
     from datetime import datetime
     profile = await get_user_profile(uid)
 
@@ -245,7 +246,7 @@ async def recommend(uid: int, limit: int = 10, type: str = 'weak_point'):
 
 
 @app.get("/api/learning-path/{uid}")
-async def learning_path(uid: int):
+async def learning_path(uid: str):
     from datetime import datetime
     profile = await get_user_profile(uid)
     items = await recommend_learning_path(uid, profile)

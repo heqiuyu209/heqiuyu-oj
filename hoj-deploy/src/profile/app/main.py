@@ -52,7 +52,7 @@ TAG_COLUMN_MAP = {
 ALGO_TAGS = list(TAG_COLUMN_MAP.keys())
 
 
-async def calc_tag_score(uid: int, tag: str) -> float:
+async def calc_tag_score(uid: str, tag: str) -> float:
     """Calculate a user's ability score for a specific algorithm tag (0-100)."""
     rows = await query("""
         SELECT be.payload, be.event_type
@@ -60,7 +60,7 @@ async def calc_tag_score(uid: int, tag: str) -> float:
         WHERE be.uid = %s AND be.event_type = 'submit_result'
         ORDER BY be.created_at DESC
         LIMIT 500
-    """, (str(uid),))
+    """, (uid,))
 
     tagged = []
     for r in rows:
@@ -84,16 +84,15 @@ async def calc_tag_score(uid: int, tag: str) -> float:
     return round(min(100, score), 2)
 
 
-async def calc_behavior_scores(uid: int) -> dict:
+async def calc_behavior_scores(uid: str) -> dict:
     """Calculate persistence, independent thinking, and debug ability."""
-    uid_s = str(uid)
 
     # Persistence: solved rate on difficult problems (difficulty > user's avg)
     rows = await query("""
         SELECT payload FROM behavior_event
         WHERE uid = %s AND event_type = 'submit_result'
         ORDER BY created_at DESC LIMIT 200
-    """, (uid_s,))
+    """, (uid,))
 
     if not rows:
         return {'persistence_score': 0, 'independent_thinking': 0, 'debug_ability': 0}
@@ -106,7 +105,7 @@ async def calc_behavior_scores(uid: int) -> dict:
     solution_views = await query("""
         SELECT COUNT(*) as cnt FROM behavior_event
         WHERE uid = %s AND event_type = 'view_solution'
-    """, (uid_s,))
+    """, (uid,))
     view_cnt = solution_views[0]['cnt'] if solution_views else 0
 
     total = len(submits)
@@ -130,13 +129,13 @@ async def calc_behavior_scores(uid: int) -> dict:
     return {'persistence_score': persistence, 'independent_thinking': independence, 'debug_ability': debug}
 
 
-async def calc_coding_scores(uid: int) -> dict:
+async def calc_coding_scores(uid: str) -> dict:
     """Estimate C++ proficiency and code style from submission metadata."""
     rows = await query("""
         SELECT payload FROM behavior_event
         WHERE uid = %s AND event_type = 'submit_result'
         ORDER BY created_at DESC LIMIT 300
-    """, (str(uid),))
+    """, (uid,))
 
     submits = [r['payload'] if isinstance(r['payload'], dict) else {} for r in rows]
     cpp_subs = [s for s in submits if s.get('lang') in ('C++', 'cpp', 'G++', 'C++17', 'C++20')]
@@ -150,17 +149,17 @@ async def calc_coding_scores(uid: int) -> dict:
     return {'cpp_proficiency': cpp_prof, 'code_style_score': code_style}
 
 
-async def calc_overall(uid: int, algo_scores: dict, behavior: dict, coding: dict) -> dict:
+async def calc_overall(uid: str, algo_scores: dict, behavior: dict, coding: dict) -> dict:
     """Compute overall rating based on all dimensions."""
     rows = await query("""
         SELECT COUNT(*) as total, SUM(CASE WHEN JSON_EXTRACT(payload, '$.result') = 'AC' THEN 1 ELSE 0 END) as solved
         FROM behavior_event WHERE uid = %s AND event_type = 'submit_result'
-    """, (str(uid),))
+    """, (uid,))
     stats = rows[0] if rows else {'total': 0, 'solved': 0}
 
     active_days = await query("""
         SELECT COUNT(DISTINCT DATE(created_at)) as days FROM behavior_event WHERE uid = %s
-    """, (str(uid),))
+    """, (uid,))
     active = active_days[0]['days'] if active_days else 0
 
     avg_algo = sum(algo_scores.values()) / max(len(algo_scores), 1)
@@ -176,7 +175,7 @@ async def calc_overall(uid: int, algo_scores: dict, behavior: dict, coding: dict
     }
 
 
-async def compute_full_profile(uid: int) -> dict:
+async def compute_full_profile(uid: str) -> dict:
     """Compute complete user profile."""
     algo_scores = {}
     for tag in ALGO_TAGS:
@@ -241,7 +240,7 @@ async def store_profile(profile: dict):
 async def ensure_tables():
     await execute("""
         CREATE TABLE IF NOT EXISTS user_profile (
-            uid BIGINT PRIMARY KEY,
+            uid VARCHAR(64) PRIMARY KEY,
             dp_score DECIMAL(5,2) DEFAULT 0,
             graph_score DECIMAL(5,2) DEFAULT 0,
             math_score DECIMAL(5,2) DEFAULT 0,
@@ -279,7 +278,7 @@ async def daily_recompute():
     """)
     for r in rows:
         try:
-            uid = int(r['uid'])
+            uid = str(r['uid'])
             profile = await compute_full_profile(uid)
             await store_profile(profile)
             log.info(f"Profile updated: uid={uid} rating={profile['overall']['overall_rating']}")
@@ -312,7 +311,7 @@ async def health():
 
 
 @app.get("/api/profile/{uid}")
-async def get_profile(uid: int):
+async def get_profile(uid: str):
     rows = await query("SELECT * FROM user_profile WHERE uid = %s", (uid,))
     if not rows:
         profile = await compute_full_profile(uid)
@@ -349,18 +348,18 @@ async def get_profile(uid: int):
 
 
 @app.post("/api/profile/{uid}/recompute")
-async def recompute_profile(uid: int):
+async def recompute_profile(uid: str):
     profile = await compute_full_profile(uid)
     await store_profile(profile)
     return profile
 
 
 @app.get("/api/profile/{uid}/history")
-async def get_profile_history(uid: int, days: int = 30):
+async def get_profile_history(uid: str, days: int = 30):
     rows = await query("""
         SELECT DATE(created_at) as dt, COUNT(*) as events,
                SUM(CASE WHEN event_type = 'submit_result' THEN 1 ELSE 0 END) as submissions
         FROM behavior_event WHERE uid = %s AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
         GROUP BY DATE(created_at) ORDER BY dt
-    """, (str(uid), days))
+    """, (uid, days))
     return [{'date': str(r['dt']), 'events': r['events'], 'submissions': r['submissions']} for r in rows]

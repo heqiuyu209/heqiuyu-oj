@@ -30,6 +30,15 @@ server {
         proxy_read_timeout 30s;
     }
 
+    # VJudge service
+    location /vjudge/ {
+        proxy_pass http://${VJUDGE_SERVER_HOST}:${VJUDGE_SERVER_PORT}/;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $http_host;
+        proxy_read_timeout 60s;
+    }
+
     # AI Agent service
     location /agent/ {
         proxy_pass http://${AGENT_SERVER_HOST}:${AGENT_SERVER_PORT}/;

@@ -830,7 +830,7 @@
         </el-button>
       </el-form>
     </el-dialog>
-    <AISidebar />
+    <AISidebar :editorCode="code" />
   </div>
 </template>
 

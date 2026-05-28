@@ -65,7 +65,7 @@
 </template>
 
 <script>
-import * as echarts from 'echarts';
+// echarts loaded via CDN as global
 
 export default {
   name: 'ProfileRadar',
@@ -139,9 +139,9 @@ export default {
         }],
       });
     },
-    barColor(v) { return v >= 70 ? '#67c23a' : v >= 40 ? '#e6a23c' : '#f56c6c'; },
   },
 };
+
 </script>
 
 <style scoped>

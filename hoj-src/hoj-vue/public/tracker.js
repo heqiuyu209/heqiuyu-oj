@@ -17,10 +17,14 @@
   var buffer = [];
 
   function getUserId() {
-    var meta = document.querySelector('meta[name="hoj-uid"]');
-    if (meta && meta.content) return meta.content;
-    try { return localStorage.getItem('hoj_uid') || 'anonymous'; }
-    catch(e) { return 'anonymous'; }
+    try {
+      var stored = localStorage.getItem('userInfo');
+      if (stored) {
+        var info = JSON.parse(stored);
+        if (info.uid) return String(info.uid);
+      }
+    } catch(e) {}
+    return null;
   }
 
   function getCurrentProblemId() {

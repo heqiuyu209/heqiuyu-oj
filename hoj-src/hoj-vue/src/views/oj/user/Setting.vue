@@ -13,21 +13,30 @@
         </template>
         <component :is="UserInfo"></component>
       </el-collapse-item>
+      <el-collapse-item name="CFBind">
+        <template slot="title">
+          <i class="fa fa-codeforces"> Codeforces 账号绑定</i>
+        </template>
+        <component :is="CFBind"></component>
+      </el-collapse-item>
     </el-collapse>
   </el-card>
 </template>
 <script>
 const Account = () => import('@/components/oj/setting/Account');
 const UserInfo = () => import('@/components/oj/setting/UserInfo');
+const CFBind = () => import('@/components/oj/common/CFBind');
 export default {
   components: {
     Account,
     UserInfo,
+    CFBind,
   },
   data() {
     return {
       Account: 'Account',
       UserInfo: 'UserInfo',
+      CFBind: 'CFBind',
       activeName: 'Account',
     };
   },
