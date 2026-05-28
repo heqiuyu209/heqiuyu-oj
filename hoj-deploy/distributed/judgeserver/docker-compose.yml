@@ -1,0 +1,57 @@
+version: "3"
+services:
+
+  hoj-judgeserver:
+    #仅支持amd64
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_judgeserver
+    #支持amd64、arm64
+    #image: himitzh/hoj_judgeserver
+    container_name: hoj-judgeserver
+    restart: always
+    volumes:
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/test_case:/judge/test_case
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/log:/judge/log
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/run:/judge/run
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/spj:/judge/spj
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/interactive:/judge/interactive
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/log/judgeserver:/judge/log/judgeserver
+    environment:
+      - TZ=Asia/Shanghai
+      - JUDGE_SERVER_IP=${JUDGE_SERVER_IP} # 服务器公网ip
+      - JUDGE_SERVER_PORT=${JUDGE_SERVER_PORT:-8088}
+      - JUDGE_SERVER_NAME=${JUDGE_SERVER_NAME} # 判题服务的名称，最好每个判题机不一样
+      - NACOS_URL=${NACOS_HOST}:${NACOS_PORT}  # nacos所在服务的ip:port
+      - NACOS_USERNAME=${NACOS_USERNAME:-root}  # 分布式需要修正nacos账号密码
+      - NACOS_PASSWORD=${NACOS_PASSWORD:-hoj123456}
+      - MAX_TASK_NUM=${MAX_TASK_NUM:--1} # -1表示最大可接收判题任务数为cpu核心数+1
+      - REMOTE_JUDGE_OPEN=${REMOTE_JUDGE_OPEN:-true} # 当前判题服务器是否开启远程虚拟判题功能
+      - REMOTE_JUDGE_MAX_TASK_NUM=${REMOTE_JUDGE_MAX_TASK_NUM:--1} # -1表示最大可接收远程判题任务数为cpu核心数*2+1
+      - PARALLEL_TASK=${PARALLEL_TASK:-default} # 默认沙盒并行判题程序数为cpu核心数
+    ports:
+      - ${JUDGE_SERVER_PORT:-8088}:${JUDGE_SERVER_PORT:-8088}
+      # - "0.0.0.0:5050:5050" # 一般不开放安全沙盒端口
+    healthcheck:
+      test: curl -f http://localhost:${JUDGE_SERVER_PORT:-8088}/version || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    shm_size: 512mb
+    privileged: true # 设置容器的权限为root
+
+  hoj-rsync-slave:
+    #仅支持amd64
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_rsync:1.0
+    #支持amd64、arm64
+    #image: himitzh/hoj_rsync
+    container_name: hoj-rsync-slave
+    restart: always
+    volumes:
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/test_case:/hoj/testcase
+      - ${HOJ_JUDGESERVER_DATA_DIRECTORY}/log:/hoj/log
+    environment:
+      - RSYNC_MODE=slave # 当前为slave从服务
+      - RSYNC_USER=hojrsync # 与主服务器的rsync的用户一致
+      - RSYNC_PASSWORD=${RSYNC_PASSWORD} # 与主服务器的rsync密码一致
+      - RSYNC_MASTER_ADDR=${RSYNC_MASTER_ADDR} # 写入主服务器ip
+    ports:
+      - "0.0.0.0:873:873"

@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env.local
+.env.production
+
+# Docker volumes
+hoj/
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+log/
+
+# Test case data (large files)
+testcase/
+judge/run/
+judge/spj/
+judge/interactive/
+
+# Sandbox binaries (large, use docker image instead)
+sandbox/
+hoj-src/sandbox/
+hoj-deploy/src/judgeserver/Sandbox-*
+hoj-deploy/src/mysql/bcrypt
+hoj-deploy/src/mysql/bcrypt_arm
+
+# Secrets
+*-secrets.sh
+!generate-secrets.sh

@@ -1,0 +1,346 @@
+version: "3"
+services:
+  hoj-redis:
+    image: redis:5.0.9-alpine
+    container_name: hoj-redis
+    restart: always
+    volumes:
+      - ${HOJ_DATA_DIRECTORY}/data/redis/data:/data
+    networks:
+      hoj-network:
+        ipv4_address: ${REDIS_HOST:-172.20.0.2}
+    ports:
+      - ${REDIS_PORT:-6379}:6379
+    command: redis-server --requirepass ${REDIS_PASSWORD:-hoj123456} --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-hoj123456}", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  hoj-mysql:
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_database
+    container_name: hoj-mysql
+    restart: always
+    volumes:
+      - ${HOJ_DATA_DIRECTORY}/data/mysql/data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - TZ=Asia/Shanghai
+      - NACOS_USERNAME=${NACOS_USERNAME:-root}
+      - NACOS_PASSWORD=${NACOS_PASSWORD:-hoj123456}
+    ports:
+      - ${MYSQL_PUBLIC_PORT:-3306}:3306
+    networks:
+      hoj-network:
+        ipv4_address: ${MYSQL_HOST:-172.20.0.3}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-hoj123456}"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  hoj-nacos:
+    image: nacos/nacos-server:1.4.2
+    container_name: hoj-nacos
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    environment:
+      - JVM_XMX=384m
+      - JVM_XMS=384m
+      - JVM_XMN=192m
+      - MODE=standalone
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - MYSQL_SERVICE_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_USER=root
+      - MYSQL_SERVICE_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_SERVICE_DB_NAME=nacos
+      - NACOS_AUTH_ENABLE=true
+    ports:
+      - ${NACOS_PORT:-8848}:8848
+    healthcheck:
+      test: curl -f http://${NACOS_HOST:-172.20.0.4}:8848/nacos/index.html || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 12
+    networks:
+      hoj-network:
+        ipv4_address: ${NACOS_HOST:-172.20.0.4}
+
+  hoj-backend:
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_backend
+    container_name: hoj-backend
+    restart: always
+    depends_on:
+      hoj-redis:
+        condition: service_healthy
+      hoj-mysql:
+        condition: service_healthy
+      hoj-nacos:
+        condition: service_started
+    volumes:
+      - ${HOJ_DATA_DIRECTORY}/file:/hoj/file
+      - ${HOJ_DATA_DIRECTORY}/testcase:/hoj/testcase
+      - ${HOJ_DATA_DIRECTORY}/log/backend:/hoj/log/backend
+    environment:
+      - TZ=Asia/Shanghai
+      - JAVA_OPTS=-Xms192m -Xmx384m
+      - BACKEND_SERVER_PORT=${BACKEND_PORT:-6688}
+      - NACOS_URL=${NACOS_HOST:-172.20.0.4}:8848
+      - NACOS_USERNAME=${NACOS_USERNAME:-root}
+      - NACOS_PASSWORD=${NACOS_PASSWORD:-hoj123456}
+      - JWT_TOKEN_SECRET=${JWT_TOKEN_SECRET:-default}
+      - JWT_TOKEN_EXPIRE=${JWT_TOKEN_EXPIRE:-86400}
+      - JWT_TOKEN_FRESH_EXPIRE=${JWT_TOKEN_FRESH_EXPIRE:-43200}
+      - JUDGE_TOKEN=${JUDGE_TOKEN:-default}
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PUBLIC_HOST=${MYSQL_PUBLIC_HOST}
+      - MYSQL_PUBLIC_PORT=${MYSQL_PUBLIC_PORT:-3306}
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE_NAME=hoj
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - EMAIL_SERVER_HOST=${EMAIL_SERVER_HOST:-smtp.qq.com}
+      - EMAIL_SERVER_PORT=${EMAIL_SERVER_PORT:-465}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-your_email_username}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-your_email_password}
+      - REDIS_HOST=${REDIS_HOST:-172.20.0.2}
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-hoj123456}
+      - OPEN_REMOTE_JUDGE=true
+      - HDU_ACCOUNT_USERNAME_LIST=${HDU_ACCOUNT_USERNAME_LIST}
+      - HDU_ACCOUNT_PASSWORD_LIST=${HDU_ACCOUNT_PASSWORD_LIST}
+      - CF_ACCOUNT_USERNAME_LIST=${CF_ACCOUNT_USERNAME_LIST}
+      - CF_ACCOUNT_PASSWORD_LIST=${CF_ACCOUNT_PASSWORD_LIST}
+      - POJ_ACCOUNT_USERNAME_LIST=${POJ_ACCOUNT_USERNAME_LIST}
+      - POJ_ACCOUNT_PASSWORD_LIST=${POJ_ACCOUNT_PASSWORD_LIST}
+      - ATCODER_ACCOUNT_USERNAME_LIST=${ATCODER_ACCOUNT_USERNAME_LIST}
+      - ATCODER_ACCOUNT_PASSWORD_LIST=${ATCODER_ACCOUNT_PASSWORD_LIST}
+      - SPOJ_ACCOUNT_USERNAME_LIST=${SPOJ_ACCOUNT_USERNAME_LIST}
+      - SPOJ_ACCOUNT_PASSWORD_LIST=${SPOJ_ACCOUNT_PASSWORD_LIST}
+      - LIBRE_ACCOUNT_USERNAME_LIST=${LIBRE_ACCOUNT_USERNAME_LIST}
+      - LIBRE_ACCOUNT_PASSWORD_LIST=${LIBRE_ACCOUNT_PASSWORD_LIST}
+      - FORCED_UPDATE_REMOTE_JUDGE_ACCOUNT=${FORCED_UPDATE_REMOTE_JUDGE_ACCOUNT:-false}
+    ports:
+      - ${BACKEND_PORT:-6688}:${BACKEND_PORT:-6688}
+    networks:
+      hoj-network:
+        ipv4_address: ${BACKEND_HOST:-172.20.0.5}
+
+  hoj-frontend:
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_frontend
+    container_name: hoj-frontend
+    restart: always
+    environment:
+      - SERVER_NAME=localhost
+      - BACKEND_SERVER_HOST=${BACKEND_HOST:-172.20.0.5}
+      - BACKEND_SERVER_PORT=${BACKEND_PORT:-6688}
+      - BEHAVIOR_SERVER_HOST=${BEHAVIOR_HOST:-172.20.0.9}
+      - BEHAVIOR_SERVER_PORT=${BEHAVIOR_PORT:-9090}
+      - PROFILE_SERVER_HOST=${PROFILE_HOST:-172.20.0.10}
+      - PROFILE_SERVER_PORT=${PROFILE_PORT:-9001}
+      - RECOMMEND_SERVER_HOST=${RECOMMEND_HOST:-172.20.0.11}
+      - RECOMMEND_SERVER_PORT=${RECOMMEND_PORT:-9002}
+      - AGENT_SERVER_HOST=${AGENT_HOST:-172.20.0.12}
+      - AGENT_SERVER_PORT=${AGENT_PORT:-9003}
+      - USE_HTTPS=false
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      hoj-network:
+        ipv4_address: 172.20.0.6
+
+  hoj-judgeserver:
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_judgeserver
+    container_name: hoj-judgeserver
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+      hoj-nacos:
+        condition: service_healthy
+    volumes:
+      - ${HOJ_DATA_DIRECTORY}/testcase:/judge/test_case
+      - ${HOJ_DATA_DIRECTORY}/judge/log:/judge/log
+      - ${HOJ_DATA_DIRECTORY}/judge/run:/judge/run
+      - ${HOJ_DATA_DIRECTORY}/judge/spj:/judge/spj
+      - ${HOJ_DATA_DIRECTORY}/judge/interactive:/judge/interactive
+      - ${HOJ_DATA_DIRECTORY}/log/judgeserver:/judge/log/judgeserver
+    environment:
+      - TZ=Asia/Shanghai
+      - JAVA_OPTS=-Xms192m -Xmx384m
+      - JUDGE_SERVER_IP=${JUDGE_SERVER_IP:-172.20.0.7}
+      - JUDGE_SERVER_PORT=${JUDGE_SERVER_PORT:-8088}
+      - JUDGE_SERVER_NAME=${JUDGE_SERVER_NAME:-judger-alone}
+      - NACOS_URL=${NACOS_HOST:-172.20.0.4}:8848
+      - NACOS_USERNAME=${NACOS_USERNAME:-root}
+      - NACOS_PASSWORD=${NACOS_PASSWORD:-hoj123456}
+      - MAX_TASK_NUM=${MAX_TASK_NUM:--1}
+      - REMOTE_JUDGE_OPEN=${REMOTE_JUDGE_OPEN:-true}
+      - REMOTE_JUDGE_MAX_TASK_NUM=${REMOTE_JUDGE_MAX_TASK_NUM:--1}
+      - PARALLEL_TASK=${PARALLEL_TASK:-default}
+    ports:
+      - ${JUDGE_SERVER_PORT:-8088}:${JUDGE_SERVER_PORT:-8088}
+    healthcheck:
+      test: curl -f http://${JUDGE_SERVER_IP:-172.20.0.7}:${JUDGE_SERVER_PORT:-8088}/version || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    privileged: true
+    shm_size: 512mb
+    networks:
+      hoj-network:
+        ipv4_address: 172.20.0.7
+
+  # ============ NEW AI/Training Services ============
+
+  hoj-behavior:
+    build:
+      context: ../src/behavior
+    image: hoj-behavior:latest
+    container_name: hoj-behavior
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_DATABASE_NAME=hoj
+      - BEHAVIOR_SERVER_PORT=${BEHAVIOR_PORT:-9090}
+      - BEHAVIOR_API_KEY=${BEHAVIOR_API_KEY:-}
+      - BATCH_SIZE=50
+      - FLUSH_INTERVAL_MS=5000
+      - RATE_LIMIT_MAX=600
+    networks:
+      hoj-network:
+        ipv4_address: ${BEHAVIOR_HOST:-172.20.0.9}
+    healthcheck:
+      test: curl -f http://localhost:${BEHAVIOR_PORT:-9090}/health || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  hoj-profile:
+    build:
+      context: ../src/profile
+    image: hoj-profile:latest
+    container_name: hoj-profile
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_DATABASE_NAME=hoj
+      - PROFILE_SERVER_PORT=${PROFILE_PORT:-9001}
+    networks:
+      hoj-network:
+        ipv4_address: ${PROFILE_HOST:-172.20.0.10}
+    healthcheck:
+      test: curl -f http://localhost:${PROFILE_PORT:-9001}/health || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  hoj-recommend:
+    build:
+      context: ../src/recommend
+    image: hoj-recommend:latest
+    container_name: hoj-recommend
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+      hoj-profile:
+        condition: service_started
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_DATABASE_NAME=hoj
+      - RECOMMEND_SERVER_PORT=${RECOMMEND_PORT:-9002}
+      - PROFILE_SERVICE_URL=http://${PROFILE_HOST:-172.20.0.10}:${PROFILE_PORT:-9001}
+    networks:
+      hoj-network:
+        ipv4_address: ${RECOMMEND_HOST:-172.20.0.11}
+    healthcheck:
+      test: curl -f http://localhost:${RECOMMEND_PORT:-9002}/health || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  hoj-agent:
+    build:
+      context: ../src/agent
+    image: hoj-agent:latest
+    container_name: hoj-agent
+    restart: always
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+      hoj-profile:
+        condition: service_started
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=${MYSQL_HOST:-172.20.0.3}
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+      - MYSQL_DATABASE_NAME=hoj
+      - AGENT_SERVER_PORT=${AGENT_PORT:-9003}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_BASE=${LLM_API_BASE:-https://api.deepseek.com}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
+      - LLM_DAILY_LIMIT=${LLM_DAILY_LIMIT:-50}
+    networks:
+      hoj-network:
+        ipv4_address: ${AGENT_HOST:-172.20.0.12}
+    healthcheck:
+      test: curl -f http://localhost:${AGENT_PORT:-9003}/health || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  hoj-mysql-checker:
+    image: registry.cn-shenzhen.aliyuncs.com/hcode/hoj_database_checker
+    container_name: hoj-mysql-checker
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    links:
+      - hoj-mysql:mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-hoj123456}
+    networks:
+      hoj-network:
+        ipv4_address: 172.20.0.8
+
+  hoj-autohealth:
+    restart: always
+    container_name: hoj-autohealth
+    image: willfarrell/autoheal
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  hoj-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${SUBNET:-172.20.0.0/16}
