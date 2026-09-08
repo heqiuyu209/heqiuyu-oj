@@ -1,0 +1,20 @@
+# 本机 IDE 配置
+.idea/
+*.iml
+.vscode/
+
+# Java 编译输出
+target/
+*.class
+
+# 前端依赖和构建输出
+node_modules/
+dist/
+
+# 日志
+*.log
+
+# 本地环境变量与密钥文件
+.env
+.env.*
+!.env.example

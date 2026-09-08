@@ -1,0 +1,28 @@
+mybatis-plus:
+  mapper-locations: classpath*:top/hcode/hoj/mapper/xml/**Mapper.xml
+  type-aliases-package: top.hcode.hoj.pojo.entity
+  configuration:
+    cache-enabled: true
+  # 关闭打印 mybatis-plus 的 LOGO
+  global-config:
+    banner: false
+
+# 消费者将要去访问的微服务名称（注册成功进入nacos的微服务提供者）
+service-url:
+  name: hoj-judgeserver # 服务名
+
+# 需要更新的语言配置(更新language表), 必须填写oj、name、isSpj来唯一定位
+check-language-config:
+  list:
+    - oj: ME
+      name: PyPy3
+      isSpj: false
+      description: PyPy 3.9.17 (7.3.12)
+    - oj: ME
+      name: PyPy
+      isSpj: false
+      description: PyPy 2.7.18 (7.3.9)
+    - oj: ME
+      name: PHP
+      isSpj: false
+      description: PHP 7.2.24
