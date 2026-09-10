@@ -1,0 +1,63 @@
+services:
+  hoj-backend:
+    image: hoj-backend:local
+    build:
+      context: .
+      dockerfile: hoj-deploy/backend.Dockerfile
+    ports:
+      - "127.0.0.1:6688:6688"
+
+  hoj-frontend:
+    image: hoj-frontend:local
+    build:
+      context: .
+      dockerfile: hoj-deploy/frontend.Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+
+  hoj-mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: hoj-local-dev
+      MYSQL_ROOT_HOST: "%"
+      TZ: Asia/Shanghai
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - hoj-local-mysql-data-v2:/var/lib/mysql
+      - ./sqlAndsetting/hoj.sql:/docker-entrypoint-initdb.d/01-hoj.sql:ro
+      - ./sqlAndsetting/nacos.sql:/docker-entrypoint-initdb.d/02-nacos.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysql -h 127.0.0.1 -uroot -e "SELECT 1"'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  hoj-redis:
+    image: redis:5.0.9-alpine
+    command:
+      - redis-server
+      - --requirepass
+      - hoj-local-redis
+      - --appendonly
+      - "yes"
+    environment:
+      REDISCLI_AUTH: hoj-local-redis
+    volumes:
+      - hoj-local-redis-data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  hoj-local-mysql-data-v2:
+  hoj-local-redis-data:

@@ -1060,9 +1060,9 @@ CREATE TABLE `group_member` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
-/* Trigger structure for table `contest` */
-
 DELIMITER $$
+
+/* Trigger structure for table `contest` */
 
 /*!50003 DROP TRIGGER*//*!50032 IF EXISTS */ /*!50003 `contest_trigger` */$$
 
