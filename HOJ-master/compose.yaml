@@ -1,9 +1,48 @@
+volumes:
+  hoj-local-mysql-data-v2:
+  hoj-local-redis-data:
+  hoj-local-files:
+  hoj-local-testcases:
+  hoj-local-backend-logs:
+
 services:
   hoj-backend:
     image: hoj-backend:local
     build:
       context: .
       dockerfile: hoj-deploy/backend.Dockerfile
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+      hoj-redis:
+        condition: service_healthy
+      hoj-nacos:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      BACKEND_SERVER_PORT: "6688"
+
+      NACOS_URL: hoj-nacos:8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+
+      MYSQL_HOST: hoj-mysql
+      MYSQL_PORT: "3306"
+      MYSQL_PUBLIC_HOST: hoj-mysql
+      MYSQL_PUBLIC_PORT: "3306"
+      MYSQL_DATABASE_NAME: hoj
+      MYSQL_USERNAME: root
+      MYSQL_ROOT_PASSWORD: hoj-local-dev
+
+      REDIS_HOST: hoj-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: hoj-local-redis
+
+      OPEN_REMOTE_JUDGE: "false"
+    volumes:
+      - hoj-local-files:/hoj/file
+      - hoj-local-testcases:/hoj/testcase
+      - hoj-local-backend-logs:/hoj/log/backend
     ports:
       - "127.0.0.1:6688:6688"
 
@@ -58,6 +97,30 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
-  hoj-local-mysql-data-v2:
-  hoj-local-redis-data:
+  hoj-nacos:
+    image: nacos/nacos-server:1.4.2
+    depends_on:
+      hoj-mysql:
+        condition: service_healthy
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: hoj-mysql
+      MYSQL_SERVICE_PORT: "3306"
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: hoj-local-dev
+      NACOS_AUTH_ENABLE: "true"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    ports:
+      - "127.0.0.1:8848:8848"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "curl -fsS http://127.0.0.1:8848/nacos/index.html > /dev/null || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s

@@ -1,430 +1,262 @@
-# Git 学习笔记
+# Git 常用操作指南
 
-- git add：将选定的改动加入暂存区。
-- git commit：将暂存区内容保存为本地版本。
-- git push：将本地提交同步到远程仓库。
+按场景查命令。适用于个人项目和常见团队协作；企业没有统一的 Git 命令标准，代码评审、CI 和分支保护同样重要。
 
-
-## 1. Git、仓库和三个区域
-
-Git 是版本管理工具；GitHub 是托管远程仓库的平台。本地没有网络也可以提交和查看历史。
-
-```text
-编辑文件
-  ↓
-工作区 ── git add ──→ 暂存区 ── git commit ──→ 本地仓库
-                                                │ git push
-                                                ↓
-                                             远程仓库
-```
-
-| 概念 | 含义 |
-| --- | --- |
-| 工作区 | 当前磁盘上可编辑的文件 |
-| 暂存区 | 选定给下一次提交的内容快照 |
-| 提交（commit） | 一次有作者、说明、父提交和文件快照的版本记录 |
-| 分支（branch） | 指向某个提交的可移动指针 |
-| HEAD | 通常指向当前分支，说明你当前所在的位置 |
-| origin | 远程仓库的常用别名，不是分支名 |
-| origin/master | 本地记录的远程 master 状态，通常通过 fetch 更新 |
-
-注意：保存文件不等于提交；提交不等于上传；工作区干净不等于代码测试通过。执行 `git add` 后又修改文件，需要再次 add 才会把新修改放入下一次提交。
-
-## 3. 查看当前状态
+本文默认在仓库根目录执行：
 
 ```powershell
-git --version
-git rev-parse --show-toplevel
-git status
-git status --short
-git branch -avv
-git remote -v
+cd D:\IdeaProjects\HOJ-master
 ```
 
-| 常见输出 | 含义 |
-| --- | --- |
-| No commits yet | 本地尚无提交历史 |
-| Changes to be committed | 暂存区有待提交内容 |
-| Changes not staged for commit | 跟踪文件有未暂存修改 |
-| Untracked files | 未跟踪且未被忽略的文件 |
-| working tree clean | 没有待提交改动或未忽略的未跟踪文件 |
+本项目主分支叫 `master`；其他项目若叫 `main`，替换即可。示例中的文件路径、分支名、提交号按实际替换，不要把不同场景的命令连续执行。
 
-`status --short` 的前两列分别描述暂存区和工作区：
+## 1. 修改文件后：保存、提交、推送
 
-```text
-A  note.md      新文件已暂存
-M  note.md      修改已暂存
- M note.md      修改未暂存
-MM note.md      暂存后又修改过
-?? note.md      未跟踪文件
-```
-
-`git branch` 中的 `*` 标记当前分支。`HEAD -> master` 表示当前位于 master。
-
-## 4. 查看改动和版本历史
+先在编辑器保存文件，再执行：
 
 ```powershell
-# 工作区相对暂存区的改动
-git --no-pager diff
-
-# 暂存区相对最新提交的改动
-git --no-pager diff --cached
-
-# 只看笔记的未暂存修改
-git --no-pager diff -- HOJ-master/docs/docs/git/01-gitlearning.md
-
-# 暂存改动统计
-git diff --cached --stat
-git diff --cached --shortstat
-
-# 最近十次提交和分支位置
-git --no-pager log --oneline --graph --decorate -10
-
-# 查看某次提交的文件统计
-git --no-pager show --stat 9960391
-```
-
-普通 `git diff` 不会展示未跟踪文件的内容。新文件暂存后，可以用 `git diff --cached` 检查。
-
-差异中的 `+` 表示新增行，`-` 表示删除行。首次纳入版本管理的文件会整份显示为新增，即使它在电脑上已经存在很久。
-
-如果出现分页界面，按英文小写 `q` 退出，空格向下翻页。`git --no-pager ...` 可以避免进入分页器。PowerShell 出现 `>>` 是命令尚未输入完整；按 `Ctrl+C` 可以取消本次输入，再重新输入完整命令。
-
-## 5. 日常提交流程
-
-先修改文件并保存，再检查、暂存、提交：
-
-```powershell
-git status
-git --no-pager diff -- HOJ-master/docs/docs/git/01-gitlearning.md
+git status                         # 查看当前分支和改动
+git diff                           # 查看未暂存修改
 git add -- HOJ-master/docs/docs/git/01-gitlearning.md
-git --no-pager diff --cached
-git commit -m "docs: 完善 Git 常用操作指南"
-git status
+git diff --cached                  # 检查本次准备提交的全部内容
+git commit -m "docs: 精简 Git 操作指南"
+git push                           # 已设置上游时，推送当前分支
 ```
 
-`commit` 会提交整个暂存区，不仅仅是刚才 add 的那个文件，因此提交前要查看 `diff --cached`。
+第一次推送新分支用 `git push -u origin 分支名`，以后通常直接 `git push`。
 
-常用暂存方式：
+**保存 → add 暂存 → commit 本地存档 → push 上传。** commit 提交整个暂存区；暂存后又改了文件，需要再次 add。
 
-```powershell
-# 指定范围预览，不实际暂存
-git add --dry-run -- .gitignore HOJ-master/
-
-# 暂存一个目录内的改动（包含新增、修改和删除）
-git add -- HOJ-master/docs/docs/git/
-
-# 交互式选择修改片段，熟悉基础操作后再使用
-git add -p
-```
-
-`git add .` 会处理当前目录及子目录内未被忽略的改动；执行前先确认范围，避免把无关修改一并暂存。
-
-提交说明应描述一件明确的事，例如：
-
-- `docs: 补充 Git 分支学习笔记`
-- `feat: 添加题目分层提示入口`
-- `fix: 修复提交状态轮询异常`
-- `refactor: 提取模型调用适配接口`
-- `test: 添加比赛禁用 AI 的测试`
-- `chore: 调整开发环境配置`
-
-这些前缀是约定，不是 Git 强制要求。一次提交尽量完成一个可解释、可验证的改动。
-
-## 6. 配置作者身份
-
-```powershell
-git config --get user.name
-git config --get user.email
-```
-
-以下是配置示例，请把占位文字换成自己的信息：
-
-```powershell
-git config --local user.name "你的署名"
-git config --local user.email "你的提交邮箱"
-```
-
-`--local` 只影响当前仓库，`--global` 影响当前用户的默认配置。作者姓名和邮箱不是 GitHub 登录凭证。配置变更也不会自动修改旧提交的作者。
-
-## 7. .gitignore：哪些文件不跟踪
-
-本项目根目录忽略规则的示例：
-
-```gitignore
-.idea/
-*.iml
-.vscode/
-target/
-*.class
-node_modules/
-dist/
-*.log
-.env
-.env.*
-!.env.example
-```
-
-没有中间路径的目录模式（例如 `target/`）可以匹配该忽略文件作用范围内各层级的同名目录。`!` 表示取消忽略的例外。子目录也可能有自己的 `.gitignore`，最终结果要结合规则检查。
-
-```powershell
-# 查看某个路径被哪条规则忽略
-git check-ignore -v -- .idea/workspace.xml
-
-# 看 Git 已经跟踪的文件
-git ls-files
-```
-
-忽略规则不会自动移除已跟踪或已暂存的文件。确实要停止跟踪 IDEA 配置、但保留本地文件时，可以使用：
-
-```powershell
-git rm -r --cached -- .idea
-```
-
-这里的 `--cached` 表示只从索引移除，不删除工作区文件。若之前已提交，需要再 commit 才能记录“停止跟踪”的变化；历史提交仍保留旧文件。
-
-不要简单忽略所有 YAML、SQL 或 JAR：其中可能包含必要的配置模板、数据库结构和项目资源。凭据不应提交；若凭据已进入历史，仅修改 `.gitignore` 无法清除它，应先更换凭据，再单独处理历史。
-
-## 8. 创建、切换和合并分支
-
-推荐在工作区干净时切换分支。未提交改动可能随切换保留，也可能阻止切换，并不自动属于某个分支。
-
-以下是新练习分支的示例，不要重复创建已存在的同名分支：
-
-```powershell
-git status
-git switch master
-git switch -c practice/git-notes
-```
-
-修改并提交笔记后，切回接收改动的分支，再合并：
-
-```powershell
-git switch master
-git merge practice/git-notes
-git --no-pager log --oneline --graph --decorate -10
-```
-
-- 创建分支时，两个分支先指向同一个提交。
-- 在新分支 commit，只推动新分支。
-- `merge` 把指定分支的历史合入当前分支。
-- Fast-forward（快进）表示当前分支没有独立的新提交，可以直接向前移动。
-- 两边都产生新提交时，可能创建合并提交，也可能需要处理冲突。
-- 合并后两个分支不会永久自动同步，源分支也不会自动删除。
-
-确认练习分支已合并、当前也不在该分支上时，可删除本地分支名称：
-
-```powershell
-git branch -d practice/git-notes
-```
-
-`-d` 有已合并检查；不要为了绕过提示随手换成 `-D`。删除本地分支不会删除同名远程分支。
-
-## 9. 连接 GitHub 和首次推送
-
-本项目已经配置过 origin，不需要再次执行 `remote add`。先查看：
-
-```powershell
-git remote -v
-```
-
-只有尚未配置 origin 时才使用：
-
-```powershell
-git remote add origin https://github.com/heqiuyu209/heqiuyu-oj.git
-```
-
-如果 origin 已存在且地址确实需要修改，使用：
-
-```powershell
-git remote set-url origin https://github.com/heqiuyu209/heqiuyu-oj.git
-```
-
-首次推送主分支并设置跟踪关系：
-
-```powershell
-git push -u origin master
-```
-
-之后在已配置跟踪关系的 master 上通常可直接执行 `git push`。推送新的功能分支时，例如：
-
-```powershell
-git push -u origin feature/ai-chat
-```
-
-这个例子要求本地已经存在该功能分支。推送 master 不会自动推送所有本地分支。
-
-首次认证按 Git 凭据工具的提示完成。GitHub 账号网页密码不能直接用作 HTTPS Git 操作的密码；不要把令牌写进仓库 URL、源码或学习笔记。
-
-默认分支由 GitHub 仓库设置控制。将默认分支改为 master 不会合并或删除 main；带 `/tree/main` 的链接仍会打开 main。
-
-## 10. fetch、pull、push 和 clone
-
-| 命令 | 作用 |
+| 暂存范围 | 命令 |
 | --- | --- |
-| fetch | 获取远程历史并更新远程跟踪引用，不自动合并到当前分支 |
-| pull | 获取远程更新，再按选项和配置执行合并或变基 |
-| push | 把指定本地分支的提交发送到远程并更新远程分支 |
-| clone | 在一个新目录中创建远程仓库的本地副本 |
+| 一个文件 | `git add -- 文件路径` |
+| 一个目录 | `git add -- 目录路径/` |
+| 分段选择修改 | `git add -p` |
+| 全仓库新增、修改、删除 | `git add -A` |
 
-每天开始工作时，可以先查看远程变化：
+只有确认全部改动属于本次任务时，才用 `git add -A`。普通 diff 不展示未跟踪文件内容；新文件暂存后用 diff --cached 检查。
 
-```powershell
-git status
-git fetch origin
-git --no-pager log --oneline master..origin/master
-git --no-pager log --oneline origin/master..master
-```
+## 2. 本地项目常用命令
 
-第一条 log 显示远程有而本地 master 没有的提交；第二条显示本地有而远程没有的提交。
+| 用途 | 命令 |
+| --- | --- |
+| 简短状态 | `git status -sb` |
+| 当前分支 | `git branch --show-current` |
+| 本地分支及上游 | `git branch -vv` |
+| 远程仓库地址 | `git remote -v` |
+| 最近提交 | `git log --oneline -10` |
+| 所有分支历史图 | `git log --oneline --graph --decorate --all -20` |
+| 某次提交内容 | `git show 提交号` |
+| 某个文件的修改 | `git diff -- 文件路径` |
+| 文件历史 | `git log --oneline -- 文件路径` |
+| 重命名并暂存 | `git mv 旧路径 新路径` |
+| 删除文件并暂存删除 | `git rm -- 文件路径` |
 
-工作区干净并位于 master 时，可以只允许快进更新：
+状态：`??` 未跟踪；` M` 工作区已修改；`M ` 修改已暂存；`A ` 新增已暂存。
 
-```powershell
-git switch master
-git pull --ff-only origin master
-```
+分页界面按 `q` 退出；或用 `git --no-pager log --oneline -10`。PowerShell 出现 `>>` 通常是命令未输入完整，按 Ctrl+C 取消后重输。
 
-如果提示无法快进，说明需要进一步检查分支历史，先不要强制推送。可用以下命令观察：
+## 3. 新项目与远程仓库
 
-```powershell
-git --no-pager log --oneline --graph --decorate --all -20
-```
-
-换电脑时，才在合适的父目录下克隆到新的文件夹：
+已有远程项目，在合适的父目录克隆；不要在原项目里面重复克隆：
 
 ```powershell
 git clone https://github.com/heqiuyu209/heqiuyu-oj.git
 ```
 
-不要在现有 HOJ 仓库里再克隆它自身。
-
-## 11. 撤销、恢复和临时保存
-
-先判断修改处在哪个阶段，再选命令。
-
-### 11.1 取消暂存，保留修改
-
-已有提交历史时：
+全新本地项目：先进入项目目录，准备 .gitignore，再执行。远程应为空仓库。
 
 ```powershell
-git restore --staged -- HOJ-master/docs/docs/git/01-gitlearning.md
+git init -b master
+git config --local user.name "你的署名"
+git config --local user.email "你的邮箱"
+git add -A
+git diff --cached
+git commit -m "chore: 初始化项目"
+git remote add origin 仓库地址
+git push -u origin master
 ```
 
-文件内容不变，只退出下一次提交的准备列表。如果仓库还没有第一次提交，前面使用过的 `git rm --cached` 可以移除首次暂存的新文件；两者适用背景要分清。
+本项目已经初始化，不要重复执行。--local 只影响当前项目；--global 设置用户默认值。署名和邮箱不是登录凭据。
 
-### 11.2 丢弃未暂存修改
+远程地址错误：`git remote set-url origin 正确地址`。HTTPS 按凭据管理器完成认证或使用 PAT，也可按公司要求使用 SSH；不把令牌写进 URL、代码或文档。
 
-先查看差异并确认不需要保留，再执行：
+## 4. 团队日常：功能分支 → PR → 合并
+
+开始任务前，先 commit 或 stash 未完成工作，保持工作区干净：
 
 ```powershell
-git --no-pager diff -- HOJ-master/docs/docs/git/01-gitlearning.md
-git restore -- HOJ-master/docs/docs/git/01-gitlearning.md
-```
-
-第二条会用暂存区版本覆盖该文件的工作区修改。未提交内容未必能通过 Git 找回，因此它不是普通查看命令。
-
-### 11.3 撤销已经提交的改动
-
-优先使用 `revert` 创建一条反向提交，保留原历史。下面的 `HEAD` 表示最新提交，仅在确认要撤销最新提交、工作区干净时执行：
-
-```powershell
-git --no-pager show --stat HEAD
-git revert --no-edit HEAD
-```
-
-不要为了学习而直接撤销当前重要提交。revert 也可能遇到冲突；合并提交的撤销需要额外理解，不照搬这个例子。
-
-### 11.4 临时放下手头工作
-
-```powershell
-git stash push -u -m "临时保存：学习笔记未完成"
-git stash list
-```
-
-`-u` 包含未跟踪文件，但不包含被忽略的文件。它在本地临时保存改动，并通常清理对应工作区内容，不是远程备份。
-
-恢复最新一份临时保存：
-
-```powershell
-git stash apply
-git status
-```
-
-`apply` 保留 stash 条目，确认恢复正确后才使用 `git stash drop` 删除最新条目。`pop` 则尝试恢复并在成功后删除条目；恢复过程中也可能有冲突。
-
-### 11.5 查找误操作前的提交
-
-```powershell
-git --no-pager reflog -10
-```
-
-reflog 记录本地引用移动，能帮助找回部分误操作后的提交，但不是所有未保存内容的恢复工具，也不是永久备份。
-
-暂时不要随意使用 `git reset --hard`、`git clean -fd`、`git push --force`：它们可能丢弃本地内容或覆盖远程历史。
-
-## 12. 合并冲突怎么处理
-
-冲突表示 Git 无法自动决定该保留哪段内容，并不代表仓库损坏。
-
-例如合并时文件出现以下内容（为避免文档检查将示例误判为真实冲突，展示时统一缩进两格）：
-
-```text
-  <<<<<<< HEAD
-  当前分支的内容
-  =======
-  被合并分支的内容
-  >>>>>>> feature/ai-chat
-```
-
-处理顺序：
-
-1. 用 `git status` 确认冲突文件。
-2. 读懂两边改动，手动保留正确结果并删除冲突标记。
-3. 检查或测试最终结果。
-4. `git add -- 具体文件路径` 标记该文件已解决。
-5. 对普通 merge 冲突，执行 `git commit` 完成合并。
-
-如果决定取消正在进行的 merge，可执行 `git merge --abort`。最好在合并前保持工作区干净，避免原有未提交改动混入。
-
-不要把 `merge --abort` 用到 rebase 或 revert 上；不同操作有各自的继续和取消命令，先读 `git status` 的提示。
-
-## 13. 常见报错速查
-
-| 提示 | 先检查什么 |
-| --- | --- |
-| not a git repository | 当前目录是否位于仓库内部，用 Get-Location 查看 |
-| remote origin already exists | 用 git remote -v 查看现有地址，不重复 add |
-| src refspec main does not match any | 分支是否实际叫 master，是否已有提交 |
-| nothing to commit | 是没有修改，还是文件被忽略；检查 status 和 diff |
-| non-fast-forward / rejected | 先 fetch 比较两边历史，不直接强推 |
-| refusing to merge unrelated histories | 两套独立初始化历史；本项目旧 main 与 master 就属于这种情况，需要先决定保留方式 |
-| local changes would be overwritten | 先提交或 stash 当前工作，再切换/合并 |
-| Authentication failed / 403 | 账号、凭据和仓库写权限；不要发送令牌给他人 |
-| Repository not found | 地址是否正确，以及当前身份是否有权访问私有仓库 |
-| LF will be replaced by CRLF | 换行符转换提示，不一定是 add 失败；不要仅为消除警告批量改全项目 |
-
-## 14. HOJ 后续开发的建议流程
-
-准备开始一个新功能时，先更新主分支，再创建功能分支。以下以题目 AI 问答为例：
-
-```powershell
-git status
 git switch master
 git pull --ff-only origin master
 git switch -c feature/ai-chat
 ```
 
-之后按小步骤开发、检查并提交，验证通过后再合并。功能分支推送到 GitHub 后，也可以创建 Pull Request（PR）：请求将该分支合并到目标分支，便于查看差异和讨论；创建 PR 本身不等于已合并。
+修改、保存并运行相关测试后：
 
-练习阶段我们可以采用本地合并：
+```powershell
+git status
+git add -- 本次修改的文件路径
+git diff --cached
+git commit -m "feat: 添加编程问答入口"
+git push -u origin feature/ai-chat
+```
+
+在 GitHub 创建 PR：feature/ai-chat → master。通过代码评审和 CI 后，按团队约定合并；创建 PR 本身不等于合并。
+
+远程 PR 合并后：
 
 ```powershell
 git switch master
-git merge feature/ai-chat
-git push origin master
+git pull --ff-only origin master
+git branch -d feature/ai-chat
 ```
 
-以上要求功能分支已完成提交和验证、工作区干净，且主分支没有尚未处理的远程更新。遇到失败先看错误，不用强制命令绕过。
+PR 若用 squash/rebase 合并，-d 可能无法识别已合并；先核对 PR 和最终代码，不直接换成 -D。远程分支可在已合并 PR 页面删除；命令是 `git push origin --delete feature/ai-chat`，执行前确认团队不再需要它。
 
-日常记住这个顺序：**查看状态 → 检查差异 → 暂存选定改动 → 检查暂存内容 → 提交 → 推送。**
+个人项目本地合并：切到接收改动的分支，执行 `git merge feature/ai-chat`，验证后推送。受保护主分支按 PR 流程合并。
+
+## 5. 同步远程与解决冲突
+
+| 命令 | 作用 |
+| --- | --- |
+| `git fetch origin` | 获取远程历史，不自动合并当前分支 |
+| `git pull --ff-only` | 获取并仅允许快进更新，分叉时停止 |
+| `git push` | 上传当前分支提交，不上传所有本地分支 |
+| `git fetch --prune origin` | 清理远程已删除分支的本地跟踪引用，不删除本地分支 |
+
+功能分支同步主分支，工作区干净后执行：
+
+```powershell
+git fetch origin
+git switch feature/ai-chat
+git merge origin/master
+```
+
+冲突处理：git status 找文件 → 编辑正确结果、去掉冲突标记 → 测试 → git add 暂存 → 继续操作。
+
+| 正在进行的操作 | 解决并暂存后 | 放弃本次操作 |
+| --- | --- | --- |
+| merge | `git merge --continue` | `git merge --abort` |
+| rebase | `git rebase --continue` | `git rebase --abort` |
+| cherry-pick | `git cherry-pick --continue` | `git cherry-pick --abort` |
+| revert | `git revert --continue` | `git revert --abort` |
+
+推送提示 non-fast-forward / rejected，先 fetch 并检查历史，不能用强推代替解决分叉。
+
+## 6. 撤销与恢复
+
+每行都是独立操作，执行前先查看状态和差异。
+
+| 场景 | 命令 | 影响 |
+| --- | --- | --- |
+| 取消暂存 | `git restore --staged -- 文件路径` | 保留文件修改 |
+| 丢弃未暂存修改 | `git restore -- 文件路径` | 暂存区版本覆盖工作区，未提交内容可能丢失 |
+| 恢复旧版文件 | `git restore --source=提交号 -- 文件路径` | 覆盖工作区该文件，检查后再 add、commit |
+| 撤销已共享的普通提交 | `git revert 提交号` | 新建反向提交，不改写历史；合并提交需另行判断主线 |
+| 修改最新未共享提交说明 | `git commit --amend -m "新说明"` | 改写最新提交，也会包含当前暂存内容 |
+| 撤回最新未共享提交、保留暂存 | `git reset --soft HEAD~1` | 分支退一步，工作区和暂存区不变 |
+| 撤回最新未共享提交、取消暂存 | `git reset --mixed HEAD~1` | 分支退一步，保留工作区文件 |
+| 找回误操作前的提交 | `git reflog`，再 `git branch rescue/restore 提交号` | 新建恢复分支，不覆盖当前文件 |
+
+HEAD~1 需要存在父提交。已推送且他人可能使用的历史优先用 revert。reset 各模式见 [Git 官方文档](https://git-scm.com/docs/git-reset)。
+
+高风险命令：git reset --hard 会丢弃修改；git clean -fd 删除未跟踪文件（先用 git clean -nd 预览）；git push --force 可能覆盖他人历史。reflog 不能保证找回未提交内容。
+
+## 7. 临时切任务：stash
+
+```powershell
+git stash push -u -m "问答功能未完成"
+git stash list
+# 完成临时任务，回到原分支后恢复
+git stash apply 'stash@{0}'
+git status
+# 确认恢复正确后，才删除这份临时记录
+git stash drop 'stash@{0}'
+```
+
+-u 包含未跟踪文件，不包含忽略文件。apply 保留记录；pop 恢复成功后删除记录。stash 只存在本地，不随 push 上传；恢复可能有冲突。
+
+## 8. 常用进阶操作
+
+按需选用，改写历史前先保持工作区干净。
+
+| 用途 | 命令 |
+| --- | --- |
+| 把指定提交应用到当前分支 | `git cherry-pick 提交号` |
+| 将个人功能分支重放到主分支之上 | 先 `git fetch origin`，再 `git rebase origin/master` |
+| 整理最近三个未共享提交 | `git rebase -i HEAD~3`；reword 改说明，squash/fixup 合并提交 |
+| 新增独立工作目录和分支 | `git worktree add -b fix/login ../hoj-login master` |
+| 查看工作目录列表 | `git worktree list` |
+| 查看指定行的修改来源 | `git blame -L 10,30 -- 文件路径` |
+| 查询文字增删历史 | `git log -S "关键文字" -- 文件路径` |
+| 为已验证提交打标签 | `git tag -a v0.1.0 -m "本地部署版本" 提交号` |
+| 推送指定标签 | `git push origin v0.1.0` |
+
+推送标签不一定触发部署，取决于 CI 配置。共享标签不要随意移动。
+
+rebase/amend 会改变提交号。仅在团队允许、确认无人依赖的个人远程分支上，才考虑 `git push --force-with-lease origin 分支名`；它校验预期远程状态，但不代替协作确认。主分支不强推。
+
+定位哪个提交引入 bug：
+
+```powershell
+git bisect start
+git bisect bad
+git bisect good 已知正常的提交号
+# 测试 Git 选出的版本，再执行 git bisect good 或 git bisect bad
+# 定位完成或中途放弃后，回到原分支
+git bisect reset
+```
+
+## 9. docs 可以推送到 GitHub
+
+**可以。** Git 不限制 docs 目录，文档通常与代码一起管理；上传文档与部署文档网站是两件事。
+
+当前根目录 .gitignore 中有一行 `docs`，会忽略各层级匹配的目录。若要提交新增文档，删除这一行；保留 node_modules/、dist/ 等依赖和产物规则。
+
+忽略规则不影响已跟踪文件：这份指南已经被跟踪，其修改仍可提交。
+
+```powershell
+git check-ignore -v -- HOJ-master/docs/docs/git/新文档.md
+git ls-files -- HOJ-master/docs/
+```
+
+前者查忽略来源，后者查已跟踪文件。取消忽略后，在根目录检查并提交：
+
+```powershell
+git status --short -- .gitignore HOJ-master/docs/
+git add -- .gitignore HOJ-master/docs/
+git diff --cached --stat
+git diff --cached
+git commit -m "docs: 更新项目文档"
+git push
+```
+
+不用 git add -f 绕过规则。源码、构建配置、脱敏 SQL、锁文件和文档按需要跟踪；真实密钥、个人数据、数据库数据目录和依赖目录不提交。
+
+.gitignore 不会自动停止跟踪旧文件。确需停止跟踪且保留本地文件，用 `git rm --cached -- 文件路径`，再提交；历史版本仍然存在。凭据泄露先吊销或更换，再协调清理历史。Git 不跟踪空目录，可以添加 README。
+
+## 10. 企业常见协作约定
+
+- 一个任务一个短期分支，一次提交解决一件事，避免无关改动。
+- 分支示例：feature/ai-chat、fix/login、docs/git-guide。
+- 提交示例：feat: 添加学习计划、fix: 修复登录失败、docs: 更新说明；其他常见前缀有 refactor、test、chore。这是团队约定。
+- 主分支通过 PR/MR 合并；描述目的、测试结果，必要时附截图和数据库变更说明。
+- 要求评审和 CI 通过，限制主分支直接推送、强推和删除。配置方法见 [GitHub 分支保护](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)。
+- 按公司要求启用提交签名、关联工单、管理发布标签；不必为了“企业标准”强行添加长期 develop 分支。
+
+## 11. 报错速查
+
+| 提示 | 处理 |
+| --- | --- |
+| not a git repository | 检查当前路径，进入仓库 |
+| nothing to commit | 检查是否保存、被忽略或已经提交 |
+| no upstream branch | git push -u origin 当前分支名 |
+| remote origin already exists | 查看 remote -v，需要时用 remote set-url |
+| src refspec main does not match any | 检查分支叫 main 还是 master，以及是否已有提交 |
+| local changes would be overwritten | 先 commit 或 stash，再切换/合并 |
+| Authentication failed / 403 | 检查账号、认证凭据和仓库权限 |
+| refusing to merge unrelated histories | 检查两套独立历史的来源，不直接强行合并 |
+| LF will be replaced by CRLF | 换行转换提示，按项目 .gitattributes 约定处理 |
+| GitHub 看不到最新文件 | 检查 commit、push 是否成功，网页是否选中正确分支 |
+
+命令参数可用 `git 命令 -h` 查看，例如 `git stash -h`。
