@@ -1,17 +1,21 @@
 <template>
   <div>
     <template v-if="!mobileNar">
-      <div id="header" :class="['nav-' + appearance.navigation, { 'nav-condensed': scrolled && !navHovered }]" @mouseenter="navHovered = true" @mouseleave="navHovered = false" @focusin="navHovered = true" @focusout="onNavFocusOut">
-        <el-menu
+      <div id="header" aria-label="CDUTETC 导航栏" :class="['nav-' + appearance.navigation, { 'nav-scrolled': scrolled, 'nav-condensed': scrolled && !navEngaged }]" @mouseenter="navHovered = true" @mouseleave="navHovered = false" @focusin="navFocused = true" @focusout="onNavFocusOut">
+        <div class="nav-shell">
+          <router-link class="logo" to="/home" aria-label="CDUTETC · 成理工程在线测评平台首页"><BrandLogo compact /></router-link>
+          <el-menu
+          class="nav-links"
+          aria-label="主导航"
           :default-active="activeMenuName"
           mode="horizontal"
           router
           active-text-color="#2196f3"
           text-color="#495060"
+          @open="onMenuOpen"
+          @close="onMenuClose"
         >
-          <router-link class="logo" to="/home" aria-label="CDUTETC 首页"><BrandLogo /></router-link>
-          <AppearanceSettings class="nav-appearance" />
-          <template v-if="mode == 'defalut'">
+          <template>
             <el-menu-item index="/home"
               ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Home') }}</el-menu-item
             >
@@ -31,7 +35,7 @@
               ><i class="el-icon-s-marketing"></i
               >{{ $t('m.NavBar_Status') }}</el-menu-item
             >
-            <el-submenu index="rank">
+            <el-submenu index="rank" popper-class="cdutetc-nav-popup">
               <template slot="title"
                 ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</template
               >
@@ -53,7 +57,7 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
-            <el-submenu index="about">
+            <el-submenu index="about" popper-class="cdutetc-nav-popup">
               <template slot="title"
                 ><i class="el-icon-info"></i>{{ $t('m.NavBar_About') }}</template
               >
@@ -65,10 +69,9 @@
               }}</el-menu-item>
             </el-submenu>
         </template>
-        <template v-else-if="mode == 'training'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
+        <el-submenu v-if="mode != 'defalut'" index="context" class="nav-context" popper-class="cdutetc-nav-popup">
+          <template slot="title">{{ contextTitle }}</template>
+        <template v-if="mode == 'training'">
             <template v-if="$route.params.groupID">
               <el-menu-item :index="'/group/' + $route.params.groupID"
               ><i
@@ -84,9 +87,6 @@
             >
         </template>
         <template v-else-if="mode == 'contest'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
             <el-menu-item :index="'/contest/' + $route.params.contestID"
               ><i class="el-icon-trophy"></i>{{ $t('m.NavBar_Contest_Home') }}</el-menu-item
             >
@@ -101,9 +101,6 @@
             >
         </template>
         <template v-else-if="mode == 'group'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
             <template v-if="$route.params.groupID">
               <el-menu-item :index="'/group/' + $route.params.groupID"
               ><i
@@ -115,7 +112,10 @@
               ><i class="fa fa-list navbar-icon"></i>{{ $t('m.Problem_List') }}</el-menu-item
             >
         </template>
-
+        </el-submenu>
+          </el-menu>
+          <div class="nav-actions">
+          <AppearanceSettings class="nav-appearance" @visibility-change="onDropdownVisibility($event, 'appearance')" />
           <template v-if="!isAuthenticated">
             <div class="btn-menu">
               <el-button 
@@ -141,8 +141,9 @@
               @command="handleRoute"
               placement="bottom"
               trigger="click"
+              @visible-change="onDropdownVisibility($event, 'account')"
             >
-              <span class="el-dropdown-link">
+              <button class="el-dropdown-link nav-account" type="button" aria-label="打开个人菜单" @keydown.enter.prevent>
             <avatar
               :username="userInfo.username"
               :inline="true"
@@ -152,9 +153,9 @@
               class="drop-avatar"
             ></avatar>
                 <span class="nav-username">{{ userInfo.username }}</span><i class="el-icon-caret-bottom"></i>
-              </span>
+              </button>
 
-              <el-dropdown-menu slot="dropdown">
+              <el-dropdown-menu slot="dropdown" class="cdutetc-nav-dropdown">
                 <el-dropdown-item command="/user-home">{{
                   $t('m.NavBar_UserHome')
                 }}</el-dropdown-item>
@@ -176,8 +177,10 @@
               class="drop-msg"
               @command="handleRoute"
               placement="bottom"
+              trigger="click"
+              @visible-change="onDropdownVisibility($event, 'notifications')"
             >
-              <span class="el-dropdown-link">
+              <button class="el-dropdown-link nav-notifications" type="button" aria-label="通知" @keydown.enter.prevent>
                 <i class="el-icon-message-solid"></i>
                 <svg
                   v-if="
@@ -193,9 +196,9 @@
                 >
                   <circle cx="5" cy="5" r="5" style="fill: red;"></circle>
                 </svg>
-              </span>
+              </button>
 
-              <el-dropdown-menu slot="dropdown">
+              <el-dropdown-menu slot="dropdown" class="cdutetc-nav-dropdown">
                 <el-dropdown-item command="/message/discuss">
                   <span>{{ $t('m.DiscussMsg') }}</span>
                   <span class="drop-msg-count" v-if="unreadMessage.comment > 0">
@@ -229,16 +232,17 @@
               </el-dropdown-menu>
             </el-dropdown>
           </template>
-        </el-menu>
+          </div>
+        </div>
       </div>
       <div id="header-hidden">
       </div>
     </template>
     <template v-else>
       <div style="top:0px;left:0px;">
-      <mu-appbar class="mobile-nav" color="primary">
+      <mu-appbar class="mobile-nav" :class="['nav-' + appearance.navigation, { 'nav-scrolled': scrolled }]" color="primary">
         <AppearanceSettings slot="right" />
-        <mu-button icon slot="left" @click="opendrawer = !opendrawer">
+        <mu-button icon slot="left" aria-label="打开导航菜单" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
         <el-tooltip
@@ -246,15 +250,14 @@
             placement="bottom"
             effect="dark"
           >
-          <span @click="changeWebLanguage">
-          {{
-            websiteConfig.shortName ? websiteConfig.shortName : 'OJ'
-          }}
+          <span class="mobile-brand" @click="changeWebLanguage">
+            <BrandLogo compact />
           </span>
         </el-tooltip>
         <mu-button
           flat
           slot="right"
+          class="mobile-login"
           @click="handleBtnClick('Login')"
           v-show="!isAuthenticated"
           >{{ $t('m.NavBar_Login') }}</mu-button
@@ -262,13 +265,14 @@
         <mu-button
           flat
           slot="right"
+          class="mobile-register"
           @click="handleBtnClick('Register')"
           v-show="!isAuthenticated && websiteConfig.register"
           >{{ $t('m.NavBar_Register') }}</mu-button
         >
 
-        <mu-menu slot="right" v-show="isAuthenticated" :open.sync="openmsgmenu">
-          <mu-button flat>
+        <mu-menu slot="right" v-show="isAuthenticated" :open.sync="openmsgmenu" popover-class="cdutetc-mobile-popup">
+          <mu-button flat aria-label="通知">
             <mu-icon value=":el-icon-message-solid" size="24"></mu-icon>
             <svg
               v-if="
@@ -345,11 +349,12 @@
         </mu-menu>
 
         <mu-menu
+          popover-class="cdutetc-mobile-popup"
           slot="right"
           v-if="isAuthenticated"
           :open.sync="openusermenu"
         >
-          <mu-button flat>
+          <mu-button flat aria-label="打开个人菜单">
             <avatar
               :username="userInfo.username"
               :inline="true"
@@ -358,6 +363,7 @@
               :src="avatar"
               :title="userInfo.username"
             ></avatar>
+            <span class="mobile-username">{{ userInfo.username }}</span>
             <i class="el-icon-caret-bottom"></i>
           </mu-button>
           <mu-list slot="content" @change="handleCommand">
@@ -405,11 +411,9 @@
         </mu-menu>
       </mu-appbar>
 
-      <mu-appbar style="width: 100%;">
-        <!--占位，刚好占领导航栏的高度-->
-      </mu-appbar>
+      <div class="mobile-nav-spacer" aria-hidden="true"></div>
 
-      <mu-drawer :open.sync="opendrawer" :docked="false" :right="false">
+      <mu-drawer class="cdutetc-nav-drawer" :open.sync="opendrawer" :docked="false" :right="false">
         <mu-list toggle-nested>
           <mu-list-item
             button
@@ -655,6 +659,8 @@ export default {
       appearance,
       scrolled: false,
       navHovered: false,
+      navFocused: false,
+      openPopups: {},
       mode:'defalut',
       centerDialogVisible: false,
       mobileNar: false,
@@ -670,14 +676,23 @@ export default {
     ...mapActions(['changeModalStatus']),
     onResize() { this.page_width(); },
     onScroll() { if (this.scrollFrame) return; this.scrollFrame = requestAnimationFrame(() => { this.scrolled = window.scrollY > 48; this.scrollFrame = null; }); },
-    onNavFocusOut(event) { if (!event.currentTarget.contains(event.relatedTarget)) this.navHovered = false; },
+    onNavFocusOut(event) {
+      if (!event.currentTarget.contains(event.relatedTarget)) this.navFocused = false;
+    },
+    onDropdownVisibility(open, key) { this.$set(this.openPopups, key, open); },
+    onMenuOpen(index) { this.onDropdownVisibility(true, 'menu:' + index); },
+    onMenuClose(index) { this.onDropdownVisibility(false, 'menu:' + index); },
     page_width() {
-      let screenWidth = window.innerWidth;
-      if (screenWidth < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
+      const mobile = window.innerWidth < 992;
+      if (mobile !== this.mobileNar) {
+        this.navHovered = false;
+        this.navFocused = false;
+        this.openPopups = {};
+        this.opendrawer = false;
+        this.openusermenu = false;
+        this.openmsgmenu = false;
       }
+      this.mobileNar = mobile;
     },
     handleBtnClick(mode) {
       this.changeModalStatus({
@@ -782,6 +797,12 @@ export default {
     avatar() {
       return this.$store.getters.userInfo.avatar;
     },
+    navEngaged() {
+      return this.navHovered || this.navFocused || Object.values(this.openPopups).some(Boolean);
+    },
+    contextTitle() {
+      return { training: '当前训练', contest: '当前比赛', group: '当前团队' }[this.mode];
+    },
     activeMenuName() {
       if (this.$route.path.split('/')[1] == 'submission-detail') {
         return '/status';
@@ -815,6 +836,7 @@ export default {
   },
   watch: {
     isAuthenticated() {
+      this.openPopups = {};
       if (this.isAuthenticated) {
         if (this.msgTimer) {
           clearInterval(this.msgTimer);
@@ -829,6 +851,7 @@ export default {
     },
     $route(){
       this.switchMode();
+      this.onScroll();
     }
   },
 };

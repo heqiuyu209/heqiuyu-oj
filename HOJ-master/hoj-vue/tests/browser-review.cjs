@@ -326,11 +326,14 @@ function fixture(req) {
     if (r.exceptionDetails) throw Error(JSON.stringify(r.exceptionDetails));
     return r.result.value;
   };
-  const shot = async (name) => {
+  const shot = async (name, clip) => {
     await sleep(100);
+    // CDP clips use document coordinates, including the current scroll offset.
+    if (clip) clip = { ...clip, y: clip.y + await ev("window.scrollY") };
     const r = await cdp("Page.captureScreenshot", {
       format: "png",
       captureBeyondViewport: false,
+      ...(clip ? { clip } : {}),
     });
     fs.writeFileSync(
       path.join(root, "source-" + name + ".png"),
@@ -352,6 +355,11 @@ function fixture(req) {
       name
     )}+'.vue'))return vm;for(const c of vm.$children){const found=find(c);if(found)return found}})(document.getElementById('app').__vue__)`;
   const report = { checks: {}, errors, warnings };
+  const dismissMenus = () => ev(`(()=>{for(const type of ['mousedown','mouseup','click']) document.body.dispatchEvent(new MouseEvent(type,{bubbles:true}));})()`);
+  const pressKey = async (key, keyCode) => {
+    for (const type of ["keyDown", "keyUp"])
+      await cdp("Input.dispatchKeyEvent", { type, key, windowsVirtualKeyCode: keyCode });
+  };
   await cdp("Runtime.enable");
   await cdp("Page.enable");
   await cdp("Fetch.enable", { patterns: [{ urlPattern: "*/api/*" }] });
@@ -391,7 +399,40 @@ function fixture(req) {
   report.checks.hovered = await ev(
     `({width:document.querySelector('#header').offsetWidth,height:document.querySelector('#header').offsetHeight})`
   );
-  await route("/problem");
+  // Measure actual bounds: no menu entry or account action may overlap or escape the capsule.
+  const navBounds = () => ev(`(()=>{
+    const bar=document.querySelector('#header'),links=bar.querySelector('.nav-links'),actions=bar.querySelector('.nav-actions');
+    const b=bar.getBoundingClientRect(),l=links.getBoundingClientRect(),a=actions.getBoundingClientRect(),brand=bar.querySelector('.logo').getBoundingClientRect();
+    return {width:Math.round(b.width),height:Math.round(b.height),fits:brand.right<=l.left+1 && l.right<=a.left+1 && a.right<=b.right && links.scrollWidth<=links.clientWidth+1,
+      labels:[...links.querySelectorAll(':scope > .el-menu-item,:scope > .el-submenu > .el-submenu__title')].map(x=>x.textContent.trim()),
+      login:!!bar.querySelector('.btn-menu'),username:bar.querySelector('.nav-username')?.textContent.trim(),notifications:!!bar.querySelector('.nav-notifications'),
+      background:getComputedStyle(bar).backgroundColor,radius:getComputedStyle(bar).borderRadius};})()`);
+  report.checks.navigation = { guest: [], modes: {}, authenticated: [] };
+  await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 500 });
+  for (const theme of ["light", "dark"]) {
+    await ev(`${component("AppearanceSettings")}.set('theme',${JSON.stringify(theme)})`);
+    await ev("scrollTo(0,0)");
+    await sleep(350);
+    await shot("nav-" + theme + "-top", { x: 0, y: 0, width: 1440, height: 132, scale: 1 });
+    await ev("scrollTo(0,420)");
+    await sleep(350);
+    await shot("nav-" + theme + "-capsule", { x: 0, y: 0, width: 1440, height: 132, scale: 1 });
+    for (const width of [992, 1024, 1280, 1440]) {
+      await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1080, deviceScaleFactor: 1, mobile: false });
+      await sleep(350);
+      report.checks.navigation.guest.push({ theme, viewport: width, ...(await navBounds()) });
+    }
+  }
+  for (const mode of ["normal", "glass", "dynamic"]) {
+    await ev(`${component("AppearanceSettings")}.set('navigation',${JSON.stringify(mode)})`);
+    await sleep(350);
+    report.checks.navigation.modes[mode] = await navBounds();
+  }
+  await ev(`${component("AppearanceSettings")}.set('theme','light');scrollTo(0,0)`);
+  await ev("document.querySelectorAll('#header .nav-links > .el-menu-item')[1].focus()");
+  await pressKey("Enter", 13);
+  await sleep(850);
+  report.checks.navigation.keyboardRoute = await ev("location.pathname");
   report.checks.sourceList = await ev(
     `document.querySelector('.problem-list')?.innerText || document.body.innerText`
   );
@@ -493,7 +534,16 @@ function fixture(req) {
     report.checks.roles[r + "Menu"] = await ev(
       `[...document.querySelectorAll('.el-dropdown-menu__item')].some(x=>x.textContent.includes('管理后台') && x.getBoundingClientRect().height>0)`
     );
-    await ev(`document.body.click()`);
+    if (r === "admin") {
+      await ev("scrollTo(0,420)");
+      await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 500 });
+      await sleep(350);
+      report.checks.navigation.openAccount = await navBounds();
+      report.checks.navigation.accountEntries = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].filter(x=>x.getBoundingClientRect().height>0).map(x=>x.textContent.trim())`);
+      await shot("nav-dark-account", { x: 0, y: 0, width: 1440, height: 330, scale: 1 });
+    }
+    await dismissMenus();
+    await sleep(300);
   }
   role = "user";
   await ev(
@@ -501,11 +551,33 @@ function fixture(req) {
       user()
     )}})`
   );
+  for (const width of [992, 1024, 1280, 1440]) {
+    await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1080, deviceScaleFactor: 1, mobile: false });
+    await sleep(350);
+    report.checks.navigation.authenticated.push({ viewport: width, ...(await navBounds()) });
+  }
+  await ev("document.querySelector('.nav-notifications').click()");
+  await sleep(350);
+  report.checks.navigation.notificationEntries = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].filter(x=>x.getBoundingClientRect().height>0).map(x=>x.textContent.trim())`);
+  await dismissMenus();
+  await ev("document.querySelector('.nav-account').focus()");
+  await pressKey("Enter", 13);
+  await sleep(350);
+  report.checks.navigation.keyboardAccount = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].some(x=>x.getBoundingClientRect().height>0 && x.textContent.includes('我的首页'))`);
+  await pressKey("Escape", 27);
+  await sleep(350);
+  report.checks.navigation.keyboardEscape = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].every(x=>x.getBoundingClientRect().height===0)`);
+  await ev("document.activeElement.blur()");
+  await ev("scrollTo(0,0)");
   await route("/setting");
   await ev(`${component("Setting")}.activeName='Platforms'`);
   await sleep(200);
   await shot("accounts");
   await route("/training/1/problem/P1000/full-screen?from=review");
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 992, height: 1080, deviceScaleFactor: 1, mobile: false });
+  await sleep(350);
+  report.checks.navigation.training = await navBounds();
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1080, deviceScaleFactor: 1, mobile: false });
   report.checks.neighbors = await ev(
     `({text:document.querySelector('.problem-neighbors')?.innerText,disabled:document.querySelector('.problem-neighbors button')?.disabled})`
   );
@@ -626,6 +698,22 @@ function fixture(req) {
     );
     await shot("mobile-" + p.replaceAll("/", "-"));
   }
+  report.checks.navigation.mobile = {};
+  for (const theme of ["light", "dark"]) {
+    await ev(`${component("AppearanceSettings")}.set('theme',${JSON.stringify(theme)})`);
+    await sleep(250);
+    report.checks.navigation.mobile[theme] = await ev(`(()=>{const bar=document.querySelector('.mobile-nav'),b=bar.getBoundingClientRect();return {username:bar.querySelector('.mobile-username')?.textContent.trim(),fits:[...bar.querySelectorAll('.mu-appbar-title,.mu-appbar-right')].every(x=>x.getBoundingClientRect().right<=b.right),overflow:document.documentElement.scrollWidth>innerWidth}})()`);
+    await shot("nav-mobile-" + theme, { x: 0, y: 0, width: 390, height: 125, scale: 1 });
+    await ev("document.querySelector('.mobile-nav [aria-label=\"打开个人菜单\"]').click()");
+    await sleep(350);
+    report.checks.navigation.mobile[theme].menu = await ev(`(()=>{const popup=[...document.querySelectorAll('.cdutetc-mobile-popup')].find(x=>x.getBoundingClientRect().height>0);return {visible:!!popup,text:popup?.innerText,background:popup&&getComputedStyle(popup).backgroundColor,foreground:popup&&getComputedStyle(popup.querySelector('.mu-item')).color}})()`);
+    if (theme === "dark") await shot("nav-mobile-dark-account", { x: 0, y: 0, width: 390, height: 425, scale: 1 });
+    await ev(`${component("NavBar")}.openusermenu=false`);
+    await sleep(300);
+  }
+  await ev(`${component("NavBar")}.opendrawer=true`);
+  await sleep(300);
+  report.checks.navigation.mobileDrawer = await ev(`document.querySelector('.mu-drawer').innerText`);
 
   fs.writeFileSync(
     path.join(root, "source-review-unvalidated.json"),
@@ -635,9 +723,10 @@ function fixture(req) {
   assert.equal(report.checks.home.logo, 608);
   for (const label of [
     "首页",
+    "题目",
     "训练",
     "比赛",
-    "评测",
+    "测评",
     "排名",
     "讨论",
     "团队",
@@ -651,6 +740,32 @@ function fixture(req) {
     report.checks.scrolled.width < report.checks.hovered.width &&
       report.checks.scrolled.height < report.checks.hovered.height
   );
+  for (const result of [...report.checks.navigation.guest, ...report.checks.navigation.authenticated]) {
+    assert(result.fits, "navigation overlaps at " + result.viewport + "px " + (result.theme || "authenticated"));
+    assert.equal(result.labels.length, 9);
+  }
+  assert(report.checks.navigation.guest.every(x => x.login));
+  assert(report.checks.navigation.authenticated.every(x => x.username === "UI验收账号" && x.notifications && !x.login));
+  assert.equal(report.checks.navigation.openAccount.width, report.checks.hovered.width);
+  for (const label of ["我的首页", "我的设置", "我的提交", "管理后台", "退出登录"])
+    assert(report.checks.navigation.accountEntries.includes(label), "missing account menu " + label);
+  assert.equal(report.checks.navigation.notificationEntries.length, 5);
+  assert.equal(report.checks.navigation.keyboardRoute, "/problem");
+  assert.equal(report.checks.navigation.keyboardAccount, true);
+  assert.equal(report.checks.navigation.keyboardEscape, true);
+  assert(report.checks.navigation.training.fits);
+  assert.equal(report.checks.navigation.training.labels.length, 10);
+  assert.equal(report.checks.navigation.modes.normal.radius, "0px");
+  assert.equal(report.checks.navigation.modes.glass.radius, "999px");
+  for (const result of Object.values(report.checks.navigation.mobile)) {
+    assert(result.fits && !result.overflow, "mobile navigation overflow");
+    assert.equal(result.username, "UI验收账号");
+    assert(result.menu.visible && result.menu.text.includes("我的首页") && result.menu.text.includes("我的设置") && result.menu.text.includes("我的提交"));
+    assert(!result.menu.text.includes("管理后台"));
+    assert.notEqual(result.menu.foreground, result.menu.background);
+  }
+  for (const label of ["首页", "题目", "训练", "比赛", "测评", "排名", "讨论", "团队", "关于"])
+    assert(report.checks.navigation.mobileDrawer.includes(label), "missing mobile navigation " + label);
   assert(report.checks.sourceList.includes("Codeforces"));
   assert.equal(report.checks.cppRestored, "// cpp draft");
   assert.equal(report.checks.restored.code, "// cpp draft");

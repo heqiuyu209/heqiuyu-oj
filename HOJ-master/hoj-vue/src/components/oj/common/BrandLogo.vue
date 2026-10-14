@@ -1,11 +1,11 @@
 <template>
-  <span class="brand-lockup">
+  <span class="brand-lockup" :class="{ 'brand-lockup-compact': compact }">
     <img src="@/assets/brand/cdutetc.webp" alt="成都理工大学工程技术学院校徽" />
-    <span v-if="!iconOnly"><strong>CDUTETC</strong><small>成理工程在线测评平台</small></span>
+    <span v-if="!iconOnly"><strong>CDUTETC</strong><small>{{ compact ? 'OJ' : '成理工程在线测评平台' }}</small></span>
   </span>
 </template>
 <script>
-export default { props: { iconOnly: Boolean } };
+export default { props: { iconOnly: Boolean, compact: Boolean } };
 </script>
 <style scoped>
 .brand-lockup { display: inline-flex; align-items: center; gap: 10px; text-align: left; vertical-align: middle; color: var(--text); }

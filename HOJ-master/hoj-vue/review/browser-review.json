@@ -8,7 +8,7 @@
         "题目",
         "训练",
         "比赛",
-        "评测",
+        "测评",
         "排名",
         "ACM 排名",
         "OI 排名",
@@ -21,15 +21,432 @@
       "overflow": false
     },
     "scrolled": {
-      "width": 1316,
-      "height": 53,
-      "bg": "rgba(247, 252, 255, 0.72)"
+      "width": 1318,
+      "height": 54,
+      "bg": "rgba(240, 246, 250, 0.76)"
     },
     "hovered": {
-      "width": 1430,
-      "height": 73
+      "width": 1374,
+      "height": 64
     },
-    "sourceList": "CDUTETC\n成理工程在线测评平台\n首页\n题目\n训练\n比赛\n评测\n排名\n讨论\n团队\n关于\n登录\n注册\n AI 助教\n题目列表\n显示标签\n重置\n题库\n全部主题库HDUCodeforcesPOJGYMAtCoderSPOJLIBREOJ\n难度\n全部简单中等困难\n题目ID\n\t\n题目\n\t\n来源 / Rating\n\t\n难度\n\t\n总数\n\t\nAC 通过率\nP1000\n\t\n二分查找：第一个不小于目标的数\n\t\n本校题库\nCF 标尺 待定\n\t\n中等\n\t\n30\n\t\n63.33%\n\n\nCF-4A\n\t\nWatermelon\n\t\nCodeforces\nCF 标尺 待定\n\t\n中等\n\t\n55\n\t\n76.36%\n1\n请点击或悬停鼠标至问题行查看提交状态\nAC\n100%\nWA\n100%\nTLE\n100%\nMLE\n100%\nRE\n100%\nPE\n100%\nCE\n100%\nSE\n100%\n主题库 标签\n\n暂无数据\n\n成理工程在线测评平台\n面向算法学习、程序设计与 XCPC 集训的在线测评平台。\n服务\n\n评测队列\n\n系统信息\n\n开发\n\n开源\n\nAPI\n\n支持\n\n 关于\n\n 帮助\n\n基于 HOJ 开源项目构建 · CDUTETC 简体中文",
+    "navigation": {
+      "guest": [
+        {
+          "theme": "light",
+          "viewport": 992,
+          "width": 926,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(240, 246, 250, 0.76)",
+          "radius": "999px"
+        },
+        {
+          "theme": "light",
+          "viewport": 1024,
+          "width": 958,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(240, 246, 250, 0.76)",
+          "radius": "999px"
+        },
+        {
+          "theme": "light",
+          "viewport": 1280,
+          "width": 1158,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(240, 246, 250, 0.76)",
+          "radius": "999px"
+        },
+        {
+          "theme": "light",
+          "viewport": 1440,
+          "width": 1318,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(240, 246, 250, 0.76)",
+          "radius": "999px"
+        },
+        {
+          "theme": "dark",
+          "viewport": 992,
+          "width": 926,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "theme": "dark",
+          "viewport": 1024,
+          "width": 958,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "theme": "dark",
+          "viewport": 1280,
+          "width": 1158,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "theme": "dark",
+          "viewport": 1440,
+          "width": 1318,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        }
+      ],
+      "modes": {
+        "normal": {
+          "width": 1430,
+          "height": 63,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgb(25, 47, 60)",
+          "radius": "0px"
+        },
+        "glass": {
+          "width": 1374,
+          "height": 64,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        "dynamic": {
+          "width": 1318,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": true,
+          "notifications": false,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        }
+      },
+      "authenticated": [
+        {
+          "viewport": 992,
+          "width": 926,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": false,
+          "username": "UI验收账号",
+          "notifications": true,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "viewport": 1024,
+          "width": 958,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": false,
+          "username": "UI验收账号",
+          "notifications": true,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "viewport": 1280,
+          "width": 1158,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": false,
+          "username": "UI验收账号",
+          "notifications": true,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        },
+        {
+          "viewport": 1440,
+          "width": 1318,
+          "height": 54,
+          "fits": true,
+          "labels": [
+            "首页",
+            "题目",
+            "训练",
+            "比赛",
+            "测评",
+            "排名",
+            "讨论",
+            "团队",
+            "关于"
+          ],
+          "login": false,
+          "username": "UI验收账号",
+          "notifications": true,
+          "background": "rgba(88, 104, 122, 0.64)",
+          "radius": "999px"
+        }
+      ],
+      "keyboardRoute": "/problem",
+      "openAccount": {
+        "width": 1374,
+        "height": 64,
+        "fits": true,
+        "labels": [
+          "首页",
+          "题目",
+          "训练",
+          "比赛",
+          "测评",
+          "排名",
+          "讨论",
+          "团队",
+          "关于"
+        ],
+        "login": false,
+        "username": "UI验收账号",
+        "notifications": true,
+        "background": "rgba(88, 104, 122, 0.64)",
+        "radius": "999px"
+      },
+      "accountEntries": [
+        "我的首页",
+        "我的提交",
+        "我的设置",
+        "管理后台",
+        "退出登录"
+      ],
+      "notificationEntries": [
+        "评论我的",
+        "回复我的",
+        "收到的赞",
+        "系统通知",
+        "我的消息"
+      ],
+      "keyboardAccount": true,
+      "keyboardEscape": true,
+      "training": {
+        "width": 950,
+        "height": 64,
+        "fits": true,
+        "labels": [
+          "首页",
+          "题目",
+          "训练",
+          "比赛",
+          "测评",
+          "排名",
+          "讨论",
+          "团队",
+          "关于",
+          "当前训练"
+        ],
+        "login": false,
+        "username": "UI验收账号",
+        "notifications": true,
+        "background": "rgba(0, 0, 0, 0)",
+        "radius": "999px"
+      },
+      "mobile": {
+        "light": {
+          "username": "UI验收账号",
+          "fits": true,
+          "overflow": false,
+          "menu": {
+            "visible": true,
+            "text": "我的首页\n我的提交\n我的设置\n退出登录",
+            "background": "rgb(255, 255, 255)",
+            "foreground": "rgb(35, 62, 76)"
+          }
+        },
+        "dark": {
+          "username": "UI验收账号",
+          "fits": true,
+          "overflow": false,
+          "menu": {
+            "visible": true,
+            "text": "我的首页\n我的提交\n我的设置\n退出登录",
+            "background": "rgb(25, 47, 60)",
+            "foreground": "rgb(222, 237, 244)"
+          }
+        }
+      },
+      "mobileDrawer": "首页\n题目\n训练\n比赛\n测评\n排名\n讨论\n团队\n关于"
+    },
+    "sourceList": "CDUTETC\nOJ\n首页\n题目\n训练\n比赛\n测评\n排名\n讨论\n团队\n关于\n登录\n注册\n AI 助教\n题目列表\n显示标签\n重置\n题库\n全部主题库HDUCodeforcesPOJGYMAtCoderSPOJLIBREOJ\n难度\n全部简单中等困难\n题目ID\n\t\n题目\n\t\n来源 / Rating\n\t\n难度\n\t\n总数\n\t\nAC 通过率\nP1000\n\t\n二分查找：第一个不小于目标的数\n\t\n本校题库\nCF 标尺 待定\n\t\n中等\n\t\n30\n\t\n63.33%\n\n\nCF-4A\n\t\nWatermelon\n\t\nCodeforces\nCF 标尺 待定\n\t\n中等\n\t\n55\n\t\n76.36%\n1\n请点击或悬停鼠标至问题行查看提交状态\nAC\n100%\nWA\n100%\nTLE\n100%\nMLE\n100%\nRE\n100%\nPE\n100%\nCE\n100%\nSE\n100%\n主题库 标签\n\n暂无数据\n\n成理工程在线测评平台\n面向算法学习、程序设计与 XCPC 集训的在线测评平台。\n服务\n\n评测队列\n\n系统信息\n\n开发\n\n开源\n\nAPI\n\n支持\n\n 关于\n\n 帮助\n\n基于 HOJ 开源项目构建 · CDUTETC 简体中文",
     "problem": {
       "cards": [
         " 题目与提交记录",

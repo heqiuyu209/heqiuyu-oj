@@ -4,6 +4,22 @@
 
 执行结果见 [browser-review.json](browser-review.json)，`validated=true`，无未捕获异常。运行方式与验证边界见 [前端 README](../README.md) 和 [实现记录](../UI-IMPLEMENTATION.md)。
 
+## 悬浮玻璃导航：滚动后的浅色 / 深色状态
+
+九个入口始终保留，滚动后收拢，鼠标或键盘进入时展开。校徽保留原色，右侧是界面外观和登录/注册。
+
+![浅色胶囊导航](source-nav-light-capsule.png)
+
+![深色胶囊导航](source-nav-dark-capsule.png)
+
+## 登录后的头像菜单
+
+管理员菜单显示“管理后台”，普通用户隐藏该项。打开菜单时导航保持舒展。
+
+![桌面管理员菜单](source-nav-dark-account.png)
+
+![手机普通用户菜单](source-nav-mobile-dark-account.png)
+
 ## 首页：原内容与 XCPC 照片展示位
 
 ![首页](source-home.png)
