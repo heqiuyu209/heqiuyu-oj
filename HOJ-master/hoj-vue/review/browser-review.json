@@ -1,0 +1,185 @@
+{
+  "checks": {
+    "home": {
+      "title": "Home - CDUTETC",
+      "logo": 608,
+      "nav": [
+        "首页",
+        "题目",
+        "训练",
+        "比赛",
+        "评测",
+        "排名",
+        "ACM 排名",
+        "OI 排名",
+        "讨论",
+        "团队",
+        "关于",
+        "简介",
+        "开发者"
+      ],
+      "overflow": false
+    },
+    "scrolled": {
+      "width": 1316,
+      "height": 53,
+      "bg": "rgba(247, 252, 255, 0.72)"
+    },
+    "hovered": {
+      "width": 1430,
+      "height": 73
+    },
+    "sourceList": "CDUTETC\n成理工程在线测评平台\n首页\n题目\n训练\n比赛\n评测\n排名\n讨论\n团队\n关于\n登录\n注册\n AI 助教\n题目列表\n显示标签\n重置\n题库\n全部主题库HDUCodeforcesPOJGYMAtCoderSPOJLIBREOJ\n难度\n全部简单中等困难\n题目ID\n\t\n题目\n\t\n来源 / Rating\n\t\n难度\n\t\n总数\n\t\nAC 通过率\nP1000\n\t\n二分查找：第一个不小于目标的数\n\t\n本校题库\nCF 标尺 待定\n\t\n中等\n\t\n30\n\t\n63.33%\n\n\nCF-4A\n\t\nWatermelon\n\t\nCodeforces\nCF 标尺 待定\n\t\n中等\n\t\n55\n\t\n76.36%\n1\n请点击或悬停鼠标至问题行查看提交状态\nAC\n100%\nWA\n100%\nTLE\n100%\nMLE\n100%\nRE\n100%\nPE\n100%\nCE\n100%\nSE\n100%\n主题库 标签\n\n暂无数据\n\n成理工程在线测评平台\n面向算法学习、程序设计与 XCPC 集训的在线测评平台。\n服务\n\n评测队列\n\n系统信息\n\n开发\n\n开源\n\nAPI\n\n支持\n\n 关于\n\n 帮助\n\n基于 HOJ 开源项目构建 · CDUTETC 简体中文",
+    "problem": {
+      "cards": [
+        " 题目与提交记录",
+        " 编程与自测"
+      ],
+      "languages": [
+        "C",
+        "C++ 17",
+        "Python3",
+        "Java"
+      ],
+      "overflow": false
+    },
+    "cppRestored": "// cpp draft",
+    "swapped": [
+      "editor",
+      "statement",
+      "learning"
+    ],
+    "resized": {
+      "statement": 30.047619047619047,
+      "editor": 45.95238095238095,
+      "learning": 24
+    },
+    "restored": {
+      "code": "// cpp draft",
+      "order": [
+        "editor",
+        "statement",
+        "learning"
+      ],
+      "weights": {
+        "statement": 30.047619047619047,
+        "editor": 45.95238095238095,
+        "learning": 24
+      }
+    },
+    "selfTestInsideEditor": true,
+    "roles": {
+      "user": false,
+      "userMenu": false,
+      "admin": true,
+      "adminMenu": true,
+      "root": true,
+      "rootMenu": true,
+      "problem_admin": true,
+      "problem_adminMenu": true
+    },
+    "neighbors": {
+      "text": " 上一题\n1 / 2\n下一题 ",
+      "disabled": true
+    },
+    "nextPath": "/training/1/problem/P1001/full-screen?from=review",
+    "testRequest": [
+      {
+        "path": "/api/submit-problem-test-judge",
+        "method": "POST",
+        "data": "{\"pid\":1000,\"language\":\"C\",\"code\":\"int main(){return 0;}\",\"type\":\"public\",\"userInput\":\"1\",\"expectedOutput\":null,\"mode\":\"text/x-c++src\",\"isRemoteJudge\":false}"
+      }
+    ],
+    "ratings": "练习 Rating\n待定\n日常训练 · 计分规则待定\n比赛 Rating\n待定\n计分比赛 · 计分规则待定",
+    "dragOrder": [
+      "editor",
+      "statement",
+      "learning"
+    ],
+    "expanded": 1,
+    "escaped": 0,
+    "emptyDraft": "",
+    "staleSubmission": {
+      "problem": "P1001",
+      "status": false,
+      "submitted": false
+    },
+    "contestAi": {
+      "disabled": true,
+      "text": " AI 助教\n×\n\n当前题目 · P1000\n\n从你卡住的地方开始\n\n理解题意、推导思路、分析复杂度，保留自己完成解题的过程。\n\n比赛页面暂不提供 AI 助教\n帮我理解题意\n提示下一步思路\n分析复杂度\n当前不会发送题目或代码\n发送"
+    },
+    "objective": {
+      "SINGLE_CHOICE": {
+        "title": "写下你的答案",
+        "codeEditors": 0,
+        "disabled": true
+      },
+      "MULTIPLE_CHOICE": {
+        "title": "写下你的答案",
+        "codeEditors": 0,
+        "disabled": true
+      },
+      "FILL_BLANK": {
+        "title": "写下你的答案",
+        "codeEditors": 0,
+        "disabled": true
+      }
+    },
+    "mobile": {
+      "/home": {
+        "width": 380,
+        "scroll": 380
+      },
+      "/problem": {
+        "width": 380,
+        "scroll": 380
+      },
+      "/problem/P1000": {
+        "width": 380,
+        "scroll": 380
+      },
+      "/setting": {
+        "width": 380,
+        "scroll": 380
+      },
+      "/developer": {
+        "width": 380,
+        "scroll": 380
+      }
+    }
+  },
+  "errors": [],
+  "warnings": [
+    "[vxe-table] 缺少必要的 \"tooltip-config\" 参数，这可能会导致出现错误",
+    "[vxe-table] 缺少必要的 \"tooltip-config\" 参数，这可能会导致出现错误",
+    "[vue-router] <router-link>'s tag prop is deprecated and has been removed in Vue Router 4. Use the v-slot API to remove this warning: https://next.router.vuejs.org/guide/migration/#removal-of-event-and-tag-props-in-router-link.",
+    "[vue-router] <router-link>'s event prop is deprecated and has been removed in Vue Router 4. Use the v-slot API to remove this warning: https://next.router.vuejs.org/guide/migration/#removal-of-event-and-tag-props-in-router-link.",
+    "[vxe-table] 缺少必要的 \"tooltip-config\" 参数，这可能会导致出现错误",
+    "[vxe-table] 缺少必要的 \"tooltip-config\" 参数，这可能会导致出现错误"
+  ],
+  "validated": true,
+  "requestPaths": [
+    "/api/home-carousel",
+    "/api/get-recent-contest",
+    "/api/get-recent-seven-ac-rank",
+    "/api/get-recent-updated-problem",
+    "/api/get-website-config",
+    "/api/get-common-announcement",
+    "/api/get-last-week-submission-statistics",
+    "/api/get-problem-tags-and-classification",
+    "/api/get-problem-list",
+    "/api/languages",
+    "/api/get-problem-detail",
+    "/api/msg/unread",
+    "/api/get-user-problem-status",
+    "/api/get-full-screen-problem-list",
+    "/api/submit-problem-test-judge",
+    "/api/get-test-judge-result",
+    "/api/get-user-calendar-heatmap",
+    "/api/get-user-home-info",
+    "/api/get-user-auth-info",
+    "/api/submit-problem-judge",
+    "/api/get-contest-info",
+    "/api/get-contest-problem-details"
+  ]
+}

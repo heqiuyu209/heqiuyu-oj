@@ -1,7 +1,7 @@
 <template>
   <div>
     <template v-if="!mobileNar">
-      <div id="header">
+      <div id="header" :class="['nav-' + appearance.navigation, { 'nav-condensed': scrolled && !navHovered }]" @mouseenter="navHovered = true" @mouseleave="navHovered = false" @focusin="navHovered = true" @focusout="onNavFocusOut">
         <el-menu
           :default-active="activeMenuName"
           mode="horizontal"
@@ -9,20 +9,8 @@
           active-text-color="#2196f3"
           text-color="#495060"
         >
-          <div class="logo">
-            <el-tooltip
-              :content="$t('m.Click_To_Change_Web_Language')"
-              placement="bottom"
-              effect="dark"
-            >
-              <el-image
-                style="width: 139px; height: 50px"
-                :src="imgUrl"
-                fit="scale-down"
-                @click="changeWebLanguage"
-              ></el-image>
-            </el-tooltip>
-          </div>
+          <router-link class="logo" to="/home" aria-label="CDUTETC 首页"><BrandLogo /></router-link>
+          <AppearanceSettings class="nav-appearance" />
           <template v-if="mode == 'defalut'">
             <el-menu-item index="/home"
               ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Home') }}</el-menu-item
@@ -152,10 +140,18 @@
               class="drop-menu"
               @command="handleRoute"
               placement="bottom"
-              trigger="hover"
+              trigger="click"
             >
               <span class="el-dropdown-link">
-                {{ userInfo.username }}<i class="el-icon-caret-bottom"></i>
+            <avatar
+              :username="userInfo.username"
+              :inline="true"
+              :size="30"
+              color="#FFF"
+              :src="avatar"
+              class="drop-avatar"
+            ></avatar>
+                <span class="nav-username">{{ userInfo.username }}</span><i class="el-icon-caret-bottom"></i>
               </span>
 
               <el-dropdown-menu slot="dropdown">
@@ -176,14 +172,6 @@
                 }}</el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
-            <avatar
-              :username="userInfo.username"
-              :inline="true"
-              :size="30"
-              color="#FFF"
-              :src="avatar"
-              class="drop-avatar"
-            ></avatar>
             <el-dropdown
               class="drop-msg"
               @command="handleRoute"
@@ -243,12 +231,13 @@
           </template>
         </el-menu>
       </div>
-      <div id="header-hidden" v-show="isScrolled">
+      <div id="header-hidden">
       </div>
     </template>
     <template v-else>
       <div style="top:0px;left:0px;">
       <mu-appbar class="mobile-nav" color="primary">
+        <AppearanceSettings slot="right" />
         <mu-button icon slot="left" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
@@ -620,6 +609,9 @@
   </div>
 </template>
 <script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
+import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
+import { appearance } from '@/common/appearance';
 import Login from '@/components/oj/common/Login';
 import Register from '@/components/oj/common/Register';
 import ResetPwd from '@/components/oj/common/ResetPassword';
@@ -629,6 +621,8 @@ import Avatar from 'vue-avatar';
 import api from '@/common/api';
 export default {
   components: {
+    BrandLogo,
+    AppearanceSettings,
     Login,
     Register,
     ResetPwd,
@@ -637,10 +631,8 @@ export default {
   },
   created(){
     this.page_width();
-    window.onresize = () => {
-      this.page_width();
-      this.setHiddenHeaderHeight();
-    };
+    window.addEventListener('resize', this.onResize);
+    window.addEventListener('scroll', this.onScroll, { passive: true });
   },
   mounted() {
     this.switchMode();
@@ -654,9 +646,15 @@ export default {
   },
   beforeDestroy() {
     clearInterval(this.msgTimer);
+    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('scroll', this.onScroll);
+    cancelAnimationFrame(this.scrollFrame);
   },
   data() {
     return {
+      appearance,
+      scrolled: false,
+      navHovered: false,
       mode:'defalut',
       centerDialogVisible: false,
       mobileNar: false,
@@ -664,15 +662,17 @@ export default {
       openusermenu: false,
       openmsgmenu: false,
       openSideMenu: '',
-      imgUrl: require('@/assets/logo.png'),
       avatarStyle:
         'display: inline-flex;width: 30px;height: 30px;border-radius: 50%;align-items: center;justify-content: center;text-align: center;user-select: none;',
     };
   },
   methods: {
     ...mapActions(['changeModalStatus']),
+    onResize() { this.page_width(); },
+    onScroll() { if (this.scrollFrame) return; this.scrollFrame = requestAnimationFrame(() => { this.scrolled = window.scrollY > 48; this.scrollFrame = null; }); },
+    onNavFocusOut(event) { if (!event.currentTarget.contains(event.relatedTarget)) this.navHovered = false; },
     page_width() {
-      let screenWidth = window.screen.width;
+      let screenWidth = window.innerWidth;
       if (screenWidth < 992) {
         this.mobileNar = true;
       } else {
@@ -741,14 +741,7 @@ export default {
     changeWebLanguage() {
       this.$store.commit('changeWebLanguage', { language: this.webLanguage == 'zh-CN' ? 'en-US' : 'zh-CN' });
     },
-    setHiddenHeaderHeight(){
-      if(!this.mobileNar){
-        try {
-          let headerHeight = document.getElementById('header').offsetHeight;
-          document.getElementById('header-hidden').setAttribute('style','height:'+ headerHeight + 'px')
-        } catch (e) {}
-      }
-    },
+    setHiddenHeaderHeight() { this.onScroll(); },
     switchMode(){
       if(this.$route.meta.fullScreenSource){
         this.mode = this.$route.meta.fullScreenSource;

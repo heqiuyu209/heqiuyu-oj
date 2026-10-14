@@ -13,14 +13,17 @@
         </template>
         <component :is="UserInfo"></component>
       </el-collapse-item>
+      <el-collapse-item name="Platforms"><template slot="title"><i class="el-icon-connection" /> 跨平台账号关联</template><PlatformAccounts /></el-collapse-item>
     </el-collapse>
   </el-card>
 </template>
 <script>
+import PlatformAccounts from '@/components/oj/setting/PlatformAccounts';
 const Account = () => import('@/components/oj/setting/Account');
 const UserInfo = () => import('@/components/oj/setting/UserInfo');
 export default {
   components: {
+    PlatformAccounts,
     Account,
     UserInfo,
   },

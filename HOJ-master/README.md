@@ -1,6 +1,13 @@
-# Hcode Online Judge（HOJ）
+# CDUTETC · 成理工程在线测评平台
 
-![logo](./logo.png)
+本项目基于 HOJ，面向成理工程算法学习与 XCPC 集训。当前仓库：[heqiuyu209/heqiuyu-oj](https://github.com/heqiuyu209/heqiuyu-oj)。
+
+2026-10-14：已将卡片 UI 与题目工作台集成到原 Vue 2 源码，待用户验收。详见 [UI 实施记录与接口预留](./hoj-vue/UI-IMPLEMENTATION.md) 和 [前端运行说明](./hoj-vue/README.md)。AI、Rating 计分、跨平台同步尚未实现，不应将界面预留视为服务已接入。
+
+以下保留 HOJ 上游功能介绍、历史文档和贡献者信息；其中 Demo、交流群和捐赠入口属于上游项目。部署本分支以仓库内 Compose 和当前运行说明为准。
+
+
+<img src="./hoj-vue/public/cdutetc.webp" width="100" alt="CDUTETC 校徽" style="border-radius:50%" />
 
 [![Java](https://img.shields.io/badge/Java-1.8-informational)](http://openjdk.java.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.2.6.RELEASE-success)](https://spring.io/projects/spring-boot)

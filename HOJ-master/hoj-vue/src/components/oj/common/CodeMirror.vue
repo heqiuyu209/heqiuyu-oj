@@ -266,20 +266,12 @@
       >
       </codemirror>
     </div>
-    <el-drawer
-      :visible.sync="openTestCaseDrawer"
-      style="position: absolute;"
-      :modal="false"
-      size="40%"
-      :with-header="false"
-      @close="closeDrawer"
-      direction="btt"
-    >
+    <section v-show="openTestCaseDrawer" class="inline-self-test" aria-label="当前代码自测">
+      <div class="self-test-heading"><strong>自测当前代码</strong><el-button size="mini" type="text" @click="closeDrawer">收起</el-button></div>
       <el-tabs
         v-model="testJudgeActiveTab"
         type="border-card"
         style="height: 100%;"
-        @tab-click="handleClick"
       >
         <el-tab-pane
           :label="$t('m.Test_Case')"
@@ -478,7 +470,7 @@
           </template>
         </el-tab-pane>
       </el-tabs>
-    </el-drawer>
+    </section>
   </div>
 </template>
 <script>
@@ -666,6 +658,7 @@ export default {
   },
   mounted() {
     utils.getLanguages().then((languages) => {
+      if (this._isDestroyed) return;
       let mode = {};
       languages.forEach((lang) => {
         mode[lang.name] = lang.contentType;
@@ -783,27 +776,36 @@ export default {
         mode: this.mode[this.language],
         isRemoteJudge: this.isRemoteJudge,
       };
+      const request = this.testRequest = (this.testRequest || 0) + 1;
+      clearTimeout(this.refreshStatus);
+      this.testJudgeLoding = true;
       api.submitTestJudge(data).then(
         (res) => {
+          if (this._isDestroyed || request !== this.testRequest) return;
           this.testJudgeKey = res.data.data;
           this.testJudgeActiveTab = "result";
           this.testJudgeLoding = true;
           this.checkTestJudgeStatus();
         },
         (err) => {
+          if (this._isDestroyed || request !== this.testRequest) return;
+          this.testJudgeLoding = false;
           this.testJudgeActiveTab = "input";
         }
       );
     },
     checkTestJudgeStatus() {
+      const request = this.testRequest;
       // 使用setTimeout避免一些问题
       if (this.refreshStatus) {
         // 如果之前的提交状态检查还没有停止,则停止,否则将会失去timeout的引用造成无限请求
         clearTimeout(this.refreshStatus);
       }
       const checkStatus = () => {
+        if (this._isDestroyed || request !== this.testRequest) return;
         api.getTestJudgeResult(this.testJudgeKey).then(
           (res) => {
+            if (this._isDestroyed || request !== this.testRequest) return;
             let resData = res.data.data;
             if (resData.status != JUDGE_STATUS_RESERVE["Pending"]) {
               // status不为pending
@@ -828,6 +830,7 @@ export default {
             }
           },
           (res) => {
+            if (this._isDestroyed || request !== this.testRequest) return;
             this.testJudgeLoding = false;
             clearTimeout(this.refreshStatus);
           }
@@ -866,6 +869,14 @@ export default {
     },
   },
   watch: {
+    language(newVal) {
+      this.editor.setOption('mode', this.mode[newVal]);
+      this.testRequest = (this.testRequest || 0) + 1;
+      clearTimeout(this.refreshStatus);
+      this.testJudgeLoding = false;
+      this.testJudgeActiveTab = 'input';
+      this.testJudgeRes = { status: -10, problemJudgeMode: 'default' };
+    },
     height(newVal){
       this.editor.setSize('100%', newVal);
       this.$nextTick(() => {
@@ -996,11 +1007,7 @@ export default {
   }
 }
 /deep/.el-tabs__content {
-  position: absolute;
-  top: 40px;
-  bottom: 2px;
-  left: 0;
-  right: 0;
+  position: relative;
   overflow-y: auto;
 }
 /deep/.el-card__header {

@@ -6,6 +6,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // 本地环境是否需要使用cdn
 const devNeedCdn = true;
+// Optional self-contained build for local development and reproducible UI checks.
+const useCdn = process.env.CDUTETC_LOCAL_ASSETS !== '1' && (isProduction || devNeedCdn);
+process.env.VUE_APP_LOCAL_ASSETS = useCdn ? 'false' : 'true';
 
 // cdn链接
 const cdn = {
@@ -89,7 +92,7 @@ module.exports={
   publicPath: '/',
   assetsDir: "assets",
   devServer: {
-    open: true,  // npm run serve后自动打开页面
+    open: false,
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)
     port: 8066, // 开发服务器运行端口号
     proxy: {
@@ -107,7 +110,7 @@ module.exports={
     // ============注入cdn start============
     config.plugin('html').tap(args => {
         // 生产环境或本地需要cdn时，才注入cdn
-        if (isProduction || devNeedCdn) args[0].cdn = cdn
+        if (useCdn) args[0].cdn = cdn
         return args
     })
       if (process.env.ANALYZE === 'true') {
@@ -120,7 +123,7 @@ module.exports={
   configureWebpack: (config) => {
     // 用cdn方式引入，则构建时要忽略相关资源
     const plugins = [];
-    if (isProduction || devNeedCdn){
+    if (useCdn){
       config.externals = cdn.externals
       config.mode = 'production';
       config["performance"] = {//打包文件大小配置

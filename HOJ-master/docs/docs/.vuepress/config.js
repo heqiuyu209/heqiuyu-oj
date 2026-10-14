@@ -2,10 +2,11 @@ const path = require('path');
 const { config } = require("vuepress-theme-hope");
 
 module.exports = context => config({
-    title: 'HOJ',
+    title: 'CDUTETC · 成理工程在线测评平台',
+    locales: { '/': { lang: 'zh-CN' } },
     head: [
-        ['link', { rel: 'icon', href: `/logo.png` }],
-        ['meta', { name: 'theme-color', content: '#ffeded' }],
+        ['link', { rel: 'icon', href: `/cdutetc.webp` }],
+        ['meta', { name: 'theme-color', content: '#217c9e' }],
     ],
     plugins: [
         '@vuepress/back-to-top',
@@ -16,18 +17,20 @@ module.exports = context => config({
     ],
     base:'/',
     themeConfig: {
-        logo: '/favicon.ico',
+        logo: '/cdutetc.webp',
         nav: [
-            { text: 'Demo', link: 'https://hdoi.cn/' },
-            { text: 'Gitee', link: 'https://gitee.com/himitzh0730/hoj' },
+            { text: '项目源码', link: 'https://github.com/heqiuyu209/heqiuyu-oj' },
+            { text: 'API 源码', link: 'https://github.com/heqiuyu209/heqiuyu-oj/tree/master/HOJ-master/hoj-springboot' },
         ],
         pwa: {
             cacheHTML: false,
         },
         sidebarDepth: 2,
-        hostname: 'https://hcode.top',
-        repo: 'HimitZH/HOJ',
-        pageInfo: false,
+        // Enable these after configuring this project's real public hostname.
+        feed: false,
+        sitemap: false,
+        repo: 'heqiuyu209/heqiuyu-oj',
+        pageInfo: [],
         copyright: false,
         mdEnhance: {
             align: true,
@@ -36,9 +39,9 @@ module.exports = context => config({
             footnote: true,
             tex: true,
         },
-        docsRepo: 'HimitZH/HOJ',
+        docsRepo: 'heqiuyu209/heqiuyu-oj',
         docsBranch: 'master',
-        docsDir:'docs/docs',
+        docsDir:'HOJ-master/docs/docs',
         editLinks: true,
         displayAllHeaders: true,
         smoothScroll: true,

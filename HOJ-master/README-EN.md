@@ -1,6 +1,9 @@
-# Hcode Online Judge（HOJ）
+# CDUTETC · 成理工程在线测评平台
 
-![logo](./logo.png)
+This fork is maintained at [heqiuyu209/heqiuyu-oj](https://github.com/heqiuyu209/heqiuyu-oj). The CDUTETC card UI and problem workspace are integrated into the existing Vue 2 frontend and await user acceptance. See [UI implementation and verification](./hoj-vue/UI-IMPLEMENTATION.md) for completed work and pending services. Original HOJ documentation and attribution are retained below.
+
+
+<img src="./hoj-vue/public/cdutetc.webp" width="100" alt="CDUTETC 校徽" style="border-radius:50%" />
 
 > An open source online judge system base on SpringBoot, Springcloud Alibaba and Vue.js !
 

@@ -10,6 +10,13 @@ import Message from 'vue-m-message'
 import 'vue-m-message/dist/index.css'
 import axios from 'axios'
 
+if (process.env.VUE_APP_LOCAL_ASSETS === 'true') {
+  require('echarts');
+  require('element-ui/lib/theme-chalk/index.css');
+  require('muse-ui/dist/muse-ui.css');
+  require('katex/dist/katex.min.css');
+}
+
 import Md_Katex from '@iktakahiro/markdown-it-katex'
 
 // 注释表示使用cdn引入
@@ -87,6 +94,8 @@ Vue.prototype.$axios = axios
 Vue.prototype.$markDown = mavonEditor.mavonEditor.getMarkdownIt().use(Md_Katex)  // 挂载到vue
 
 Vue.config.productionTip = false
+// Keep the existing module initialization order; apply theme styles last.
+require('./styles/cdutetc.css');
 new Vue({
   router,
   store,

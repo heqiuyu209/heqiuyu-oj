@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="cdutetc-home">
     <el-row :gutter="20">
       <el-col
         :md="15"
@@ -13,7 +13,11 @@
             <span class="panel-title home-title welcome-title">{{ $t('m.Welcome_to')
               }}{{ websiteConfig.shortName }}</span>
           </div>
-          <el-carousel
+          <div v-if="!carouselImgList.length" class="xcpc-placeholder">
+            <span class="xcpc-photo-frame"><i class="el-icon-picture-outline" /></span>
+            <div><h2>一起走向 XCPC 赛场</h2><p>训练、协作，以及每一次全力以赴。</p><small>队伍参赛照片展示位</small></div>
+          </div>
+          <el-carousel v-else
             :interval="interval"
             :height="srcHight"
             class="img-carousel"
@@ -391,11 +395,7 @@ export default {
         recentUpdatedProblemsLoading: false,
         recentContests: false,
       },
-      carouselImgList: [
-        {
-          url:  require('@/assets/home1.jpeg'),
-        },
-      ],
+      carouselImgList: [],
       srcHight: "440px",
       remoteJudgeList: [
         {

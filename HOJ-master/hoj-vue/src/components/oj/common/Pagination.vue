@@ -31,7 +31,7 @@ export default {
     pageSizes: {
       required: false,
       type: Array,
-      default: [10, 15, 30, 50, 100],
+      default: () => [10, 15, 30, 50, 100],
     },
     showSizer: {
       required: false,

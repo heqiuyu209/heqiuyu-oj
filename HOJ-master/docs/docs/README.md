@@ -1,8 +1,8 @@
 ---
 home: true
-heroImage: /logo.png
-heroText:  HOJ
-tagline: 基于分布式、前后端分离的高性能在线评测系统
+heroImage: /cdutetc.webp
+heroText: CDUTETC
+tagline: 成理工程在线测评平台 · 算法学习与 XCPC 集训
 action:
   - text: 文档介绍 🔔
     link: /introducition/
@@ -20,8 +20,11 @@ features:
   details: 判题使用 cgroup 隔离用户程序，网站权限控制完善
 - title: 多样化
   details: 独有自身判题服务，同时支持其它知名OJ题目的提交判题
-footer: MIT Licensed | Copyright © 2025.09.13 @Author Himit_ZH  QQ Group:598587305、743568562
+footer: CDUTETC · 基于 HOJ 开源项目构建，感谢 Himit_ZH 与全部贡献者
 ---
+
+当前项目：[heqiuyu209/heqiuyu-oj](https://github.com/heqiuyu209/heqiuyu-oj)。[UI 实施记录](https://github.com/heqiuyu209/heqiuyu-oj/blob/master/HOJ-master/hoj-vue/UI-IMPLEMENTATION.md) 区分已完成界面与待接入服务。以下保留 HOJ 上游技术文档。
+
 
 [![Java](https://img.shields.io/badge/Java-1.8-informational)](http://openjdk.java.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.2.6.RELEASE-success)](https://spring.io/projects/spring-boot)

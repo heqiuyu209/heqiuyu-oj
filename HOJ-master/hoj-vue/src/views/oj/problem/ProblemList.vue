@@ -176,6 +176,9 @@
             </template>
           </vxe-table-column>
 
+          <vxe-table-column title="来源 / Rating" min-width="210">
+            <template v-slot="{ row }"><ProblemMeta :problem="row" /></template>
+          </vxe-table-column>
           <vxe-table-column
             field="difficulty"
             :title="$t('m.Level')"
@@ -194,7 +197,7 @@
             field="tag"
             :title="$t('m.Tags')"
             min-width="230"
-            visible="false"
+            :visible="false"
           >
             <template v-slot="{ row }">
               <span
@@ -331,6 +334,7 @@
 </template>
 
 <script>
+import ProblemMeta from '@/components/oj/learning/ProblemMeta';
 import { mapGetters } from 'vuex';
 import api from '@/common/api';
 import {
@@ -346,6 +350,7 @@ import Pagination from '@/components/oj/common/Pagination';
 export default {
   name: 'ProblemList',
   components: {
+    ProblemMeta,
     Pagination,
   },
   data() {
@@ -466,7 +471,7 @@ export default {
       if (!total) {
         return 0;
       }
-      return ((ac / total) * 100).toFixed(2);
+      return Number(((ac / total) * 100).toFixed(2));
     },
     // 处理触碰或鼠标悬浮某题目，在右上方显示对应的提交数据
     cellHover(event) {

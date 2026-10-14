@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+  <link rel="icon" type="image/webp" href="<%= BASE_URL %>cdutetc.webp">
   <!-- 使用CDN的CSS文件 -->
   <% for (var i in htmlWebpackPlugin.options.cdn &&
   htmlWebpackPlugin.options.cdn.css) { %>
@@ -15,7 +15,14 @@
   />
   <% } %>
   <!-- 使用CDN的CSS文件 -->
-  <title>Hcode OnlineJudge</title>
+  <title>CDUTETC · 成理工程在线测评平台</title>
+  <script>
+    try {
+      var appearance = JSON.parse(localStorage.getItem('cdutetc:appearance')) || {};
+      document.documentElement.dataset.theme = appearance.theme === 'dark' ||
+        (appearance.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    } catch (_) {}
+  </script>
   <script>
     // IE 10 and earlier
     if (window.navigator.userAgent.indexOf('MSIE ') > 0 &&

@@ -3,6 +3,11 @@
     shadow="always"
     id="problem-footer"
   >
+    <div class="problem-neighbors">
+      <el-button size="mini" :disabled="currentIndex <= 0" @click="adjacent(-1)"><i class="el-icon-arrow-left" /> 上一题</el-button>
+      <span>{{ currentIndex < 0 ? '—' : currentIndex + 1 }} / {{ navList.length }}</span>
+      <el-button size="mini" :disabled="currentIndex < 0 || currentIndex >= navList.length - 1" @click="adjacent(1)">下一题 <i class="el-icon-arrow-right" /></el-button>
+    </div>
     <div class="dataNav">
       <button
         class="dataNavPrev"
@@ -84,18 +89,18 @@ export default {
   props: {
     pid: {
       type: Number,
-      required: true,
+      default: null,
     },
     tid: {
-      type: Number,
+      type: [Number, String],
       default: null,
     },
     cid: {
-      type: Number,
+      type: [Number, String],
       default: null,
     },
     gid: {
-      type: Number,
+      type: [Number, String],
       default: null,
     },
   },
@@ -114,11 +119,18 @@ export default {
   },
   mounted() {
     this.getFullScreenProblemList();
+    window.addEventListener("resize", this.recalcMoveLen);
   },
+  beforeDestroy() { window.removeEventListener('resize', this.recalcMoveLen); this.requestId = (this.requestId || 0) + 1; },
+  computed: { currentIndex() { return this.getCurrentProblemInListIndex(); } },
   methods: {
+    adjacent(direction) { const item = this.navList[this.currentIndex + direction]; if (item && this.currentIndex >= 0) this.goProblem(item.problemId); },
     getFullScreenProblemList() {
+      const request = this.requestId = (this.requestId || 0) + 1;
+      this.navList = [];
       api.getFullScreenProblemList(this.tid, this.cid).then(
         (res) => {
+          if (request !== this.requestId) return;
           this.navList = res.data.data;
           this.$nextTick(() => {
             this.calcMoveLen();
@@ -140,7 +152,7 @@ export default {
       if (index != -1 && index > num) {
         this.move = this.moveLen + (index - num) * 100;
       }
-      window.addEventListener("resize", () => this.recalcMoveLen());
+
     },
     recalcMoveLen() {
       try {
@@ -193,6 +205,7 @@ export default {
     goProblem(problemId) {
       this.$router.push({
         name: this.$route.name,
+        query: { ...this.$route.query },
         params: {
           contestID: this.cid,
           problemID: problemId,

@@ -1,16 +1,14 @@
 <template>
-  <div :class="bodyClass">
+  <div :class="[bodyClass, 'cdutetc-problem']">
+    <el-alert v-if="legacyDraft" class="legacy-draft-notice" type="info" :closable="false">
+      检测到旧版本地草稿，尚未导入当前账号。
+      <el-button size="mini" type="text" @click="importLegacyDraft">导入旧版草稿</el-button>
+    </el-alert>
     <div id="problem-main">
       <!--problem main-->
-      <el-row class="problem-box" 
-        :id="'problem-box' + '-' + $route.name">
-        <el-col
-          :sm="24"
-          :md="12"
-          :lg="12"
-          class="problem-left"
-          :id="'problem-left'+'-'+ $route.name"
-        >
+      <WorkspaceLayout :editor-title="isObjective ? '作答区' : '编程与自测'" @resize="refreshWorkspaceEditor">
+        <template #statement>
+        <div class="problem-left">
           <el-tabs
             v-model="activeName"
             type="border-card"
@@ -34,6 +32,7 @@
                   class="panel-title"
                 >
                   <span>{{ problemData.problem.title }}</span><br />
+                  <ProblemMeta :problem="problemData.problem" detail />
                   <div class="problem-tag">
                     <span v-if="problemData.problem.isFileIO"
                       style="padding-right: 10px">
@@ -147,7 +146,7 @@
                         {{ $t('m.Solutions') }}</el-link>
                     </span>
                   </div>
-                  <div class="question-intr">
+                  <div v-if="!isObjective" class="question-intr">
                     <template v-if="!isCFProblem">
                       <span>{{ $t('m.Time_Limit') }}：C/C++
                         {{ problemData.problem.timeLimit }}MS，{{
@@ -216,7 +215,7 @@
                     </Markdown>
                   </template>
 
-                  <template v-if="problemData.problem.input">
+                  <template v-if="!isObjective && problemData.problem.input">
                     <p class="title">{{ $t('m.Input') }}</p>
                     <Markdown 
                       class="md-content"
@@ -225,7 +224,7 @@
                     </Markdown>
                   </template>
 
-                  <template v-if="problemData.problem.output">
+                  <template v-if="!isObjective && problemData.problem.output">
                     <p class="title">{{ $t('m.Output') }}</p>
                     <Markdown 
                       class="md-content"
@@ -234,7 +233,7 @@
                     </Markdown>
                   </template>
 
-                  <template v-if="problemData.problem.examples">
+                  <template v-if="!isObjective && problemData.problem.examples">
                     <div
                       v-for="(example, index) of problemData.problem.examples"
                       :key="index"
@@ -272,7 +271,7 @@
                     </div>
                   </template>
 
-                  <template v-if="problemData.problem.hint">
+                  <template v-if="!isObjective && problemData.problem.hint">
                     <p class="title">{{ $t('m.Hint') }}</p>
                     <el-card dis-hover>
                       <Markdown 
@@ -502,53 +501,11 @@
               </div>
             </el-tab-pane>
           </el-tabs>
-        </el-col>
-        <div
-          class="problem-resize hidden-sm-and-down"
-          :id="'js-center'+'-'+ $route.name"
-          :title="$t('m.Shrink_Sidebar')"
-        >
-          <span>⋮</span>
-          <span>
-            <el-tooltip
-              :content="
-              toWatchProblem
-                ? $t('m.View_Problem_Content')
-                : $t('m.Only_View_Problem')
-            "
-              placement="right"
-              v-if="!toResetWatch"
-            >
-              <el-button
-                icon="el-icon-caret-right"
-                circle
-                class="right-fold fold"
-                @click.stop="onlyWatchProblem"
-                size="mini"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip
-              :content="$t('m.Put_away_the_full_screen_and_write_the_code')"
-              placement="left"
-              v-else
-            >
-              <el-button
-                icon="el-icon-caret-left"
-                circle
-                class="left-fold fold"
-                @click.stop="resetWatch(false)"
-                size="mini"
-              ></el-button>
-            </el-tooltip>
-          </span>
         </div>
-        <el-col
-          :sm="24"
-          :md="12"
-          :lg="12"
-          class="problem-right"
-          :id="'problem-right' + '-' + $route.name"
-        >
+        </template>
+        <template #editor>
+        <ObjectiveAnswer v-if="isObjective" :problem="problemData.problem" />
+        <div v-else class="problem-right">
           <el-card
             :padding="10"
             id="submit-code"
@@ -556,6 +513,8 @@
             class="submit-detail"
           >
             <CodeMirror
+              ref="codeEditor"
+              :key="draftIdentity"
               :value.sync="code"
               :languages="problemData.languages"
               :language.sync="language"
@@ -617,12 +576,12 @@
                       >{{ $t('m.Submitted_Not_Result') }}</el-alert>
                     </template>
                     <template v-else-if="
-                        !this.contestID ||
-                          (this.contestID &&
+                        !contestID ||
+                          (contestID &&
                             ContestRealTimePermission &&
-                            this.contestRuleType == RULE_TYPE.OI) ||
-                          (this.contestID &&
-                            this.contestRuleType == RULE_TYPE.ACM)
+                            contestRuleType == RULE_TYPE.OI) ||
+                          (contestID &&
+                            contestRuleType == RULE_TYPE.ACM)
                       ">
                       <span style="font-size: 14px;font-weight: bolder;">{{ $t('m.Status') }}:</span>
                       <el-tooltip
@@ -637,16 +596,16 @@
                           :color="submissionStatus.color"
                           @click.native="submissionRoute"
                         >
-                          <template v-if="this.result.status == JUDGE_STATUS_RESERVE['Pending'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Compiling'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Judging'] 
-                          || this.result.status == JUDGE_STATUS_RESERVE['Submitting']">
+                          <template v-if="result.status == JUDGE_STATUS_RESERVE['Pending']
+                          || result.status == JUDGE_STATUS_RESERVE['Compiling']
+                          || result.status == JUDGE_STATUS_RESERVE['Judging']
+                          || result.status == JUDGE_STATUS_RESERVE['Submitting']">
                             <i class="el-icon-loading"></i> {{ submissionStatus.text }}
                           </template>
-                          <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.ac">
+                          <template v-else-if="result.status == JUDGE_STATUS_RESERVE.ac">
                             <i class="el-icon-success"> {{ submissionStatus.text }}</i>
                           </template>
-                          <template v-else-if="this.result.status == JUDGE_STATUS_RESERVE.pa">
+                          <template v-else-if="result.status == JUDGE_STATUS_RESERVE.pa">
                             <i class="el-icon-remove"> {{ submissionStatus.text }}</i>
                           </template>
                           <template v-else>
@@ -656,9 +615,9 @@
                       </el-tooltip>
                     </template>
                     <template v-else-if="
-                        this.contestID &&
+                        contestID &&
                           !ContestRealTimePermission &&
-                          this.contestRuleType == RULE_TYPE.OI
+                          contestRuleType == RULE_TYPE.OI
                       ">
                       <el-alert
                         type="success"
@@ -669,8 +628,8 @@
                     </template>
                   </div>
                   <div v-else-if="
-                      (!this.contestID ||
-                        this.contestRuleType == RULE_TYPE.ACM) &&
+                      (!contestID ||
+                        contestRuleType == RULE_TYPE.ACM) &&
                         problemData.myStatus == JUDGE_STATUS_RESERVE.ac
                     ">
                     <el-alert
@@ -681,9 +640,9 @@
                     >{{ $t('m.You_have_solved_the_problem') }}</el-alert>
                   </div>
                   <div v-else-if="
-                      this.contestID &&
+                      contestID &&
                         !ContestRealTimePermission &&
-                        this.contestRuleType == RULE_TYPE.OI &&
+                        contestRuleType == RULE_TYPE.OI &&
                         submissionExists
                     ">
                     <el-alert
@@ -772,8 +731,10 @@
               </el-row>
             </div>
           </el-card>
-        </el-col>
-      </el-row>
+        </div>
+        </template>
+        <template #learning><LearningPanel :tags="problemData.tags" :profile="$store.getters.userInfo" /></template>
+      </WorkspaceLayout>
     </div>
     <ProblemHorizontalMenu
       v-if="showProblemHorizontalMenu"
@@ -834,6 +795,12 @@
 </template>
 
 <script>
+import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
+import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
+import LearningPanel from '@/components/oj/learning/LearningPanel';
+import ProblemMeta from '@/components/oj/learning/ProblemMeta';
+import problemWorkspace from '@/common/problemWorkspace';
+import { readPreference } from '@/common/appearance';
 import { mapGetters, mapActions } from "vuex";
 import storage from "@/common/storage";
 import utils from "@/common/utils";
@@ -859,7 +826,12 @@ const filtedStatus = ["wa", "ce", "ac", "pa", "tle", "mle", "re", "pe"];
 
 export default {
   name: "ProblemDetails",
+  mixins: [problemWorkspace],
   components: {
+    ObjectiveAnswer,
+    WorkspaceLayout,
+    LearningPanel,
+    ProblemMeta,
     CodeMirror,
     Pagination,
     ProblemHorizontalMenu,
@@ -952,11 +924,7 @@ export default {
 
   mounted() {
     this.init();
-    this.dragControllerDiv();
     this.resizeWatchHeight();
-    window.onresize = () => {
-      this.resizeWatchHeight();
-    };
   },
   methods: {
     ...mapActions(["changeDomTitle"]),
@@ -969,23 +937,18 @@ export default {
           this.$route.params.contestID
         )
       );
-      if (problemCodeAndSetting) {
-        this.language = problemCodeAndSetting.language;
-        this.code = problemCodeAndSetting.code;
-        this.theme = problemCodeAndSetting.theme;
-        this.fontSize = problemCodeAndSetting.fontSize;
-        this.tabSize = problemCodeAndSetting.tabSize;
-      } else {
-        let individualLanguageAndSetting = storage.get(
-          buildIndividualLanguageAndSettingKey()
-        );
-        if (individualLanguageAndSetting) {
-          this.language = individualLanguageAndSetting.language;
-          this.theme = individualLanguageAndSetting.theme;
-          this.fontSize = individualLanguageAndSetting.fontSize;
-          this.tabSize = individualLanguageAndSetting.tabSize;
-        }
+      this.legacyDraft = problemCodeAndSetting && problemCodeAndSetting.code ? problemCodeAndSetting : null;
+      this.language = '';
+      let individualLanguageAndSetting = storage.get(
+        buildIndividualLanguageAndSettingKey()
+      );
+      if (individualLanguageAndSetting) {
+        this.language = individualLanguageAndSetting.language;
+        this.theme = individualLanguageAndSetting.theme;
+        this.fontSize = individualLanguageAndSetting.fontSize;
+        this.tabSize = individualLanguageAndSetting.tabSize;
       }
+      this.restoreWorkspaceDraft();
     },
     handleClickTab({ name }) {
       if (name == "mySubmission" && this.isAuthenticated) {
@@ -1067,197 +1030,19 @@ export default {
       }
     },
 
-    dragControllerDiv() {
-      var resize = document.getElementById(
-        "js-center" + "-" + this.$route.name
-      );
-      var left = document.getElementById(
-        "problem-left" + "-" + this.$route.name
-      );
-      var right = document.getElementById(
-        "problem-right" + "-" + this.$route.name
-      );
-      var box = document.getElementById(
-        "problem-box" + "-" + this.$route.name
-      );
-      const _this = this;
-      // 鼠标按下事件
-      resize.onmousedown = function (e) {
-        //颜色改变提醒
-        resize.style.background = "#818181";
-        var startX = e.clientX;
-        // 鼠标拖动事件
-        document.onmousemove = function (e) {
-          resize.left = startX;
-          var endX = e.clientX;
-          var moveLen = resize.left + (endX - startX); // （endx-startx）=移动的距离。resize.left+移动的距离=左边区域最后的宽度
-          var maxT = box.offsetWidth - resize.offsetWidth; // 容器宽度 - 左边区域的宽度 = 右边区域的宽度
-          if (moveLen < 420) {
-            moveLen = 0; // 左边区域的最小宽度为420px
-            _this.toWatchProblem = true;
-          } else {
-            _this.toWatchProblem = false;
-          }
-          if (moveLen > maxT - 580) moveLen = maxT - 580; //右边区域最小宽度为580px
-          let leftRadio = (moveLen / box.offsetWidth) *100;
-          resize.style.left = leftRadio + "%"; 
-          left.style.width = leftRadio + "%"; // 设置左侧区域的宽度
-          right.style.width = (100 - leftRadio) + "%";
-          if (leftRadio < 100) {
-            _this.toResetWatch = false;
-            right.style.display = "";
-          }
-        };
-        // 鼠标松开事件
-        document.onmouseup = function (evt) {
-          //颜色恢复
-          resize.style.background = "#d6d6d6";
-          document.onmousemove = null;
-          document.onmouseup = null;
-          resize.releaseCapture && resize.releaseCapture(); //当你不在需要继续获得鼠标消息就要应该调用ReleaseCapture()释放掉
-        };
-        resize.setCapture && resize.setCapture(); //该函数在属于当前线程的指定窗口里设置鼠标捕获
-        return false;
-      };
-    },
-    onlyWatchProblem() {
-      if (this.toWatchProblem) {
-        this.resetWatch(true);
-        this.toWatchProblem = false;
-        return;
-      }
-      var resize = document.getElementById(
-        "js-center" + "-" + this.$route.name
-      );
-      var left = document.getElementById(
-        "problem-left" + "-" + this.$route.name
-      );
-      var right = document.getElementById(
-        "problem-right" + "-" + this.$route.name
-      );
-      var box = document.getElementById(
-        "problem-box" + "-" + this.$route.name
-      );
-      resize.style.left = box.clientWidth - 10 + "px";
-      left.style.width = box.clientWidth - 10 + "px";
-      right.style.width = "0px";
-      right.style.display = "none";
-      this.toResetWatch = true;
-    },
-    resetWatch(minLeft = false) {
-      var resize = document.getElementById(
-        "js-center" + "-" + this.$route.name
-      );
-      var left = document.getElementById(
-        "problem-left" + "-" + this.$route.name
-      );
-      var right = document.getElementById(
-        "problem-right" + "-" + this.$route.name
-      );
-      var box = document.getElementById(
-        "problem-box" + "-" + this.$route.name
-      );
-
-      let leftWidth = 0;
-      if (minLeft) {
-        leftWidth = 431; // 恢复左边最小420px+滑块11px
-      } else {
-        leftWidth = box.clientWidth - 580; // 右边最小580px
-      }
-      let leftRadio = (leftWidth / box.offsetWidth) * 100;
-      resize.style.left = leftRadio + "%";
-      left.style.width = leftRadio + "%";
-      right.style.width = (100 - leftRadio)  + "%";
-      right.style.display = "";
-      this.toResetWatch = false;
-    },
     resizeWatchHeight() {
-      try {
-        let headerHeight = document.getElementById("header").offsetHeight;
-        let headerWidth = document.getElementById("header").offsetWidth;
-        let totalHeight = window.innerHeight;
-
-        let left = document.getElementById(
-            "problem-left" + "-" + this.$route.name
-          );
-        let right = document.getElementById(
-            "problem-right" + "-" + this.$route.name
-          );
-        if(headerWidth >= 992){
-          let box = document.getElementById(
-            "problem-box" + "-" + this.$route.name
-          );
-          let tmp = (left.clientWidth / box.clientWidth) * 100;
-          left.style.width = tmp + "%";
-          right.style.width = (100 - tmp) + "%";
-        }else{
-          right.style.width = "100%";
-        }
-
-        let problemLeftHight = totalHeight - (headerHeight + 64);
-        if(this.showProblemHorizontalMenu){
-          let footerMenuHeight = document.getElementById("problem-footer").offsetHeight;
-          problemLeftHight = problemLeftHight - footerMenuHeight;
-        }
-        let jsRHeaderHeight =
-          document.getElementById("js-right-header").offsetHeight;
-        let jsRBottomHeight =
-          document.getElementById("js-right-bottom").offsetHeight;
-
-        if (jsRBottomHeight < 48) {
-          jsRBottomHeight = 48;
-        }
-
-        let problemRightHight = problemLeftHight - 95 - (jsRHeaderHeight - 36) - (jsRBottomHeight - 48);
-        if (problemRightHight < 0) {
-          problemRightHight = 0;
-        }
-        this.height = problemRightHight;
-        if (problemLeftHight < 0) {
-          problemLeftHight = 0;
-        }
-        if (this.activeName == "problemDetail") {
-          if(headerWidth >= 992){
-            document
-            .getElementById("js-left" + "-" + this.$route.name)
-            .setAttribute(
-              "style",
-              "height:" + problemLeftHight + "px !important"
-            );
-          }else{
-            document
-            .getElementById("js-left" + "-" + this.$route.name)
-            .setAttribute(
-              "style",
-              "height: auto"
-            );
-          }
-        } else if (this.activeName == "mySubmission") {
-          document
-            .getElementById("js-submission")
-            .setAttribute(
-              "style",
-              "height:" + problemLeftHight + "px !important"
-            );
-        } else if (this.activeName == "extraFile") {
-          document
-            .getElementById("js-extraFile")
-            .setAttribute(
-              "style",
-              "height:" + problemLeftHight + "px !important"
-            );
-        }
-        document
-          .getElementById("js-center" + "-" + this.$route.name)
-          .setAttribute(
-            "style",
-            "top:" + problemLeftHight * 0.5 + "px !important; left:" 
-            + left.style.width
-          );
-      } catch (e) {
-      }
+      const base = Math.max(320, Math.min(600, window.innerHeight - 420));
+      this.height = this.openTestCaseDrawer ? Math.min(320, base) : base;
+      this.refreshWorkspaceEditor();
     },
     init() {
+      const request = this.problemRequest = (this.problemRequest || 0) + 1;
+      this.contestID = this.$route.params.contestID || 0;
+      this.trainingID = this.$route.params.trainingID || null;
+      this.groupID = this.$route.params.groupID || null;
+      this.showProblemHorizontalMenu = !!(this.contestID || this.trainingID);
+      this.userExtraFile = null;
+      this.openTestCaseDrawer = false;
       if(this.$route.name === "ContestFullProblemDetails"){
         this.$store.dispatch('getContest');
       }
@@ -1280,6 +1065,7 @@ export default {
       this.loading = true;
       api[func](this.problemID, this.contestID, this.groupID, true).then(
         (res) => {
+          if (request !== this.problemRequest) return;
           let result = res.data.data;
           this.changeDomTitle({ title: result.problem.title });
           result["myStatus"] = -10; // 设置默认值
@@ -1307,6 +1093,7 @@ export default {
                 true
               )
               .then((res) => {
+                if (request !== this.problemRequest) return;
                 let statusMap = res.data.data;
                 if (statusMap[result.problem.id].status != -10) {
                   this.submissionExists = true;
@@ -1321,28 +1108,20 @@ export default {
           this.isRemote = result.problem.isRemote;
           this.changePie(result.problemCount);
 
-          // 在beforeRouteEnter中修改了, 说明本地有code，无需加载template
-          if (this.code !== "") {
-            return;
+          if (this.problemData.languages.length && !this.problemData.languages.includes(this.language)) {
+            this.language = this.problemData.languages[0];
+            const draft = readPreference(this.draftIdentity + ':' + encodeURIComponent(this.language), null);
+            this.code = draft ? draft.code : '';
           }
-          if (this.problemData.languages.length != 0) {
-            if (
-              !this.language ||
-              this.problemData.languages.indexOf(this.language) == -1
-            ) {
-              this.language = this.problemData.languages[0];
-            }
-          }
-          // try to load problem template
-          let codeTemplate = this.problemData.codeTemplate;
-          if (codeTemplate && codeTemplate[this.language]) {
-            this.code = codeTemplate[this.language];
-          }
+          const template = (this.problemData.codeTemplate || {})[this.language];
+          const draft = readPreference(this.draftIdentity + ':' + encodeURIComponent(this.language), null);
+          if (this.code === '' && !draft && template) this.code = template;
           this.$nextTick((_) => {
             addCodeBtn();
           });
         },
         (err) => {
+          if (request !== this.problemRequest) return;
           this.submitDisabled = true;
           this.loading = false;
         }
@@ -1437,20 +1216,17 @@ export default {
     },
 
     onChangeLang(newLang) {
-      if (this.code == this.problemData.codeTemplate[this.language]) {
-        //原语言模板未变化，只改变语言
-        if (this.problemData.codeTemplate[newLang]) {
-          this.code = this.problemData.codeTemplate[newLang];
-        } else {
-          this.code = "";
-        }
-      }
+      this.saveCurrentDraft();
+      const saved = readPreference(this.draftIdentity + ':' + encodeURIComponent(newLang), null);
+      this.code = saved && typeof saved.code === 'string' ? saved.code : (this.problemData.codeTemplate || {})[newLang] || '';
       this.language = newLang;
+      this.saveCurrentDraft();
     },
     onChangeTheme(newTheme) {
       this.theme = newTheme;
     },
     onResetToTemplate() {
+      const context = this.draftIdentity;
       this.$confirm(
         this.$i18n.t("m.Are_you_sure_you_want_to_reset_your_code"),
         "Tips",
@@ -1461,6 +1237,7 @@ export default {
         }
       )
         .then(() => {
+          if (this._isDestroyed || context !== this.draftIdentity) return;
           let codeTemplate = this.problemData.codeTemplate;
           if (codeTemplate && codeTemplate[this.language]) {
             this.code = codeTemplate[this.language];
@@ -1471,6 +1248,7 @@ export default {
         .catch(() => {});
     },
     getUserLastAccepetedCode() {
+      const context = this.draftIdentity;
       if (this.problemData.myStatus != 0) {
         this.$notify.error({
           title: this.$i18n.t("m.Error"),
@@ -1494,12 +1272,14 @@ export default {
         }
       )
         .then(() => {
+          if (this._isDestroyed || context !== this.draftIdentity) return;
           api
             .getUserLastAccepetedCode(
               this.problemData.problem.id,
               this.contestID
             )
             .then((res) => {
+              if (this._isDestroyed || context !== this.draftIdentity) return;
               this.code = res.data.data.code;
               let lang = res.data.data.language;
               if (lang && this.problemData.languages.includes(lang)) {
@@ -1510,15 +1290,18 @@ export default {
         .catch(() => {});
     },
     checkSubmissionStatus() {
+      const context = this.draftIdentity;
+      const submitId = this.submissionId;
       // 使用setTimeout避免一些问题
       if (this.refreshStatus) {
         // 如果之前的提交状态检查还没有停止,则停止,否则将会失去timeout的引用造成无限请求
         clearTimeout(this.refreshStatus);
       }
       const checkStatus = () => {
-        let submitId = this.submissionId;
+        if (this._isDestroyed || context !== this.draftIdentity || submitId !== this.submissionId) return;
         api.getSubmission(submitId).then(
           (res) => {
+            if (this._isDestroyed || context !== this.draftIdentity || submitId !== this.submissionId) return;
             this.result.status = res.data.data.submission.status;
             if (Object.keys(res.data.data.submission).length !== 0) {
               // status不为判题和排队中才表示此次判题结束
@@ -1545,6 +1328,7 @@ export default {
             }
           },
           (res) => {
+            if (this._isDestroyed || context !== this.draftIdentity || submitId !== this.submissionId) return;
             this.submitting = false;
             clearTimeout(this.refreshStatus);
           }
@@ -1571,6 +1355,7 @@ export default {
     },
 
     submitCode() {
+      const context = this.draftIdentity;
       if (this.code.trim() === "") {
         myMessage.error(this.$i18n.t("m.Code_can_not_be_empty"));
         return;
@@ -1603,9 +1388,11 @@ export default {
         data.captcha = this.captchaCode;
       }
       const submitFunc = (data, detailsVisible) => {
+        if (this._isDestroyed || context !== this.draftIdentity) return;
         this.statusVisible = true;
         api.submitCode(data).then(
           (res) => {
+            if (this._isDestroyed || context !== this.draftIdentity) return;
             this.submissionId = res.data.data && res.data.data.submitId;
             // 定时检查状态
             this.submitting = false;
@@ -1627,6 +1414,7 @@ export default {
             this.checkSubmissionStatus();
           },
           (res) => {
+            if (this._isDestroyed || context !== this.draftIdentity) return;
             // this.getCaptchaSrc();
             // if (res.data.data.startsWith('Captcha is required')) {
             //   this.captchaRequired = true;
@@ -1660,7 +1448,7 @@ export default {
               }, 1000);
             })
             .catch(() => {
-              this.submitting = false;
+              if (context === this.draftIdentity) this.submitting = false;
             });
         } else {
           submitFunc(data, false);
@@ -1671,15 +1459,18 @@ export default {
     },
 
     reSubmit(submitId) {
+      const context = this.draftIdentity;
       this.result = { status: 9 };
       this.submitting = true;
       api.reSubmitRemoteJudge(submitId).then(
         (res) => {
+          if (this._isDestroyed || context !== this.draftIdentity) return;
           myMessage.success(this.$i18n.t("m.Resubmitted_Successfully"));
           this.submitted = true;
           this.checkSubmissionStatus();
         },
         (err) => {
+          if (this._isDestroyed || context !== this.draftIdentity) return;
           this.submitting = false;
           this.statusVisible = false;
         }
@@ -1735,18 +1526,8 @@ export default {
       });
     },
     beforeLeaveDo(cid){
+      this.saveCurrentDraft();
       clearInterval(this.refreshStatus);
-      storage.set(
-        buildProblemCodeAndSettingKey(this.problemID, cid),
-        {
-          code: this.code,
-          language: this.language,
-          theme: this.theme,
-          fontSize: this.fontSize,
-          tabSize: this.tabSize,
-        }
-      );
-
       storage.set(buildIndividualLanguageAndSettingKey(), {
         language: this.language,
         theme: this.theme,
@@ -1756,6 +1537,7 @@ export default {
     }
   },
   computed: {
+    isObjective() { return ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'FILL_BLANK'].includes(this.problemData.problem.questionType); },
     ...mapGetters([
       "problemSubmitDisabled",
       "contestRuleType",
@@ -1846,6 +1628,7 @@ export default {
     next();
   },
   watch: {
+    openTestCaseDrawer() { this.resizeWatchHeight(); },
     $route() {
       this.initProblemCodeAndSetting();
       this.submitted = false;

@@ -12,7 +12,7 @@
             effect="dark"
           >
           <div class="logo" @click="changeWebLanguage(webLanguage == 'zh-CN' ? 'en-US' : 'zh-CN')">
-            <img :src="imgUrl" alt="Online Judge Admin" />
+            <BrandLogo />
           </div>
         </el-tooltip>
         <el-menu-item index="/admin/">
@@ -537,6 +537,7 @@
 </template>
 
 <script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
 import { mapGetters } from 'vuex';
 const KatexEditor = () => import('@/components/admin/KatexEditor.vue');
 import api from '@/common/api';
@@ -563,11 +564,11 @@ export default {
       mobileNar: false,
       currentPath: '',
       routeList: [],
-      imgUrl: require('@/assets/backstage.png'),
       languages:[]
     };
   },
   components: {
+    BrandLogo,
     KatexEditor,
     Avatar,
   },

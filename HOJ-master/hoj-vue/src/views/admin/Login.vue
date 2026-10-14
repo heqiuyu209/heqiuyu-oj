@@ -27,6 +27,7 @@
         label-width="0px"
         class="demo-ruleForm login-container"
       >
+        <BrandLogo />
         <h1 class="title">{{ $t('m.Welcome_to_Login_Admin') }}</h1>
         <el-form-item prop="username">
           <el-input
@@ -61,9 +62,11 @@
 </template>
 
 <script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
 import api from '@/common/api';
 import mMessage from '@/common/message';
 export default {
+  components: { BrandLogo },
   data() {
     return {
       logining: false,

@@ -112,14 +112,15 @@
             <el-card shadow="always" class="rating">
               <p>
                 <i class="fa fa-user-secret" aria-hidden="true"></i>
-                {{ $t('m.UserHome_Rating') }}
+                Codeforces Rating
               </p>
               <p class="data-number">
-                {{ profile.rating ? profile.rating : '--' }}
+                {{ profile.rating == null ? '--' : profile.rating }}
               </p>
             </el-card>
           </el-col>
         </el-row>
+        <RatingSummary :profile="profile" />
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
           <div class="card-title">
             <i class="el-icon-data-analysis" style="color:#409eff">
@@ -226,6 +227,7 @@
   </div>
 </template>
 <script>
+import RatingSummary from '@/components/oj/learning/RatingSummary';
 import { mapActions } from 'vuex';
 import api from '@/common/api';
 import myMessage from '@/common/message';
@@ -238,6 +240,7 @@ import utils from '@/common/utils';
 import Markdown from '@/components/oj/common/Markdown';
 export default {
   components: {
+    RatingSummary,
     Avatar,
     CalendarHeatmap,
     Markdown
@@ -256,12 +259,12 @@ export default {
         score: 0,
         solvedList: [],
         solvedGroupByDifficulty:null,
-        calendarHeatLocale:null,
-        calendarHeatmapValue:[],
-        calendarHeatmapEndDate:'',
-        loadingCalendarHeatmap:false,
-        loading:false,
       },
+      calendarHeatLocale:null,
+      calendarHeatmapValue:[],
+      calendarHeatmapEndDate:'',
+      loadingCalendarHeatmap:false,
+      loading:false,
       PROBLEM_LEVEL: {},
     };
   },
@@ -313,7 +316,7 @@ export default {
       const username = this.$route.query.username;
       this.loading = true;
       api.getUserInfo(uid, username).then((res) => {
-        this.changeDomTitle({ title: res.data.username });
+        this.changeDomTitle({ title: res.data.data.username });
         this.profile = res.data.data;
         this.$nextTick((_) => {
           addCodeBtn();

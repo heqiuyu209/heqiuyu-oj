@@ -30,7 +30,7 @@ export const m = {
   NavBar_UserHome: '我的首页',
   NavBar_Submissions: '我的提交',
   NavBar_Setting: '我的设置',
-  NavBar_Management: '后台管理',
+  NavBar_Management: '管理后台',
   NavBar_Logout: '退出登录',
   Dialog_Login: '登录',
   Dialog_Register: '注册',

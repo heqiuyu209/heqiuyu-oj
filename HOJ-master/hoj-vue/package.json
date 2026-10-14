@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build"
+    "build": "vue-cli-service build",
+    "test:ui": "node tests/ui-contracts.cjs",
+    "test:browser": "node tests/browser-review.cjs"
   },
   "dependencies": {
     "@iktakahiro/markdown-it-katex": "^4.0.1",
