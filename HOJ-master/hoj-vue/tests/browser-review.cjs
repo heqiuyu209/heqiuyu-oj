@@ -5,6 +5,8 @@ const fs = require("fs"),
   os = require("os"),
   { spawn } = require("child_process");
 const assert = require("assert").strict;
+const collectionFixtures = require('./collection-fixtures.cjs');
+const reviewCollections = require('./collection-review.cjs');
 const root =
     process.env.UI_REVIEW_OUTPUT || path.join(os.tmpdir(), "cdutetc-ui-review"),
   profile = fs.mkdtempSync(path.join(os.tmpdir(), "cdutetc-source-"));
@@ -76,6 +78,8 @@ function fixture(req) {
   const u = new URL(req.url),
     p = u.pathname;
   requests.push({ path: p, method: req.method, data: req.postData });
+  const collectionData = collectionFixtures.fixture(req);
+  if (collectionData !== undefined) return collectionData;
   if (p === "/api/get-website-config")
     return {
       name: "HOJ",
@@ -304,7 +308,7 @@ function fixture(req) {
           await sleep(1600);
         await cdp("Fetch.fulfillRequest", {
           requestId: r.requestId,
-          responseCode: 200,
+          responseCode: collectionFixtures.failed.has(new URL(r.request.url).pathname) ? 500 : 200,
           responseHeaders: [
             { name: "Content-Type", value: "application/json" },
           ],
@@ -326,13 +330,14 @@ function fixture(req) {
     if (r.exceptionDetails) throw Error(JSON.stringify(r.exceptionDetails));
     return r.result.value;
   };
-  const shot = async (name, clip) => {
+  const shot = async (name, clip, full = false) => {
     await sleep(100);
     // CDP clips use document coordinates, including the current scroll offset.
-    if (clip) clip = { ...clip, y: clip.y + await ev("window.scrollY") };
+    if (full) clip = { x: 0, y: 0, width: await ev('innerWidth'), height: await ev('document.documentElement.scrollHeight'), scale: 1 };
+    else if (clip) clip = { ...clip, y: clip.y + await ev("window.scrollY") };
     const r = await cdp("Page.captureScreenshot", {
       format: "png",
-      captureBeyondViewport: false,
+      captureBeyondViewport: full,
       ...(clip ? { clip } : {}),
     });
     fs.writeFileSync(
@@ -569,6 +574,7 @@ function fixture(req) {
   report.checks.navigation.keyboardEscape = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].every(x=>x.getBoundingClientRect().height===0)`);
   await ev("document.activeElement.blur()");
   await ev("scrollTo(0,0)");
+  report.checks.collections = await reviewCollections({ ev, cdp, route, shot, component });
   await route("/setting");
   await ev(`${component("Setting")}.activeName='Platforms'`);
   await sleep(200);

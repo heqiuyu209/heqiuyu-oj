@@ -1,278 +1,46 @@
 <template>
-  <div>
-      <!-- <ContestListAttention></ContestListAttention> -->
-      <el-row type="flex" justify="space-around">
-        <el-col :span="24">
-          <el-card shadow>
-            <div slot="header">
-              <span class="panel-title"
-                >{{
-                  query.type === '' ? $t('m.All') : parseContestType(query.type)
-                }}
-                {{ $t('m.Contests') }}</span
-              >
-              <div class="filter-row">
-                <span>
-                  <el-dropdown
-                    @command="onRuleChange"
-                    placement="bottom"
-                    trigger="hover"
-                    class="drop-menu"
-                  >
-                    <span class="el-dropdown-link">
-                      {{
-                        query.type === ''
-                          ? $t('m.Contest_Rule')
-                          : parseContestType(query.type)
-                      }}
-                      <i class="el-icon-caret-bottom"></i>
-                    </span>
-                    <el-dropdown-menu slot="dropdown">
-                      <el-dropdown-item command="">{{
-                        $t('m.All')
-                      }}</el-dropdown-item>
-                      <el-dropdown-item command="0">ACM</el-dropdown-item>
-                      <el-dropdown-item command="1">OI</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </el-dropdown>
-                </span>
-
-                <span>
-                  <el-dropdown
-                    @command="onStatusChange"
-                    placement="bottom"
-                    trigger="hover"
-                    class="drop-menu"
-                  >
-                    <span class="el-dropdown-link">
-                      {{
-                        query.status === ''
-                          ? $t('m.Status')
-                          : $t('m.' + CONTEST_STATUS_REVERSE[query.status]['name'])
-                      }}
-                      <i class="el-icon-caret-bottom"></i>
-                    </span>
-                    <el-dropdown-menu slot="dropdown">
-                      <el-dropdown-item command="">{{
-                        $t('m.All')
-                      }}</el-dropdown-item>
-                      <el-dropdown-item command="-1">{{
-                        $t('m.Scheduled')
-                      }}</el-dropdown-item>
-                      <el-dropdown-item command="0">{{
-                        $t('m.Running')
-                      }}</el-dropdown-item>
-                      <el-dropdown-item command="1">{{
-                        $t('m.Ended')
-                      }}</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </el-dropdown>
-                </span>
-
-                <span>
-                  <vxe-input
-                    v-model="query.keyword"
-                    :placeholder="$t('m.Enter_keyword')"
-                    type="search"
-                    size="medium"
-                    @keyup.enter.native="onKeywordChange"
-                    @search-click="onKeywordChange"
-                  ></vxe-input>
-                </span>
-              </div>
-            </div>
-            <div v-loading="loading">
-              <p id="no-contest" v-show="contests.length == 0">
-                <el-empty :description="$t('m.No_contest')"></el-empty>
-              </p>
-              <ol id="contest-list">
-                <li
-                  v-for="contest in contests"
-                  :key="contest.title"
-                  :style="getborderColor(contest)"
-                >
-                  <el-row type="flex" justify="space-between" align="middle">
-                    <el-col :xs="10" :sm="4" :md="3" :lg="2">
-                      <template v-if="contest.type == 0">
-                        <el-image 
-                        :src="acmSrc" 
-                        class="trophy"
-                        style="width: 100px;"
-                        :preview-src-list="[acmSrc]">
-                        </el-image>
-                      </template>
-                      <template v-else>
-                        <el-image 
-                        :src="oiSrc" 
-                        class="trophy"
-                        style="width: 100px;"
-                        :preview-src-list="[oiSrc]">
-                        </el-image>
-                      </template>
-                    </el-col>
-                    <el-col
-                      :xs="10"
-                      :sm="16"
-                      :md="19"
-                      :lg="20"
-                      class="contest-main"
-                    >
-                      <p class="title">
-                        <a class="entry" @click.stop="toContest(contest)">
-                          {{ contest.title }}
-                        </a>
-                        <template v-if="contest.auth == 1">
-                          <i
-                            class="el-icon-lock"
-                            size="20"
-                            style="color:#d9534f"
-                          ></i>
-                        </template>
-                        <template v-if="contest.auth == 2">
-                          <i
-                            class="el-icon-lock"
-                            size="20"
-                            style="color:#f0ad4e"
-                          ></i>
-                        </template>
-                      </p>
-                      <ul class="detail">
-                        <li>
-                          <i
-                            class="fa fa-calendar"
-                            aria-hidden="true"
-                            style="color: #3091f2"
-                          ></i>
-                          {{ contest.startTime | localtime }}
-                        </li>
-                        <li>
-                          <i
-                            class="fa fa-clock-o"
-                            aria-hidden="true"
-                            style="color: #3091f2"
-                          ></i>
-                          {{ getDuration(contest.startTime, contest.endTime) }}
-                        </li>
-                        <li>
-                          <template v-if="contest.type == 0">
-                            <el-button
-                              size="mini"
-                              round
-                              :type="'primary'"
-                              @click="onRuleChange(contest.type)"
-                              ><i class="fa fa-trophy"></i>
-                              {{ contest.type | parseContestType }}
-                            </el-button>
-                          </template>
-                          <template v-else>
-                            <el-tooltip
-                              :content="
-                                $t('m.Contest_Rank') +
-                                  '：' +
-                                  (contest.oiRankScoreType == 'Recent'
-                                    ? $t(
-                                        'm.Based_on_The_Recent_Score_Submitted_Of_Each_Problem'
-                                      )
-                                    : $t(
-                                        'm.Based_on_The_Highest_Score_Submitted_For_Each_Problem'
-                                      ))
-                              "
-                              placement="top"
-                            >
-                              <el-button
-                                size="mini"
-                                round
-                                :type="'warning'"
-                                @click="onRuleChange(contest.type)"
-                                ><i class="fa fa-trophy"></i>
-                                {{ contest.type | parseContestType }}
-                              </el-button>
-                            </el-tooltip>
-                          </template>
-                        </li>
-                        <li>
-                          <el-tooltip
-                            :content="
-                              $t('m.' + CONTEST_TYPE_REVERSE[contest.auth].tips)
-                            "
-                            placement="top"
-                            effect="light"
-                          >
-                            <el-tag
-                              :type="CONTEST_TYPE_REVERSE[contest.auth]['color']"
-                              effect="plain"
-                            >
-                              {{
-                                $t(
-                                  'm.' + CONTEST_TYPE_REVERSE[contest.auth]['name']
-                                )
-                              }}
-                            </el-tag>
-                          </el-tooltip>
-                        </li>
-                        <li v-if="contest.count != null">
-                          <i
-                            class="el-icon-user-solid"
-                            style="color:rgb(48, 145, 242);"
-                          ></i
-                          >x{{ contest.count }}
-                        </li>
-                        <li v-if="contest.openRank">
-                          <el-tooltip
-                            :content="$t('m.Contest_Outside_ScoreBoard')"
-                            placement="top"
-                            effect="dark"
-                          >
-                            <el-button
-                              circle
-                              size="small"
-                              type="primary"
-                              :disabled="contest.status == CONTEST_STATUS.SCHEDULED"
-                              icon="el-icon-data-analysis"
-                              @click="
-                                toContestOutsideScoreBoard(contest.id, contest.type)
-                              "
-                            ></el-button>
-                          </el-tooltip>
-                        </li>
-                      </ul>
-                    </el-col>
-                    <el-col
-                      :xs="4"
-                      :sm="4"
-                      :md="2"
-                      :lg="2"
-                      style="text-align: center"
-                    >
-                      <el-tag
-                        effect="dark"
-                        :color="CONTEST_STATUS_REVERSE[contest.status]['color']"
-                        size="medium"
-                      >
-                        <i class="fa fa-circle" aria-hidden="true"></i>
-                        {{
-                          $t('m.' + CONTEST_STATUS_REVERSE[contest.status]['name'])
-                        }}
-                      </el-tag>
-                    </el-col>
-                  </el-row>
-                </li>
-              </ol>
-            </div>
-          </el-card>
-          <Pagination
-            :total="total"
-            :pageSize="limit"
-            @on-change="onCurrentPageChange"
-            :current.sync="currentPage"
-          ></Pagination>
-        </el-col>
-      </el-row>
+  <div class="collection-page contest-page">
+    <header class="collection-heading"><div><h1>{{ $t('m.NavBar_Contest') }}</h1><p>关注赛程，走进赛场，赛后继续补题与复盘。</p></div><span class="collection-count">{{ total }} 场比赛</span></header>
+    <el-card class="collection-filters" shadow="never">
+      <div class="collection-search"><span>{{ $t('m.Contest_Rule') }}</span>
+        <div class="filter-chips">
+          <button class="filter-chip" :aria-pressed="query.type === ''" @click="onRuleChange('')">{{ $t('m.All') }}</button>
+          <button class="filter-chip" :aria-pressed="query.type === 0" @click="onRuleChange(0)">ACM</button>
+          <button class="filter-chip" :aria-pressed="query.type === 1" @click="onRuleChange(1)">OI</button>
+        </div>
+        <vxe-input v-model="query.keyword" :placeholder="$t('m.Enter_keyword')" type="search" size="medium" @keyup.enter.native="onKeywordChange" @search-click="onKeywordChange" />
+      </div>
+      <section class="collection-filter-row"><b>{{ $t('m.Status') }}</b><div class="filter-chips">
+        <button class="filter-chip" :aria-pressed="query.status === ''" @click="onStatusChange('')">{{ $t('m.All') }}</button>
+        <button v-for="(status, key) in CONTEST_STATUS_REVERSE" :key="key" class="filter-chip" :aria-pressed="String(query.status) === key" @click="onStatusChange(key)">{{ $t('m.' + status.name) }}</button>
+      </div></section>
+    </el-card>
+    <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="比赛列表">
+      <ListFeedback :error="loadError" :loading="loading" :empty="!contests.length" @retry="getContestList" />
+      <div v-if="!loadError" class="collection-grid">
+        <article v-for="contest in contests" :key="contest.id" class="collection-card contest-collection-card" :class="{ 'is-running': contest.status === 0 }">
+          <div class="collection-card-top">
+            <span class="contest-state" :style="{ '--contest-state': CONTEST_STATUS_REVERSE[contest.status].color }"><i aria-hidden="true" />{{ $t('m.' + CONTEST_STATUS_REVERSE[contest.status].name) }}</span>
+            <el-tooltip :disabled="contest.type == 0" :content="contest.oiRankScoreType === 'Recent' ? $t('m.Based_on_The_Recent_Score_Submitted_Of_Each_Problem') : $t('m.Based_on_The_Highest_Score_Submitted_For_Each_Problem')">
+              <button class="collection-tag" @click="onRuleChange(contest.type)">{{ parseContestType(contest.type) }}</button>
+            </el-tooltip>
+          </div>
+          <h2><button class="collection-title" :title="contest.title" @click="toContest(contest)">{{ contest.title }}</button></h2>
+          <div class="contest-schedule"><p><i class="el-icon-date" aria-hidden="true" />{{ contest.startTime | localtime }}</p><p><i class="el-icon-time" aria-hidden="true" />{{ getDuration(contest.startTime, contest.endTime) }}<span v-if="contest.count != null"><i class="el-icon-user" aria-hidden="true" />{{ contest.count }} 人参与</span></p></div>
+          <div class="collection-meta">
+            <el-tooltip :content="$t('m.' + CONTEST_TYPE_REVERSE[contest.auth].tips)"><el-tag size="small" :type="CONTEST_TYPE_REVERSE[contest.auth].color" effect="plain"><i v-if="contest.auth" class="el-icon-lock" />{{ $t('m.' + CONTEST_TYPE_REVERSE[contest.auth].name) }}</el-tag></el-tooltip>
+            <el-tooltip v-if="contest.openRank" :content="$t('m.Contest_Outside_ScoreBoard')"><el-button class="contest-scoreboard" size="mini" icon="el-icon-data-analysis" :disabled="contest.status == CONTEST_STATUS.SCHEDULED" @click="toContestOutsideScoreBoard(contest.id, contest.type)">{{ $t('m.Contest_Rank') }}</el-button></el-tooltip>
+          </div>
+          <footer class="collection-card-footer"><span class="collection-hint">{{ parseContestType(contest.type) }} 赛制</span><el-button size="small" :type="contest.status === 0 ? 'primary' : 'default'" @click="toContest(contest)">{{ contest.status === 0 ? '进入比赛' : contest.status === 1 ? '查看与补题' : '查看比赛' }}</el-button></footer>
+        </article>
+      </div>
+    </section>
+    <Pagination :total="total" :pageSize="limit" @on-change="onCurrentPageChange" :current.sync="currentPage" />
   </div>
 </template>
-
 <script>
 import api from '@/common/api';
+import ListFeedback from '@/components/oj/common/ListFeedback';
 import { mapGetters } from 'vuex';
 import utils from '@/common/utils';
 import time from '@/common/time';
@@ -290,6 +58,7 @@ export default {
   name: 'contest-list',
   components: {
     Pagination,
+    ListFeedback,
     // ContestListAttention
   },
   data() {
@@ -307,9 +76,8 @@ export default {
       CONTEST_STATUS_REVERSE: {},
       CONTEST_STATUS: {},
       CONTEST_TYPE_REVERSE: {},
-      acmSrc: require('@/assets/acm.jpg'),
-      oiSrc: require('@/assets/oi.jpg'),
       loading: true,
+      loadError: false,
     };
   },
   created() {
@@ -339,6 +107,7 @@ export default {
     },
     getContestList() {
       this.loading = true;
+      this.loadError = false;
       api.getContestList(this.currentPage, this.limit, this.query).then(
         (res) => {
           this.contests = res.data.data.records;
@@ -346,6 +115,7 @@ export default {
           this.loading = false;
         },
         (err) => {
+          this.loadError = true;
           this.loading = false;
         }
       );
@@ -413,12 +183,7 @@ export default {
     getDuration(startTime, endTime) {
       return time.formatSpecificDuration(startTime, endTime);
     },
-    getborderColor(contest) {
-      return (
-        'border-left: 4px solid ' +
-        CONTEST_STATUS_REVERSE[contest.status]['color']
-      );
-    },
+
   },
   computed: {
     ...mapGetters(['isAuthenticated', 'userInfo']),
@@ -432,78 +197,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-#no-contest {
-  text-align: center;
-  font-size: 16px;
-  padding: 20px;
-}
-.filter-row {
-  float: right;
-}
-@media screen and (max-width: 768px) {
-  .filter-row span {
-    margin-right: 2px;
-  }
-  ol {
-    padding-inline-start: 5px;
-  }
-  /deep/ .el-card__header {
-    margin-bottom: 5px;
-  }
-}
-@media screen and (min-width: 768px) {
-  .filter-row span {
-    margin-right: 20px;
-  }
-}
-/deep/ .el-card__header {
-  border-bottom: 0px;
-}
-
-#contest-list > li {
-  padding: 5px;
-  margin-left: -20px;
-  margin-top: 10px;
-  width: 100%;
-  border-bottom: 1px solid rgba(187, 187, 187, 0.5);
-  list-style: none;
-}
-#contest-list .trophy {
-  height: 70px;
-  margin-left: 10px;
-  margin-right: -20px;
-}
-@media screen and (max-width: 1500px) and (min-width: 1200px){
-  #contest-list .trophy {
-    width: 100% !important;
-  }
-  #contest-list .contest-main{
-    margin-left: 20px;
-  }
-}
-#contest-list .contest-main {
-  text-align: left;
-}
-#contest-list .contest-main .title {
-  font-size: 1.25rem;
-  padding-left: 8px;
-  margin-bottom: 0;
-}
-#contest-list .contest-main .title a.entry {
-  color: #495060;
-}
-#contest-list .contest-main .title a:hover {
-  color: #2d8cf0;
-  border-bottom: 1px solid #2d8cf0;
-}
-#contest-list .contest-main .detail {
-  font-size: 0.875rem;
-  padding-left: 0;
-  padding-bottom: 10px;
-}
-#contest-list .contest-main li {
-  display: inline-block;
-  padding: 10px 0 0 10px;
-}
-</style>

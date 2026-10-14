@@ -1,207 +1,31 @@
 <template>
-  <el-row :gutter="20">
-    <el-col :span="24" style="margin-top: 10px; margin-bottom: 10px;">
-      <el-card>
-        <section>
-          <span class="find-group">{{ $t('m.Search_Group') }}</span>
-          <vxe-input
-            v-model="query.keyword"
-            :placeholder="$t('m.Enter_keyword')"
-            type="search"
-            size="medium"
-            style="width:230px; margin-right: 1.7em"
-            @keyup.enter.native="filterByKeyword"
-            @search-click="filterByKeyword"
-          ></vxe-input>
-          <el-button
-            class="hidden-xs-only"
-            type="warning"
-            icon="el-icon-search"
-            size="small"
-            :disabled="!isAuthenticated"
-            @click="handleOnlyMine(!query.onlyMine)"
-          >
-            {{ query.onlyMine ? $t('m.All_Group') : $t('m.My_Group') }}
-          </el-button>
-          <el-button
-            class="hidden-sm-and-up"
-            type="warning"
-            icon="el-icon-search"
-            size="small"
-            :disabled="!isAuthenticated"
-            @click="handleOnlyMine(!query.onlyMine)"
-          ></el-button>
-          <el-button
-            class="hidden-xs-only"
-            type="primary"
-            icon="el-icon-plus"
-            size="small"
-            @click="toCreateGroup"
-          >
-            {{ $t('m.Create_Group') }}
-          </el-button>
-          <el-button
-            class="hidden-sm-and-up"
-            type="primary"
-            icon="el-icon-plus"
-            size="small"
-            @click="toCreateGroup"
-          ></el-button>
-        </section>
-        <section>
-          <b class="group-category">{{ $t('m.Group_Auth') }}</b>
-          <div>
-            <el-tag
-              size="medium"
-              class="category-item"
-              :effect="query.auth ? 'plain' : 'dark'"
-              @click="filterByAuth(null)"
-            >
-              {{ $t('m.All') }}
-            </el-tag>
-            <el-tag
-              size="medium"
-              class="category-item"
-              v-for="(key, index) in GROUP_TYPE_REVERSE"
-              :type="key.color"
-              :effect="query.auth == index ? 'dark' : 'plain'"
-              :key="index"
-              @click="filterByAuth(index)"
-            >
-              {{ $t('m.Group_' + key.name) }}
-            </el-tag>
+  <div class="collection-page group-page">
+    <header class="collection-heading">
+      <div><h1>{{ $t('m.NavBar_Group') }}</h1><p>一起训练、交流与参赛，在团队里共同成长。</p></div>
+      <div class="collection-actions"><el-button size="small" :disabled="!isAuthenticated" @click="handleOnlyMine(!query.onlyMine)">{{ query.onlyMine ? $t('m.All_Group') : $t('m.My_Group') }}</el-button><el-button type="primary" icon="el-icon-plus" size="small" @click="toCreateGroup">{{ $t('m.Create_Group') }}</el-button></div>
+    </header>
+    <el-card class="collection-filters" shadow="never">
+      <div class="collection-search"><span>{{ $t('m.Search_Group') }}</span><vxe-input v-model="query.keyword" :placeholder="$t('m.Enter_keyword')" type="search" size="medium" @keyup.enter.native="filterByKeyword" @search-click="filterByKeyword" /><span class="collection-count">{{ total }} 个团队</span></div>
+      <section class="collection-filter-row"><b>{{ $t('m.Group_Auth') }}</b><div class="filter-chips">
+        <button class="filter-chip" :aria-pressed="!query.auth" @click="filterByAuth(null)">{{ $t('m.All') }}</button>
+        <button v-for="(auth, key) in GROUP_TYPE_REVERSE" :key="key" class="filter-chip" :aria-pressed="query.auth == key" @click="filterByAuth(key)">{{ $t('m.Group_' + auth.name) }}</button>
+      </div></section>
+    </el-card>
+    <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="团队列表">
+      <ListFeedback :error="loadError" :loading="loading" :empty="!groupList.length" @retry="getGroupList" />
+      <div v-if="!loadError" class="collection-grid">
+        <article v-for="group in groupList" :key="group.id" class="collection-card group-collection-card">
+          <div class="collection-card-top"><span class="team-avatar"><el-image v-if="group.avatar" :src="group.avatar" fit="cover" lazy><span slot="error">{{ group.shortName || group.name | firstLetters }}</span></el-image><span v-else>{{ group.shortName || group.name | firstLetters }}</span></span>
+            <el-tooltip :content="$t('m.' + GROUP_TYPE_REVERSE[group.auth].tips)"><el-tag size="small" :type="GROUP_TYPE_REVERSE[group.auth].color" effect="plain">{{ $t('m.Group_' + GROUP_TYPE_REVERSE[group.auth].name) }}</el-tag></el-tooltip>
           </div>
-        </section>
-      </el-card>
-    </el-col>
-    <el-col :span="24" v-loading="loading">
-      <el-row :gutter="20">
-        <el-col
-          :xxl="4"
-          :xl="6"
-          :lg="8"
-          :md="8"
-          :sm="12"
-          :xs="24"
-          v-if="!groupList.length"
-          style="margin-top: 10px; margin-bottom: 10px"
-        >
-          <el-card
-            :body-style="{ padding: '0px' }"
-            style="border-radius: 10px;"
-          >
-            <el-empty :description="$t('m.No_Groups')"></el-empty>
-          </el-card>
-        </el-col>
-        <el-col
-          :xxl="4"
-          :xl="6"
-          :lg="8"
-          :md="8"
-          :sm="12"
-          :xs="24"
-          v-for="group in groupList"
-          :key="group.id"
-          style="margin-top: 10px; margin-bottom: 10px"
-        >
-          <el-row :gutter="1">
-            <el-col :span="7" style="text-align: center;">
-              <el-card
-                :body-style="{ padding: '0px' }"
-                style="border-radius: 10px; height: 170px"
-              >
-                <template v-if="group.avatar">
-                  <el-image
-                    :src="group.avatar"
-                    @click="toGroup(group.id)"
-                    fit="cover"
-                    style="height: 135px; width: 100%"
-                  ></el-image>
-                </template>
-                <template v-else>
-                  <el-image
-                    :src="defaultAvatar"
-                    @click="toGroup(group.id)"
-                    fit="cover"
-                    style="height: 135px; width: 100%"
-                  ></el-image>
-                </template>
-                <el-link
-                  style="font-size: 16px"
-                  type="primary"
-                  :underline="false"
-                  @click="toUserHome(group.owner)"
-                  ><i class="el-icon-user-solid"></i> {{ group.owner }}
-                </el-link>
-              </el-card>
-            </el-col>
-            <el-col :span="17" :class="GROUP_TYPE_REVERSE[group.auth].name">
-              <el-card
-                :body-style="{ padding: '0px' }"
-                style="border-radius: 10px; height: 170px"
-              >
-                <div slot="header" style="height: 24px">
-                  <a class="group-name" @click="toGroup(group.id)">
-                    <Marquee :val="group.name" :id="group.id"></Marquee>
-                  </a>
-                </div>
-                <div class="group-brief">
-                  <span>{{ group.brief }}</span>
-                </div>
-                <el-divider></el-divider>
-                <div style="font-size: 16px; padding: 3.5px">
-                  <span>
-                    <i class="el-icon-user-solid"></i>
-                    <i class="el-icon-close">{{ group.memberCount }}</i>
-                    <el-tooltip
-                      :content="$t('m.' + GROUP_TYPE_REVERSE[group.auth].tips)"
-                    >
-                      <el-tag
-                        class="group-auth"
-                        size="medium"
-                        :type="GROUP_TYPE_REVERSE[group.auth].color"
-                        effect="plain"
-                        @click="filterByAuth(group.auth)"
-                      >
-                        {{
-                          $t('m.Group_' + GROUP_TYPE_REVERSE[group.auth].name)
-                        }}
-                      </el-tag>
-                    </el-tooltip>
-                    <el-tooltip :content="$t('m.Group_Hidden_Tips')">
-                      <el-tag
-                        v-if="!group.visible"
-                        class="group-auth"
-                        size="medium"
-                        type="primary"
-                        effect="plain"
-                      >
-                        {{ $t('m.Group_Hidden') }}
-                      </el-tag>
-                    </el-tooltip>
-                  </span>
-                  <span style="float: right">
-                    <i class="el-icon-time">
-                      {{ group.gmtCreate | localtime((format = 'YYYY-MM-DD')) }}
-                    </i>
-                  </span>
-                </div>
-              </el-card>
-            </el-col>
-          </el-row>
-        </el-col>
-      </el-row>
-    </el-col>
-    <Pagination
-      :total="total"
-      :page-size="query.limit"
-      @on-change="currentChange"
-      :current.sync="query.currentPage"
-      @on-page-size-change="onPageSizeChange"
-      style="margin-top: 10px; margin-bottom: 30px;"
-      :layout="'prev, pager, next, sizes'"
-      :pageSizes="[9, 15, 30, 60, 120]"
-    ></Pagination>
+          <h2><button class="collection-title" :title="group.name" @click="toGroup(group.id)">{{ group.name }}</button></h2>
+          <p class="collection-description" :title="group.brief">{{ group.brief }}</p>
+          <div class="collection-meta"><span><i class="el-icon-user" /> {{ group.memberCount }} 位成员</span><span v-if="!group.visible" class="collection-tag">{{ $t('m.Group_Hidden') }}</span><time :title="group.gmtCreate | localtime">{{ group.gmtCreate | localtime('YYYY-MM-DD') }}</time></div>
+          <footer class="collection-card-footer"><button class="collection-text-link collection-owner" :title="group.owner" @click="toUserHome(group.owner)">{{ group.owner }}</button><el-button size="small" @click="toGroup(group.id)">进入团队</el-button></footer>
+        </article>
+      </div>
+    </section>
+    <Pagination :total="total" :page-size="query.limit" @on-change="currentChange" :current.sync="query.currentPage" @on-page-size-change="onPageSizeChange" :layout="'prev, pager, next, sizes'" :pageSizes="[9, 15, 30, 60, 120]" />
     <el-dialog
       :title="$t('m.Create_Group')"
       :visible.sync="showEditGroupDialog"
@@ -329,7 +153,7 @@
         }}</el-button>
       </span>
     </el-dialog>
-  </el-row>
+  </div>
 </template>
 
 <script>
@@ -339,14 +163,15 @@ import mMessage from '@/common/message';
 import { mapGetters } from 'vuex';
 import Pagination from '@/components/oj/common/Pagination';
 import Editor from '@/components/admin/Editor';
-import Marquee from '@/components/oj/common/Marquee';
+import ListFeedback from '@/components/oj/common/ListFeedback';
 export default {
   name: 'GroupList',
   components: {
     Pagination,
     Editor,
-    Marquee,
+    ListFeedback,
   },
+  filters: { firstLetters(value) { return String(value || '队').slice(0, 2); } },
   data() {
     return {
       showEditGroupDialog: false,
@@ -445,7 +270,7 @@ export default {
       backupGroup: null,
       groupList: [],
       loading: false,
-      defaultAvatar: require('@/assets/default.jpg'),
+      loadError: false,
     };
   },
   mounted() {
@@ -460,11 +285,13 @@ export default {
       this.query.auth = route.auth;
       this.query.keyword = route.keyword || '';
       this.query.onlyMine = route.onlyMine + '' == 'true' ? true : false;
-      this.query.currentPage = route.currentPage || 1;
-      this.query.limit = route.limit || 15;
+      this.query.currentPage = Math.max(1, parseInt(route.currentPage, 10) || 1);
+      const limit = Number(route.limit);
+      this.query.limit = [9, 15, 30, 60, 120].includes(limit) ? limit : 15;
       this.getGroupList();
     },
     onPageSizeChange(pageSize) {
+      this.query.currentPage = 1;
       this.query.limit = pageSize;
       this.handleRouter();
     },
@@ -477,10 +304,12 @@ export default {
       this.handleRouter();
     },
     filterByAuth(auth) {
+      this.query.currentPage = 1;
       this.query.auth = auth;
       this.handleRouter();
     },
     handleOnlyMine(onlyMine) {
+      this.query.currentPage = 1;
       this.query.onlyMine = onlyMine;
       this.handleRouter();
     },
@@ -496,6 +325,7 @@ export default {
     },
     getGroupList() {
       this.loading = true;
+      this.loadError = false;
       api.getGroupList(this.query.currentPage, this.query.limit, this.query).then(
         (res) => {
           this.groupList = res.data.data.records;
@@ -503,6 +333,7 @@ export default {
           this.loading = false;
         },
         (err) => {
+          this.loadError = true;
           this.loading = false;
         }
       );
@@ -590,102 +421,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-section {
-  display: flex;
-  min-height: 3em;
-  margin-bottom: 1em;
-  align-items: center;
-}
-.find-group {
-  margin-right: 1em;
-  white-space: nowrap;
-  font-size: 1.7em;
-  margin-top: 0;
-  font-family: inherit;
-  font-weight: bold;
-  line-height: 1.2;
-  color: inherit;
-}
-.group-category {
-  margin-right: 1.5em;
-  font-weight: bolder;
-  white-space: nowrap;
-  font-size: 16px;
-  margin-top: 8px;
-}
-.category-item {
-  margin-right: 1em;
-  margin-top: 0.5em;
-  font-size: 14px;
-}
-.category-item:hover {
-  cursor: pointer;
-}
-.group-name {
-  font-size: 1.15rem;
-  font-weight: 600;
-}
-
-/deep/ .Public .el-card {
-  border-color: rgba(103, 194, 58, 0.5);
-}
-
-/deep/ .Public .el-card__header {
-  background-color: rgba(103, 194, 58, 0.2);
-}
-
-.Public .group-name {
-  color: rgb(103, 194, 58);
-}
-
-/deep/ .Protected .el-card {
-  border-color: rgba(230, 162, 60, 0.5);
-}
-
-/deep/ .Protected .el-card__header {
-  background-color: rgba(230, 162, 60, 0.2);
-}
-
-.Protected .group-name {
-  color: rgb(230, 162, 60);
-}
-
-/deep/ .Private .el-card {
-  border-color: rgba(245, 108, 108, 0.5);
-}
-
-/deep/ .Private .el-card__header {
-  background-color: rgba(245, 108, 108, 0.2);
-}
-
-.Private .group-name {
-  color: rgb(245, 108, 108);
-}
-
-.group-brief {
-  height: 86px;
-  font-size: 14px;
-  padding: 0 10px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-}
-.group-auth {
-  margin-left: 3px;
-  margin-top: -1px;
-  font-size: 14px;
-}
-.group-auth:hover {
-  cursor: pointer;
-}
-/deep/ .el-card__header {
-  padding: 10px;
-  margin-bottom: 4px;
-}
-/deep/ .el-divider--horizontal {
-  margin: 0;
-}
-</style>

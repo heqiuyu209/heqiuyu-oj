@@ -22,7 +22,7 @@
       v-loading="loading"
     >
       <ECharts
-        :options="options"
+        :options="themedOptions"
         ref="chart"
         :autoresize="true"
       ></ECharts>
@@ -32,6 +32,7 @@
 <script>
 import api from "@/common/api";
 import { mapGetters } from 'vuex';
+import { appearance } from '@/common/appearance';
 export default {
   name: "SubmissionStatistics",
   props: {
@@ -42,6 +43,8 @@ export default {
   },
   data() {
     return {
+      appearance,
+      systemDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
       loading: false,
       options: {
         tooltip: {
@@ -111,9 +114,15 @@ export default {
     };
   },
   mounted() {
+    this.colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    this.colorScheme.addEventListener('change', this.onColorSchemeChange);
     this.getLastWeekSubmissionStatistics(false);
   },
+  beforeDestroy() {
+    this.colorScheme.removeEventListener('change', this.onColorSchemeChange);
+  },
   methods: {
+    onColorSchemeChange(event) { this.systemDark = event.matches; },
     getLastWeekSubmissionStatistics(forceRefresh) {
       this.loading = true;
       api.getLastWeekSubmissionStatistics(forceRefresh).then(
@@ -130,7 +139,25 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['isSuperAdmin','webLanguage'])
+    ...mapGetters(['isSuperAdmin','webLanguage']),
+    themedOptions() {
+      const dark = this.appearance.theme === 'dark' || (this.appearance.theme === 'system' && this.systemDark);
+      const text = dark ? '#a5bdc9' : '#657c88';
+      const line = dark ? '#345260' : '#d8e5eb';
+      const axis = { axisLabel: { color: text }, axisLine: { lineStyle: { color: line } }, axisTick: { show: false }, splitLine: { lineStyle: { color: line } } };
+      return {
+        ...this.options,
+        animation: false,
+        textStyle: { color: text },
+        grid: { left: 12, right: 18, top: 38, bottom: 8, containLabel: true },
+        legend: { ...this.options.legend, textStyle: { color: text } },
+        tooltip: { ...this.options.tooltip, backgroundColor: dark ? '#192f3c' : '#ffffff', textStyle: { color: text }, borderColor: line, borderWidth: 1 },
+        xAxis: this.options.xAxis.map(item => ({ ...item, ...axis })),
+        yAxis: this.options.yAxis.map(item => ({ ...item, ...axis, minInterval: 1 })),
+        // Total submissions already include AC submissions; draw independent lines.
+        series: this.options.series.map(item => ({ ...item, stack: undefined, symbolSize: 5, label: { show: false }, areaStyle: { opacity: 0.08 } })),
+      };
+    },
   },
   watch:{
     webLanguage(newVal, oldVal){

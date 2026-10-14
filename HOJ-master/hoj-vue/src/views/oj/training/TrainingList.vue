@@ -1,201 +1,60 @@
 <template>
-  <el-row>
-    <el-card>
-      <section>
-        <span class="find-training">{{ $t('m.Search_Training') }}</span>
-        <vxe-input
-          v-model="query.keyword"
-          :placeholder="$t('m.Enter_keyword')"
-          type="search"
-          size="medium"
-          style="width:230px"
-          @keyup.enter.native="filterByKeyword"
-          @search-click="filterByKeyword"
-        ></vxe-input>
-      </section>
-      <section>
-        <b class="training-category">{{ $t('m.Training_Auth') }}</b>
-        <div>
-          <el-tag
-            size="medium"
-            class="category-item"
-            :effect="query.auth ? 'plain' : 'dark'"
-            @click="filterByAuthType(null)"
-            >{{ $t('m.All') }}</el-tag
-          >
-          <el-tag
-            size="medium"
-            class="category-item"
-            v-for="(key, index) in TRAINING_TYPE"
-            :type="key.color"
-            :effect="query.auth == key.name ? 'dark' : 'plain'"
-            :key="index"
-            @click="filterByAuthType(key.name)"
-            >{{ $t('m.Training_' + key.name) }}</el-tag
-          >
+  <div class="collection-page training-page">
+    <header class="collection-heading">
+      <div><h1>{{ $t('m.NavBar_Training') }}</h1><p>按知识点积累，在每一份题集中稳步推进。</p></div>
+      <span class="collection-count">{{ total }} 份训练</span>
+    </header>
+    <el-card class="collection-filters" shadow="never">
+      <div class="collection-search">
+        <span>{{ $t('m.Search_Training') }}</span>
+        <vxe-input v-model="query.keyword" :placeholder="$t('m.Enter_keyword')" type="search" size="medium"
+          @keyup.enter.native="filterByKeyword" @search-click="filterByKeyword" />
+      </div>
+      <section class="collection-filter-row">
+        <b>{{ $t('m.Training_Auth') }}</b>
+        <div class="filter-chips">
+          <button class="filter-chip" :aria-pressed="!query.auth" @click="filterByAuthType(null)">{{ $t('m.All') }}</button>
+          <button v-for="item in TRAINING_TYPE" :key="item.name" class="filter-chip" :aria-pressed="query.auth === item.name"
+            @click="filterByAuthType(item.name)">{{ $t('m.Training_' + item.name) }}</button>
         </div>
       </section>
-      <section>
-        <b class="training-category">{{ $t('m.Training_Category') }}</b>
-        <div>
-          <el-tag
-            size="medium"
-            class="category-item"
-            :style="getCategoryBlockColor(null)"
-            @click="filterByCategory(null)"
-            >{{ $t('m.All') }}</el-tag
-          >
-          <el-tag
-            size="medium"
-            class="category-item"
-            v-for="(category, index) in categoryList"
-            :style="getCategoryBlockColor(category)"
-            :key="index"
-            @click="filterByCategory(category.id)"
-            >{{ category.name }}</el-tag
-          >
+      <section class="collection-filter-row">
+        <b>{{ $t('m.Training_Category') }}</b>
+        <div class="filter-chips">
+          <button class="filter-chip" :aria-pressed="!query.categoryId" @click="filterByCategory(null)">{{ $t('m.All') }}</button>
+          <button v-for="category in categoryList" :key="category.id" class="filter-chip" :aria-pressed="query.categoryId == category.id"
+            @click="filterByCategory(category.id)">{{ category.name }}</button>
         </div>
       </section>
     </el-card>
-
-    <el-card style="margin-top:2em">
-      <vxe-table
-        border="inner"
-        stripe
-        ref="trainingList"
-        auto-resize
-        :data="trainingList"
-        :loading="loading"
-        style="font-size: 14px !important;font-weight: 450 !important;"
-      >
-        <vxe-table-column
-          field="rank"
-          :title="$t('m.Number')"
-          min-width="60"
-          show-overflow
-        >
-        </vxe-table-column>
-        <vxe-table-column
-          field="title"
-          :title="$t('m.Title')"
-          min-width="200"
-          align="center"
-        >
-          <template v-slot="{ row }"
-            ><el-link type="primary" @click="toTraining(row.id)">{{
-              row.title
-            }}</el-link>
-          </template>
-        </vxe-table-column>
-
-        <vxe-table-column
-          field="auth"
-          :title="$t('m.Auth')"
-          min-width="100"
-          align="center"
-        >
-          <template v-slot="{ row }">
-            <el-tag :type="TRAINING_TYPE[row.auth]['color']" effect="dark">
-              {{ $t('m.Training_' + row.auth) }}
-            </el-tag>
-          </template>
-        </vxe-table-column>
-        <vxe-table-column
-          field="categoryName"
-          :title="$t('m.Category')"
-          min-width="130"
-          align="center"
-        >
-          <template v-slot="{ row }">
-            <el-tag
-              size="medium"
-              class="category-item"
-              :style="
-                'background-color: #fff;color: ' +
-                  row.categoryColor +
-                  ';border-color: ' +
-                  row.categoryColor +
-                  ';'
-              "
-              :key="index"
-              >{{ row.categoryName }}</el-tag
-            >
-          </template>
-        </vxe-table-column>
-
-        <vxe-table-column 
-          field="acCount" 
-          :title="$t('m.Progress')" 
-          min-width="120"
-          align="center">
-          <template v-slot="{ row }">
-            <span>
-              <el-tooltip
-                effect="dark"
-                :content="row.acCount + '/' + row.problemCount"
-                placement="top"
-              >
-                <el-progress
-                  :text-inside="true"
-                  :stroke-width="20"
-                  :percentage="getPassingRate(row.acCount, row.problemCount)"
-                ></el-progress>
-              </el-tooltip>
-            </span>
-          </template>
-        </vxe-table-column>
-
-        <vxe-table-column
-          field="problemCount"
-          :title="$t('m.Problem_Number')"
-          min-width="70"
-          align="center"
-        >
-        </vxe-table-column>
-        <vxe-table-column
-          field="author"
-          :title="$t('m.Author')"
-          min-width="130"
-          align="center"
-          show-overflow
-        >
-          <template v-slot="{ row }"
-            ><el-link type="info" @click="goUserHome(row.author)">{{
-              row.author
-            }}</el-link>
-          </template>
-        </vxe-table-column>
-        <vxe-table-column
-          field="gmtModified"
-          :title="$t('m.Recent_Update')"
-          min-width="96"
-          align="center"
-          show-overflow
-        >
-          <template v-slot="{ row }">
-            <span>
-                <el-tooltip
-                  :content="row.gmtModified | localtime"
-                  placement="top"
-                >
-                  <span>{{ row.gmtModified | fromNow }}</span>
-                </el-tooltip>
-              </span>
-          </template>
-        </vxe-table-column>
-      </vxe-table>
-    </el-card>
-    <Pagination
-      :total="total"
-      :pageSize="limit"
-      @on-change="filterByPage"
-      :current.sync="currentPage"
-    ></Pagination>
-  </el-row>
+    <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="训练列表">
+      <ListFeedback :error="loadError" :loading="loading" :empty="!trainingList.length" @retry="getTrainingList" />
+      <div v-if="!loadError" class="collection-grid">
+        <article v-for="training in trainingList" :key="training.id" class="collection-card training-card">
+          <div class="collection-card-top">
+            <span class="collection-symbol"><i class="el-icon-reading" aria-hidden="true" /></span>
+            <el-tag size="small" :type="(TRAINING_TYPE[training.auth] || {}).color" effect="plain">{{ $t('m.Training_' + training.auth) }}</el-tag>
+          </div>
+          <h2><button class="collection-title" :title="training.title" @click="toTraining(training.id)">{{ training.title }}</button></h2>
+          <div class="collection-meta"><span v-if="training.categoryName" class="collection-tag">{{ training.categoryName }}</span><span>{{ training.problemCount }} 道题</span><span v-if="training.rank != null">{{ $t('m.Number') }} {{ training.rank }}</span></div>
+          <div v-if="isAuthenticated" class="training-progress">
+            <div><span>{{ $t('m.Progress') }}</span><span>{{ training.acCount || 0 }} / {{ training.problemCount }}</span></div>
+            <el-progress :percentage="getPassingRate(training.acCount, training.problemCount)" :show-text="false" :stroke-width="5" />
+          </div>
+          <p v-else class="collection-hint">登录后记录你的训练进度</p>
+          <footer class="collection-card-footer">
+            <div class="collection-author"><button class="collection-text-link" @click="goUserHome(training.author)">{{ training.author }}</button><small v-if="training.gmtModified" :title="training.gmtModified | localtime">{{ training.gmtModified | fromNow }}</small></div>
+            <el-button size="small" @click="toTraining(training.id)">进入训练</el-button>
+          </footer>
+        </article>
+      </div>
+    </section>
+    <Pagination :total="total" :pageSize="limit" @on-change="filterByPage" :current.sync="currentPage" />
+  </div>
 </template>
-
 <script>
 import api from '@/common/api';
+import ListFeedback from '@/components/oj/common/ListFeedback';
 import utils from '@/common/utils';
 import { TRAINING_TYPE } from '@/common/constants';
 import myMessage from '@/common/message';
@@ -205,6 +64,7 @@ export default {
   name: 'TrainingList',
   components: {
     Pagination,
+    ListFeedback,
   },
   data() {
     return {
@@ -220,20 +80,13 @@ export default {
       trainingList: [],
       TRAINING_TYPE: {},
       loading: false,
+      loadError: false,
     };
   },
   created() {
     let route = this.$route.query;
     this.currentPage = parseInt(route.currentPage) || 1;
     this.TRAINING_TYPE = Object.assign({}, TRAINING_TYPE);
-    if(!this.isAuthenticated){
-      setTimeout(() => {
-        // 将指定列设置为隐藏状态
-        this.$refs.trainingList.getColumnByField('acCount').visible = false;
-        this.$refs.trainingList.refreshColumn();
-      }, 200);
-    }
-
     this.getTrainingCategoryList();
   },
   mounted() {
@@ -281,6 +134,7 @@ export default {
     },
     getTrainingList() {
       this.loading = true;
+      this.loadError = false;
       let query = Object.assign({}, this.query);
       api.getTrainingList(this.currentPage, this.limit, query).then(
         (res) => {
@@ -289,6 +143,7 @@ export default {
           this.loading = false;
         },
         (err) => {
+          this.loadError = true;
           this.loading = false;
         }
       );
@@ -317,38 +172,11 @@ export default {
       });
     },
 
-    getCategoryBlockColor(category) {
-      if (category == null) {
-        if (!this.query.categoryId) {
-          return 'color: #fff;background-color: #409EFF;background-color: #409EFF';
-        } else {
-          return 'background-color: #fff;color: #409EFF;border-color: #409EFF';
-        }
-      }
-
-      if (category.id == this.query.categoryId) {
-        return (
-          'color: #fff;background-color: ' +
-          category.color +
-          ';background-color: ' +
-          category.color +
-          ';'
-        );
-      } else {
-        return (
-          'background-color: #fff;color: ' +
-          category.color +
-          ';border-color: ' +
-          category.color +
-          ';'
-        );
-      }
-    },
     getPassingRate(ac, total) {
       if (!total) {
         return 0;
       }
-      return ((ac / total) * 100).toFixed(2);
+      return Math.min(100, Math.max(0, Math.round((Number(ac) || 0) / total * 100)));
     },
   },
   computed: {
@@ -361,47 +189,8 @@ export default {
       }
     },
     isAuthenticated(newVal, oldVal){
-      setTimeout(() => {
-        // 将指定列设置为隐藏状态
-        this.$refs.trainingList.getColumnByField('acCount').visible = newVal;
-        this.$refs.trainingList.refreshColumn();
-      }, 200);
       this.init();
     }
   },
 };
 </script>
-
-<style scoped>
-section {
-  display: flex;
-  min-height: 3em;
-  margin-bottom: 1em;
-  align-items: center;
-}
-.find-training {
-  margin-right: 1em;
-  white-space: nowrap;
-  font-size: 1.7em;
-  margin-top: 0;
-  font-family: inherit;
-  font-weight: bold;
-  line-height: 1.2;
-  color: inherit;
-}
-.training-category {
-  margin-right: 1.5em;
-  font-weight: bolder;
-  white-space: nowrap;
-  font-size: 16px;
-  margin-top: 8px;
-}
-.category-item {
-  margin-right: 1em;
-  margin-top: 0.5em;
-  font-size: 14px;
-}
-.category-item:hover {
-  cursor: pointer;
-}
-</style>

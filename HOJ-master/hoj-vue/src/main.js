@@ -96,6 +96,7 @@ Vue.prototype.$markDown = mavonEditor.mavonEditor.getMarkdownIt().use(Md_Katex) 
 Vue.config.productionTip = false
 // Keep the existing module initialization order; apply theme styles last.
 require('./styles/cdutetc.css');
+require('./styles/collections.css');
 new Vue({
   router,
   store,
