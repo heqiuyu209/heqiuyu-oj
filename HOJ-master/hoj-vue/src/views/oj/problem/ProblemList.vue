@@ -6,6 +6,7 @@
           <el-row :gutter="20" style="margin-bottom: 0.5em;">
             <el-col :xs="24" :sm="6">
               <span class="problem-list-title">{{ $t('m.Problem_List') }}</span>
+              <el-button type="text" class="objective-entry" @click="$router.push('/objective')">客观题练习</el-button>
             </el-col>
             <el-col :xs="24" :sm="6">
               <vxe-input

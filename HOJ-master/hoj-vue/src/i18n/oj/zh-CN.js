@@ -1,4 +1,6 @@
 export const m = {
+  Objective_Practice: '客观题练习',
+  Objective_Admin: '客观题与组卷',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: '查询错误，找不到要请求的资源！',

@@ -2,6 +2,8 @@
 
 ## 1. 目标范围
 
+2026-10-15 源码核对：已有 `DataBackup/.../crawler/problem/CFProblemStrategy.java`、`judge/remote/RemoteJudgeDispatcher.java`、`JudgeServer/.../remoteJudge/task/Impl/CodeForcesJudge.java` 和结果轮询；`Judge` 已含远程提交 ID。以下内容为目标能力与差距检查表，不表示需要重新实现整套链路，也不表示现有 CF 接口在线可用。
+
 第一阶段只实现 Codeforces。洛谷和 AtCoder 暂不接入，但代码结构预留远程平台适配器。
 
 VJ 的核心不是简单显示一个外链，而是：
@@ -24,6 +26,8 @@ RemoteJudgeProvider
 ```
 
 以后新增洛谷或 AtCoder，只增加 Provider 和状态映射，不修改 VJ 业务主流程。
+
+现有 `RemoteJudgeStrategy` 优先复用。先检查抓题、语言映射、队列、账号串行化、轮询与训练记录，验证缺口后再决定是否调整抽象或新增表。
 
 ## 3. 远程题目模型
 
@@ -81,6 +85,8 @@ Codeforces 可能存在登录、验证码、访问频率和接口限制。实现
 - 对同一账号限流；
 - 平台不可用时允许用户重试；
 - 不把 CF 账号密码和 HOJ 密码混用。
+
+源码已有登录失败打印密码的分支，复用前需移除敏感日志。远端是否受理不确定时，先查询与对账，不能盲目再次提交。
 
 ## 7. VJ 训练和排名
 

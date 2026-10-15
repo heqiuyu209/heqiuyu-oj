@@ -1,4 +1,6 @@
 export const m = {
+  Objective_Practice: 'Objective Practice',
+  Objective_Admin: 'Objective Questions and Papers',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: 'Query error! Unable to find the resource to request!',

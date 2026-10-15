@@ -1,4 +1,5 @@
 import axios from 'axios'
+import objectiveApi from '@/common/objectiveApi'
 import Vue from 'vue'
 import mMessage from '@/common/message'
 import router from '@/router'
@@ -1932,7 +1933,7 @@ const adminApi = {
 }
 
 // 集中导出oj前台的api和admin管理端的api
-let api = Object.assign(ojApi, adminApi)
+let api = Object.assign(ojApi, adminApi, objectiveApi)
 export default api
 /**
  * @param url

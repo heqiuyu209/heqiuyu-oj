@@ -1,4 +1,6 @@
 export const m = {
+  Objective_Practice: '客觀題練習',
+  Objective_Admin: '客觀題與組卷',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: '查詢錯誤，找不到要請求的資源！',

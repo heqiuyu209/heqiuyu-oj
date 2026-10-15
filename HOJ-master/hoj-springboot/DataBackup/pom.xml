@@ -49,8 +49,23 @@
                 </includes>
             </resource>
         </resources>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>../../sqlAndsetting</directory>
+                <includes><include>objective.sql</include></includes>
+            </testResource>
+        </testResources>
     </build>
     <dependencies>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>1.4.200</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>top.hcode</groupId>
             <artifactId>hoj-api</artifactId>

@@ -46,6 +46,8 @@ import GroupRank from '@/views/oj/group/children/GroupRank.vue'
 import NotFound from "@/views/404.vue"
 
 const ojRoutes = [
+  { path: '/objective', name: 'ObjectiveList', component: () => import('@/views/oj/problem/ObjectiveList'), meta: { title: 'Objective Practice', requireAuth: true } },
+  { path: '/objective/run/:runID', name: 'ObjectiveRun', component: () => import('@/views/oj/problem/ObjectiveRun'), meta: { title: 'Objective Practice', requireAuth: true } },
   {
     path: '/',
     redirect: '/home',

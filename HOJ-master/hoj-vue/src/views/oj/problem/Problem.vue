@@ -1537,7 +1537,7 @@ export default {
     }
   },
   computed: {
-    isObjective() { return ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'FILL_BLANK'].includes(this.problemData.problem.questionType); },
+    isObjective() { return ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_BLANK'].includes(this.problemData.problem.questionType); },
     ...mapGetters([
       "problemSubmitDisabled",
       "contestRuleType",

@@ -731,6 +731,7 @@ export default {
       return { training: '当前训练', contest: '当前比赛', group: '当前团队' }[this.mode];
     },
     activeMenuName() {
+      if (this.$route.path.split('/')[1] === 'objective') return '/problem';
       if (this.$route.path.split('/')[1] == 'submission-detail') {
         return '/status';
       } else if (this.$route.path.split('/')[1] == 'discussion-detail') {

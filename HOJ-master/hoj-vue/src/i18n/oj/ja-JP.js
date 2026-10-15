@@ -1,4 +1,6 @@
 export const m = {
+  Objective_Practice: '客観式問題の練習',
+  Objective_Admin: '客観式問題と問題集',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: 'クエリエラー、リクエストするリソースが見つかりません！',

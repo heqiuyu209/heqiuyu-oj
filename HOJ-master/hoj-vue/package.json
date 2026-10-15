@@ -6,6 +6,7 @@
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "test:ui": "node tests/ui-contracts.cjs",
+    "test:objective": "node tests/objective-browser.cjs",
     "test:browser": "node tests/browser-review.cjs",
     "test:dev": "node tests/dev-smoke.cjs"
   },

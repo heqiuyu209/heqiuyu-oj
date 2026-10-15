@@ -32,6 +32,7 @@ const adminRoutes= [
       component: Home,
       meta: { requireAuth:true, requireAdmin: true },
       children: [
+        { path: 'objective', name: 'admin-objective', component: () => import('@/views/admin/problem/ObjectiveAdmin'), meta: { title: 'Objective Admin' } },
         {
           path: '',
           redirect: 'dashboard',

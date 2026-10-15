@@ -1,4 +1,6 @@
 export const m = {
+  Objective_Practice: '객관식 연습',
+  Objective_Admin: '객관식 문제와 문제집',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: '쿼리 오류, 요청할 리소스를 찾을 수 없습니다!',
