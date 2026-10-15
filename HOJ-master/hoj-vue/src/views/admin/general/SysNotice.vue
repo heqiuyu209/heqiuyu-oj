@@ -3,8 +3,9 @@
     <el-card>
       <div slot="header">
         <span class="panel-title home-title">{{ $t('m.SysNotice') }}</span>
-        <div style="font-size:13px;margin-top: 5px;color: red;">
-          {{ $t('m.Push_System_Notification_Every_Hour') }}
+        <div class="admin-notice-hint">
+          <i class="el-icon-info" aria-hidden="true"></i>
+          <span>{{ $t('m.Push_System_Notification_Every_Hour') }}</span>
         </div>
       </div>
       <div class="create">

@@ -1,0 +1,51 @@
+/* All decorative effects share the effective preference, including contest mode. */
+#app #header .theme-toggle { order: 3; }
+#app #header .profile-menu { order: 4; }
+#app #header .nav-appearance { order: 5; }
+#app #header .appearance-button { width: 36px; height: 36px; padding: 0; }
+#app .mobile-nav .nav-account { display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px; color: var(--nav-ink); border: 0; border-radius: 999px; background: transparent; cursor: pointer; }
+#app .mobile-nav .nav-account .nav-username { display: none; }
+#app .mobile-nav .mu-appbar-right { display: flex; align-items: center; }
+#app .mobile-nav .mu-menu, #app .mobile-nav .mu-menu-activator { display: flex; align-items: center; }
+#app .mobile-nav .profile-menu { float: none; margin: 0; right: auto; font-size: 14px; }
+#app .mobile-nav .appearance-button { width: 34px; height: 34px; padding: 0; color: var(--nav-ink); border: 0; background: transparent; }
+.spotlight-surface { position: relative; }
+.spotlight-surface::after { content: ''; position: absolute; z-index: 1; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(260px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(55, 169, 206, .13), transparent 75%); transition: opacity 180ms ease; }
+.spotlight-surface.spotlight-active::after { opacity: 1; }
+html[data-motion='reduced'] .spotlight-surface::after { display: none; }
+/* A static scene behind a frosted sheet; the small lens adds restrained refraction.
+   No particles, video, continuous animation, image downloads or animation library. */
+#app .home-welcome { position: relative; isolation: isolate; }
+.home-glass-scene, .home-glass-sheet, .home-glass-lens { display: none; }
+.home-glass-defs { position: absolute; pointer-events: none; }
+html[data-home-glass='on'] #app .home-welcome { overflow: hidden; padding: 28px 30px; min-height: 136px; border-radius: 24px; }
+html[data-home-glass='on'] #app .home-welcome-copy, html[data-home-glass='on'] #app .home-welcome > .collection-primary-link { position: relative; z-index: 1; }
+html[data-home-glass='on'] .home-glass-scene { display: block; position: absolute; z-index: -2; inset: 0; overflow: hidden; border-radius: inherit; background: radial-gradient(ellipse at 92% 0%, rgba(57, 172, 213, .5), transparent 53%), radial-gradient(ellipse at 8% 100%, rgba(78, 166, 125, .22), transparent 62%), var(--soft); }
+html[data-home-glass='on'] .home-glass-sheet { display: block; position: absolute; z-index: -1; inset: 0; border: 1px solid rgba(255, 255, 255, .66); border-radius: inherit; background: rgba(255, 255, 255, .24); backdrop-filter: blur(10px) saturate(125%); -webkit-backdrop-filter: blur(10px) saturate(125%); box-shadow: inset 0 2px 1px rgba(255, 255, 255, .68), inset 0 -1px 1px rgba(79, 139, 163, .2), 0 10px 30px rgba(33, 94, 122, .06); }
+html[data-home-glass='on'] .home-glass-lens { display: block; position: absolute; z-index: 0; pointer-events: none; top: -46px; right: 12%; width: 240px; height: 192px; border-radius: 48% 52% 42% 58%; border: 1px solid rgba(255, 255, 255, .66); background: linear-gradient(140deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .04) 42%, rgba(60, 144, 180, .15)); box-shadow: inset 3px 4px 6px rgba(255, 255, 255, .6), inset -3px -4px 8px rgba(33, 104, 140, .12); backdrop-filter: url('#cdutetc-home-refraction'); -webkit-backdrop-filter: url('#cdutetc-home-refraction'); }
+html[data-theme='dark'][data-home-glass='on'] .home-glass-scene { background: radial-gradient(ellipse at 92% 0%, rgba(45, 139, 174, .4), transparent 53%), radial-gradient(ellipse at 8% 100%, rgba(42, 110, 105, .3), transparent 62%), var(--surface); }
+html[data-theme='dark'][data-home-glass='on'] .home-glass-sheet { border-color: rgba(192, 229, 245, .24); background: rgba(15, 35, 49, .32); box-shadow: inset 0 1px 1px rgba(212, 240, 253, .22), inset 0 -1px 1px rgba(5, 25, 39, .4); }
+html[data-theme='dark'][data-home-glass='on'] .home-glass-lens { border-color: rgba(208, 236, 248, .22); background: linear-gradient(140deg, rgba(189, 227, 244, .24), rgba(121, 189, 215, .02) 42%, rgba(25, 92, 123, .12)); box-shadow: inset 3px 3px 5px rgba(208, 239, 253, .2), inset -3px -4px 8px rgba(1, 24, 37, .3); }
+/* Simple mode is effective immediately; it does not erase individual choices. */
+html[data-experience='minimal'] #app #header,
+html[data-experience='minimal'] #app .mobile-nav { background: var(--surface); border-color: var(--line); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+html[data-experience='minimal'] #app #header::before { display: none; }
+html[data-experience='minimal'] .morph-popover { box-shadow: none; }
+html[data-experience='minimal'] #app .mobile-nav { top: 0; left: 0; width: 100%; border-radius: 0; }
+html[data-motion='reduced'] .nav-account > .el-icon-arrow-down { transition: none; }
+@supports not (backdrop-filter: blur(1px)) {
+  html[data-home-glass='on'] .home-glass-sheet { background: var(--surface); }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  html[data-home-glass='on'] .home-glass-sheet,
+  html[data-home-glass='on'] .home-glass-lens { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (max-width: 767px) {
+  html[data-home-glass='on'] #app .home-welcome { padding: 24px 20px; }
+  .home-glass-lens { right: -30px !important; }
+}
+@media (max-width: 480px) {
+  #app .mobile-nav .brand-lockup strong { font-size: 14px; }
+  #app .mobile-nav .brand-lockup small { display: none; }
+  #app .mobile-nav .theme-toggle { width: 32px; }
+}

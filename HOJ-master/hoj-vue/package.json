@@ -6,7 +6,8 @@
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "test:ui": "node tests/ui-contracts.cjs",
-    "test:browser": "node tests/browser-review.cjs"
+    "test:browser": "node tests/browser-review.cjs",
+    "test:dev": "node tests/dev-smoke.cjs"
   },
   "dependencies": {
     "@iktakahiro/markdown-it-katex": "^4.0.1",

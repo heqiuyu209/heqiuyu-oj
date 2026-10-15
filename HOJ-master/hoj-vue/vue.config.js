@@ -1,5 +1,6 @@
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin') // 清除注释
 const CompressionWebpackPlugin = require('compression-webpack-plugin'); // 开启压缩
+const path = require('path');
 
 // 是否为生产环境
 const isProduction = process.env.NODE_ENV === 'production';
@@ -95,9 +96,20 @@ module.exports={
     open: false,
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)
     port: 8066, // 开发服务器运行端口号
+    watchOptions: {
+      // Enable polling only for Docker Desktop; host development keeps native watching.
+      poll: Number(process.env.HOJ_DEV_POLL) || undefined,
+      ignored: /node_modules/,
+    },
+    // webpack-dev-server 3 serves both the OJ assets and the separate scoreboard.
+    contentBase: [path.resolve(__dirname, 'public'), path.resolve(__dirname, '../hoj-scrollBoard')],
+    contentBasePublicPath: ['/', '/scrollBoard'],
+    before(app) {
+      app.get(/^\/scrollBoard$/, (req, res) => res.redirect(301, req.originalUrl.replace('/scrollBoard', '/scrollBoard/')));
+    },
     proxy: {
       '/api': {                                //   以'/api'开头的请求会被代理进行转发
-        target: 'http://localhost:6688',       //   要发向的后台服务器地址  如果后台ls服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
+        target: process.env.HOJ_DEV_API_TARGET || 'http://localhost:6688',
         changeOrigin: true 
       }
     },

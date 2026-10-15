@@ -1,0 +1,49 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "api": [],
+  "pages": [],
+  "errors": [],
+  "validated": true,
+  "checks": [
+    {
+      "theme": "light",
+      "key": "rank",
+      "normalContrast": 11.26,
+      "hoverContrast": 5.51,
+      "focusReadable": true
+    },
+    {
+      "theme": "light",
+      "key": "rank",
+      "selectedReadable": true,
+      "route": "/acm-rank"
+    },
+    {
+      "theme": "light",
+      "key": "about",
+      "normalContrast": 11.26,
+      "hoverContrast": 5.51,
+      "focusReadable": true
+    },
+    {
+      "theme": "dark",
+      "key": "rank",
+      "normalContrast": 11.58,
+      "hoverContrast": 6.45,
+      "focusReadable": true
+    },
+    {
+      "theme": "dark",
+      "key": "rank",
+      "selectedReadable": true,
+      "route": "/acm-rank"
+    },
+    {
+      "theme": "dark",
+      "key": "about",
+      "normalContrast": 11.58,
+      "hoverContrast": 6.45,
+      "focusReadable": true
+    }
+  ]
+}

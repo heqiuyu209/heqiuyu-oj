@@ -30,7 +30,7 @@
     <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="训练列表">
       <ListFeedback :error="loadError" :loading="loading" :empty="!trainingList.length" @retry="getTrainingList" />
       <div v-if="!loadError" class="collection-grid">
-        <article v-for="training in trainingList" :key="training.id" class="collection-card training-card">
+        <article v-spotlight v-for="training in trainingList" :key="training.id" class="collection-card training-card">
           <div class="collection-card-top">
             <span class="collection-symbol"><i class="el-icon-reading" aria-hidden="true" /></span>
             <el-tag size="small" :type="(TRAINING_TYPE[training.auth] || {}).color" effect="plain">{{ $t('m.Training_' + training.auth) }}</el-tag>

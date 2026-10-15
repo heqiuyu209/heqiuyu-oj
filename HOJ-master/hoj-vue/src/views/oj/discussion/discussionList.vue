@@ -42,6 +42,7 @@
           >
             <el-card
               shadow="hover"
+              v-spotlight
               class="list-card"
             >
               <el-tag v-if="discussion.topPriority" class="discussion-pin" size="small" effect="plain">置顶</el-tag>

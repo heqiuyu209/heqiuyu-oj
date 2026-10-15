@@ -33,8 +33,8 @@ export default {
 };
 </script>
 <style scoped>
-.ai-launcher { position: fixed; right: 24px; bottom: 56px; z-index: 2001; box-shadow: 0 6px 24px #17465a24; }
-.ai-popup { position: fixed; right: 24px; bottom: 56px; width: 360px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 24px); overflow: auto; z-index: 2002; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 16px 64px #102a4433; }
+.ai-launcher { position: fixed; right: 24px; bottom: 80px; z-index: 2001; box-shadow: 0 6px 24px #17465a24; }
+.ai-popup { position: fixed; right: 24px; bottom: 80px; width: 360px; max-width: calc(100vw - 48px); max-height: calc(100dvh - 104px); overflow: auto; z-index: 2002; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 16px 64px #102a4433; }
 .ai-popup header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid var(--line); font-weight: 600; cursor: move; touch-action: none; }
 .ai-popup header button { border: 0; background: transparent; font-size: 23px; color: var(--muted); cursor: pointer; }
 .ai-popup-body { padding: 18px; }

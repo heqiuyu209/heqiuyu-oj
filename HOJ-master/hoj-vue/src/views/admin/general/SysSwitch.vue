@@ -20,7 +20,6 @@
                         <el-switch
                             v-model="switchConfig.openPublicJudge"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -28,7 +27,6 @@
                         <el-switch
                             v-model="switchConfig.openGroupJudge"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -36,7 +34,6 @@
                         <el-switch
                             v-model="switchConfig.openContestJudge"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -44,7 +41,6 @@
                         <el-switch
                             v-model="switchConfig.hideNonContestSubmissionCode"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -80,7 +76,6 @@
                         <el-switch
                             v-model="switchConfig.openPublicDiscussion"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -88,7 +83,6 @@
                         <el-switch
                             v-model="switchConfig.openGroupDiscussion"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>
@@ -96,7 +90,6 @@
                         <el-switch
                             v-model="switchConfig.openContestComment"
                             active-color="#13ce66"
-                            inactive-color="#ff4949"
                         >
                         </el-switch>
                     </el-form-item>

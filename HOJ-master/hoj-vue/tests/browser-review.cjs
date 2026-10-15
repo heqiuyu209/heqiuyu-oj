@@ -7,6 +7,7 @@ const fs = require("fs"),
 const assert = require("assert").strict;
 const collectionFixtures = require('./collection-fixtures.cjs');
 const reviewCollections = require('./collection-review.cjs');
+const reviewAppearance = require('./appearance-review.cjs');
 const root =
     process.env.UI_REVIEW_OUTPUT || path.join(os.tmpdir(), "cdutetc-ui-review"),
   profile = fs.mkdtempSync(path.join(os.tmpdir(), "cdutetc-source-"));
@@ -29,7 +30,7 @@ const watchdog = setTimeout(() => {
   console.error("UI review timeout");
   browser.kill();
   process.exit(1);
-}, 180000);
+}, 300000);
 let stderr = "";
 browser.stderr.on("data", (b) => (stderr += b));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -360,10 +361,14 @@ function fixture(req) {
       name
     )}+'.vue'))return vm;for(const c of vm.$children){const found=find(c);if(found)return found}})(document.getElementById('app').__vue__)`;
   const report = { checks: {}, errors, warnings };
-  const dismissMenus = () => ev(`(()=>{for(const type of ['mousedown','mouseup','click']) document.body.dispatchEvent(new MouseEvent(type,{bubbles:true}));})()`);
+  const dismissMenus = () => ev(`(()=>{for(const type of ['pointerdown','mousedown','mouseup','click']) document.body.dispatchEvent(new MouseEvent(type,{bubbles:true}));})()`);
   const pressKey = async (key, keyCode) => {
     for (const type of ["keyDown", "keyUp"])
-      await cdp("Input.dispatchKeyEvent", { type, key, windowsVirtualKeyCode: keyCode });
+      await cdp("Input.dispatchKeyEvent", {
+        type, key, windowsVirtualKeyCode: keyCode,
+        // Native buttons activate on the Enter character event as well as keydown.
+        ...(type === "keyDown" && key === "Enter" ? { text: "\r" } : {}),
+      });
   };
   await cdp("Runtime.enable");
   await cdp("Page.enable");
@@ -394,13 +399,13 @@ function fixture(req) {
   );
   await shot("home");
   await ev("scrollTo(0,420)");
-  await sleep(400);
+  await sleep(750);
   report.checks.scrolled = await ev(
     `({width:document.querySelector('#header').offsetWidth,height:document.querySelector('#header').offsetHeight,bg:getComputedStyle(document.querySelector('#header')).backgroundColor})`
   );
   await shot("nav-scrolled");
   await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 25 });
-  await sleep(400);
+  await sleep(750);
   report.checks.hovered = await ev(
     `({width:document.querySelector('#header').offsetWidth,height:document.querySelector('#header').offsetHeight})`
   );
@@ -415,7 +420,7 @@ function fixture(req) {
   report.checks.navigation = { guest: [], modes: {}, authenticated: [] };
   await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 500 });
   for (const theme of ["light", "dark"]) {
-    await ev(`${component("AppearanceSettings")}.set('theme',${JSON.stringify(theme)})`);
+    await ev(`${component("AppearancePanel")}.set('theme',${JSON.stringify(theme)})`);
     await ev("scrollTo(0,0)");
     await sleep(350);
     await shot("nav-" + theme + "-top", { x: 0, y: 0, width: 1440, height: 132, scale: 1 });
@@ -429,11 +434,11 @@ function fixture(req) {
     }
   }
   for (const mode of ["normal", "glass", "dynamic"]) {
-    await ev(`${component("AppearanceSettings")}.set('navigation',${JSON.stringify(mode)})`);
+    await ev(`${component("AppearancePanel")}.set('navigation',${JSON.stringify(mode)})`);
     await sleep(350);
     report.checks.navigation.modes[mode] = await navBounds();
   }
-  await ev(`${component("AppearanceSettings")}.set('theme','light');scrollTo(0,0)`);
+  await ev(`${component("AppearancePanel")}.set('theme','light');scrollTo(0,0)`);
   await ev("document.querySelectorAll('#header .nav-links > .el-menu-item')[1].focus()");
   await pressKey("Enter", 13);
   await sleep(850);
@@ -513,7 +518,7 @@ function fixture(req) {
   report.checks.selfTestInsideEditor = await ev(
     `!!document.querySelector('.workspace-card-body[data-panel=editor] .inline-self-test')`
   );
-  await ev(`${component("AppearanceSettings")}.set('theme','dark')`);
+  await ev(`${component("AppearancePanel")}.set('theme','dark')`);
   await sleep(250);
   await shot("problem-dark");
   await ev(`${component("AiAssistant")}.show()`);
@@ -574,6 +579,8 @@ function fixture(req) {
   report.checks.navigation.keyboardEscape = await ev(`[...document.querySelectorAll('.el-dropdown-menu__item')].every(x=>x.getBoundingClientRect().height===0)`);
   await ev("document.activeElement.blur()");
   await ev("scrollTo(0,0)");
+  report.checks.appearance = await reviewAppearance({ ev, cdp, route, shot, component, requests });
+  fs.writeFileSync(path.join(root, 'appearance-review.json'), JSON.stringify({ ...report.checks.appearance, errors }, null, 2));
   report.checks.collections = await reviewCollections({ ev, cdp, route, shot, component });
   await route("/setting");
   await ev(`${component("Setting")}.activeName='Platforms'`);
@@ -684,7 +691,7 @@ function fixture(req) {
   objectiveType = "";
 
   report.checks.mobile = {};
-  await ev(`${component("AppearanceSettings")}.set('theme','light')`);
+  await ev(`${component("AppearancePanel")}.set('theme','light')`);
   await cdp("Emulation.setDeviceMetricsOverride", {
     width: 390,
     height: 844,
@@ -706,15 +713,15 @@ function fixture(req) {
   }
   report.checks.navigation.mobile = {};
   for (const theme of ["light", "dark"]) {
-    await ev(`${component("AppearanceSettings")}.set('theme',${JSON.stringify(theme)})`);
+    await ev(`${component("AppearancePanel")}.set('theme',${JSON.stringify(theme)})`);
     await sleep(250);
     report.checks.navigation.mobile[theme] = await ev(`(()=>{const bar=document.querySelector('.mobile-nav'),b=bar.getBoundingClientRect();return {username:bar.querySelector('.mobile-username')?.textContent.trim(),fits:[...bar.querySelectorAll('.mu-appbar-title,.mu-appbar-right')].every(x=>x.getBoundingClientRect().right<=b.right),overflow:document.documentElement.scrollWidth>innerWidth}})()`);
     await shot("nav-mobile-" + theme, { x: 0, y: 0, width: 390, height: 125, scale: 1 });
     await ev("document.querySelector('.mobile-nav [aria-label=\"打开个人菜单\"]').click()");
     await sleep(350);
-    report.checks.navigation.mobile[theme].menu = await ev(`(()=>{const popup=[...document.querySelectorAll('.cdutetc-mobile-popup')].find(x=>x.getBoundingClientRect().height>0);return {visible:!!popup,text:popup?.innerText,background:popup&&getComputedStyle(popup).backgroundColor,foreground:popup&&getComputedStyle(popup.querySelector('.mu-item')).color}})()`);
+    report.checks.navigation.mobile[theme].menu = await ev(`(()=>{const popup=[...document.querySelectorAll('.morph-popover')].find(x=>x.getBoundingClientRect().height>0);return {visible:!!popup,text:popup?.innerText,background:popup&&getComputedStyle(popup).backgroundColor,foreground:popup&&getComputedStyle(popup.querySelector('.profile-links button')).color}})()`);
     if (theme === "dark") await shot("nav-mobile-dark-account", { x: 0, y: 0, width: 390, height: 425, scale: 1 });
-    await ev(`${component("NavBar")}.openusermenu=false`);
+    await ev(`${component("ProfileMenu")}.$refs.popover.close()`);
     await sleep(300);
   }
   await ev(`${component("NavBar")}.opendrawer=true`);

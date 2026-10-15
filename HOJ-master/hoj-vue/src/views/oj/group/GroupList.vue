@@ -14,7 +14,7 @@
     <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="团队列表">
       <ListFeedback :error="loadError" :loading="loading" :empty="!groupList.length" @retry="getGroupList" />
       <div v-if="!loadError" class="collection-grid">
-        <article v-for="group in groupList" :key="group.id" class="collection-card group-collection-card">
+        <article v-spotlight v-for="group in groupList" :key="group.id" class="collection-card group-collection-card">
           <div class="collection-card-top"><span class="team-avatar"><el-image v-if="group.avatar" :src="group.avatar" fit="cover" lazy><span slot="error">{{ group.shortName || group.name | firstLetters }}</span></el-image><span v-else>{{ group.shortName || group.name | firstLetters }}</span></span>
             <el-tooltip :content="$t('m.' + GROUP_TYPE_REVERSE[group.auth].tips)"><el-tag size="small" :type="GROUP_TYPE_REVERSE[group.auth].color" effect="plain">{{ $t('m.Group_' + GROUP_TYPE_REVERSE[group.auth].name) }}</el-tag></el-tooltip>
           </div>

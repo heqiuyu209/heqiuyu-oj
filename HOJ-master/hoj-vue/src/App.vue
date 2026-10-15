@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <el-backtop :right="10"></el-backtop>
+    <el-backtop class="site-backtop" :right="24" :bottom="24" aria-label="返回顶部" title="返回顶部"></el-backtop>
     <div v-if="!isAdminView" class="full-height flex-column">
       <NavBar></NavBar>
       <AiAssistant />
@@ -131,7 +131,7 @@
 <script>
 import AiAssistant from '@/components/oj/ai/AiAssistant';
 import { BRAND } from '@/common/brand';
-import { applyAppearance } from '@/common/appearance';
+import { applyAppearance, syncAppearanceRoute } from '@/common/appearance';
 import NavBar from "@/components/oj/common/NavBar";
 import { mapActions, mapState, mapGetters } from "vuex";
 import { LOGO, MOTTO } from "@/common/logo";
@@ -233,7 +233,15 @@ export default {
     }
   },
   watch: {
+    isAdminView: {
+      immediate: true,
+      handler(value) {
+        document.body.classList.toggle('admin-view', value);
+        document.documentElement.classList.toggle('admin-view', value);
+      },
+    },
     $route(newVal, oldVal) {
+      syncAppearanceRoute(newVal);
       this.changeDomTitle();
       if (newVal !== oldVal && newVal.path.split("/")[1] == "admin") {
         this.isAdminView = true;
@@ -255,9 +263,11 @@ export default {
     ...mapGetters(["webLanguage", "token", "isAuthenticated"]),
   },
   created: function () {
-    applyAppearance();
+    syncAppearanceRoute(this.$route);
     this.themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
     this.themeMedia.addEventListener('change', applyAppearance);
+    this.motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.motionMedia.addEventListener('change', applyAppearance);
     this.$nextTick(function () {
       try {
         document.body.removeChild(document.getElementById("app-loader"));
@@ -278,7 +288,10 @@ export default {
     window.addEventListener("visibilitychange", this.autoRefreshUserInfo);
   },
   beforeDestroy() {
+    document.body.classList.remove('admin-view');
+    document.documentElement.classList.remove('admin-view');
     this.themeMedia.removeEventListener('change', applyAppearance);
+    this.motionMedia.removeEventListener('change', applyAppearance);
     window.removeEventListener("visibilitychange", this.autoRefreshUserInfo);
   },
   mounted() {

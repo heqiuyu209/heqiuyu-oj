@@ -1,8 +1,15 @@
 <template>
   <div class="cdutetc-home collection-page">
-    <header class="collection-heading"><div><h1>欢迎来到 {{ websiteConfig.shortName }}</h1><p>赛场上的每一次并肩，来自平日里的每一道练习。</p></div><router-link to="/problem" class="collection-primary-link">开始练习</router-link></header>
+    <header class="collection-heading home-welcome">
+      <div class="home-glass-scene" aria-hidden="true" />
+      <div class="home-glass-sheet" aria-hidden="true" />
+      <div class="home-glass-lens" aria-hidden="true" />
+      <div class="home-welcome-copy"><h1>欢迎来到 {{ websiteConfig.shortName }}</h1><p>赛场上的每一次并肩，来自平日里的每一道练习。</p></div>
+      <router-link to="/problem" class="collection-primary-link">开始练习</router-link>
+      <svg class="home-glass-defs" aria-hidden="true" width="0" height="0"><defs><filter id="cdutetc-home-refraction" x="-15%" y="-15%" width="130%" height="130%"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="1" seed="3" result="texture" /><feDisplacementMap in="SourceGraphic" in2="texture" scale="9" xChannelSelector="R" yChannelSelector="G" /></filter></defs></svg>
+    </header>
     <div class="home-grid">
-        <el-card class="home-photo">
+        <el-card v-spotlight class="home-photo">
           <div
             slot="header"
             class="home-photo-heading"
@@ -110,7 +117,7 @@
         </el-card>
       <Announcements class="home-announcements" />
       <SubmissionStatistic class="home-statistics" />
-      <el-card class="home-contests" v-loading="loading.recentContests">
+      <el-card v-spotlight class="home-contests" v-loading="loading.recentContests">
         <div slot="header" class="home-panel-heading"><span class="panel-title home-title"><i class="el-icon-trophy" /> {{ $t('m.Recent_Contest') }}</span><router-link to="/contest">全部比赛</router-link></div>
         <el-empty v-if="!contests.length" :description="$t('m.No_contest')" :image-size="70" />
         <div v-for="contest in contests" :key="contest.id" class="home-contest-item">

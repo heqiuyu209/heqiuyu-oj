@@ -18,7 +18,7 @@ module.exports = async function reviewCollections({ ev, cdp, route, shot, compon
       footerMismatch:cards.some(card=>{const footer=card.querySelector('.collection-card-footer');if(!footer)return false;const bg=getComputedStyle(footer).backgroundColor;return bg!=='rgba(0, 0, 0, 0)'&&bg!==getComputedStyle(card).backgroundColor}),
       background:cards[0]&&getComputedStyle(cards[0]).backgroundColor};})()`);
   for (const theme of ['light', 'dark']) {
-    await ev(`${component('AppearanceSettings')}.set('theme',${JSON.stringify(theme)})`);
+    await ev(`${component('AppearancePanel')}.set('theme',${JSON.stringify(theme)})`);
     for (const width of [1440, 390]) {
       await viewport(width, width === 390 ? 844 : 1080);
       for (const path of paths) {
@@ -43,7 +43,7 @@ module.exports = async function reviewCollections({ ev, cdp, route, shot, compon
   assert.equal(checks.tablet.columns, 2);
   assert(!checks.tablet.overflow);
   await viewport(1440);
-  await ev(`${component('AppearanceSettings')}.set('theme','light')`);
+  await ev(`${component('AppearancePanel')}.set('theme','light')`);
 
   await ev("document.querySelector('.training-page .btn-next').click()");
   await sleep(700);
@@ -106,6 +106,6 @@ module.exports = async function reviewCollections({ ev, cdp, route, shot, compon
   checks.interactions.discussionFilter = await ev("location.search");
   assert(checks.interactions.discussionFilter.includes('cid=1'));
   checks.requests = fixtures.seen.length;
-  await ev(`${component('AppearanceSettings')}.set('theme','dark')`);
+  await ev(`${component('AppearancePanel')}.set('theme','dark')`);
   return checks;
 };

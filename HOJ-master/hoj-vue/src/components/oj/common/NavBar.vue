@@ -1,7 +1,7 @@
 <template>
   <div>
     <template v-if="!mobileNar">
-      <div id="header" aria-label="CDUTETC 导航栏" :class="['nav-' + appearance.navigation, { 'nav-scrolled': scrolled, 'nav-condensed': scrolled && !navEngaged }]" @mouseenter="navHovered = true" @mouseleave="navHovered = false" @focusin="navFocused = true" @focusout="onNavFocusOut">
+      <div id="header" aria-label="CDUTETC 导航栏" :class="['nav-' + runtime.navigation, { 'nav-scrolled': scrolled, 'nav-condensed': scrolled && !navEngaged }]" @mouseenter="onNavEnter" @mouseleave="onNavLeave" @focusin="navFocused = true" @focusout="onNavFocusOut">
         <div class="nav-shell">
           <router-link class="logo" to="/home" aria-label="CDUTETC · 成理工程在线测评平台首页"><BrandLogo compact /></router-link>
           <el-menu
@@ -10,8 +10,8 @@
           :default-active="activeMenuName"
           mode="horizontal"
           router
-          active-text-color="#2196f3"
-          text-color="#495060"
+          active-text-color="var(--nav-menu-accent)"
+          text-color="var(--text)"
           @open="onMenuOpen"
           @close="onMenuClose"
         >
@@ -115,7 +115,7 @@
         </el-submenu>
           </el-menu>
           <div class="nav-actions">
-          <AppearanceSettings class="nav-appearance" @visibility-change="onDropdownVisibility($event, 'appearance')" />
+          <ThemeToggle v-if="!isAuthenticated" /><AppearanceSettings v-if="!isAuthenticated" class="nav-appearance" @visibility-change="onDropdownVisibility($event, 'appearance')" />
           <template v-if="!isAuthenticated">
             <div class="btn-menu">
               <el-button 
@@ -136,43 +136,6 @@
             </div>
           </template>
           <template v-else>
-            <el-dropdown
-              class="drop-menu"
-              @command="handleRoute"
-              placement="bottom"
-              trigger="click"
-              @visible-change="onDropdownVisibility($event, 'account')"
-            >
-              <button class="el-dropdown-link nav-account" type="button" aria-label="打开个人菜单" @keydown.enter.prevent>
-            <avatar
-              :username="userInfo.username"
-              :inline="true"
-              :size="30"
-              color="#FFF"
-              :src="avatar"
-              class="drop-avatar"
-            ></avatar>
-                <span class="nav-username">{{ userInfo.username }}</span><i class="el-icon-caret-bottom"></i>
-              </button>
-
-              <el-dropdown-menu slot="dropdown" class="cdutetc-nav-dropdown">
-                <el-dropdown-item command="/user-home">{{
-                  $t('m.NavBar_UserHome')
-                }}</el-dropdown-item>
-                <el-dropdown-item command="/status?onlyMine=true">{{
-                  $t('m.NavBar_Submissions')
-                }}</el-dropdown-item>
-                <el-dropdown-item command="/setting">{{
-                  $t('m.NavBar_Setting')
-                }}</el-dropdown-item>
-                <el-dropdown-item v-if="isAdminRole" command="/admin">{{
-                  $t('m.NavBar_Management')
-                }}</el-dropdown-item>
-                <el-dropdown-item divided command="/logout">{{
-                  $t('m.NavBar_Logout')
-                }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </el-dropdown>
             <el-dropdown
               class="drop-msg"
               @command="handleRoute"
@@ -231,6 +194,8 @@
                 </el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
+            <ThemeToggle />
+            <ProfileMenu :user="userInfo" :avatar="avatar" :is-admin="isAdminRole" @command="handleRoute" @visibility-change="onDropdownVisibility($event, 'account')" />
           </template>
           </div>
         </div>
@@ -240,8 +205,8 @@
     </template>
     <template v-else>
       <div style="top:0px;left:0px;">
-      <mu-appbar class="mobile-nav" :class="['nav-' + appearance.navigation, { 'nav-scrolled': scrolled }]" color="primary">
-        <AppearanceSettings slot="right" />
+      <mu-appbar class="mobile-nav" :class="['nav-' + runtime.navigation, { 'nav-scrolled': scrolled }]" color="primary">
+        <ThemeToggle slot="right" /><AppearanceSettings v-if="!isAuthenticated" slot="right" />
         <mu-button icon slot="left" aria-label="打开导航菜单" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
@@ -348,67 +313,7 @@
           </mu-list>
         </mu-menu>
 
-        <mu-menu
-          popover-class="cdutetc-mobile-popup"
-          slot="right"
-          v-if="isAuthenticated"
-          :open.sync="openusermenu"
-        >
-          <mu-button flat aria-label="打开个人菜单">
-            <avatar
-              :username="userInfo.username"
-              :inline="true"
-              :size="30"
-              color="#FFF"
-              :src="avatar"
-              :title="userInfo.username"
-            ></avatar>
-            <span class="mobile-username">{{ userInfo.username }}</span>
-            <i class="el-icon-caret-bottom"></i>
-          </mu-button>
-          <mu-list slot="content" @change="handleCommand">
-            <mu-list-item button value="/user-home">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_UserHome')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/status?onlyMine=true">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Submissions')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/setting">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Setting')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/admin" v-show="isAdminRole">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Management')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-
-            <mu-list-item button value="/logout">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Logout')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-          </mu-list>
-        </mu-menu>
+        <ProfileMenu v-if="isAuthenticated" slot="right" :user="userInfo" :avatar="avatar" :is-admin="isAdminRole" @command="handleCommand" />
       </mu-appbar>
 
       <div class="mobile-nav-spacer" aria-hidden="true"></div>
@@ -615,22 +520,24 @@
 <script>
 import BrandLogo from '@/components/oj/common/BrandLogo';
 import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
-import { appearance } from '@/common/appearance';
+import { appearance, appearanceRuntime } from '@/common/appearance';
+import ThemeToggle from './ThemeToggle';
+import ProfileMenu from './ProfileMenu';
 import Login from '@/components/oj/common/Login';
 import Register from '@/components/oj/common/Register';
 import ResetPwd from '@/components/oj/common/ResetPassword';
 import MsgSvg from '@/components/oj/msg/msgSvg';
 import { mapGetters, mapActions } from 'vuex';
-import Avatar from 'vue-avatar';
 import api from '@/common/api';
 export default {
   components: {
     BrandLogo,
     AppearanceSettings,
+    ThemeToggle,
+    ProfileMenu,
     Login,
     Register,
     ResetPwd,
-    Avatar,
     MsgSvg,
   },
   created(){
@@ -640,6 +547,7 @@ export default {
   },
   mounted() {
     this.switchMode();
+    this.onScroll();
     this.setHiddenHeaderHeight();
     if (this.isAuthenticated) {
       this.getUnreadMsgCount();
@@ -653,10 +561,12 @@ export default {
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('scroll', this.onScroll);
     cancelAnimationFrame(this.scrollFrame);
+    clearTimeout(this.navLeaveTimer);
   },
   data() {
     return {
       appearance,
+      runtime: appearanceRuntime,
       scrolled: false,
       navHovered: false,
       navFocused: false,
@@ -675,7 +585,23 @@ export default {
   methods: {
     ...mapActions(['changeModalStatus']),
     onResize() { this.page_width(); },
-    onScroll() { if (this.scrollFrame) return; this.scrollFrame = requestAnimationFrame(() => { this.scrolled = window.scrollY > 48; this.scrollFrame = null; }); },
+    onScroll() {
+      if (this.scrollFrame) return;
+      this.scrollFrame = requestAnimationFrame(() => {
+        // Separate thresholds prevent jitter when the scroll position hovers near the boundary.
+        if (window.scrollY > 64) this.scrolled = true;
+        else if (window.scrollY < 24) this.scrolled = false;
+        this.scrollFrame = null;
+      });
+    },
+    onNavEnter() {
+      clearTimeout(this.navLeaveTimer);
+      this.navHovered = true;
+    },
+    onNavLeave() {
+      clearTimeout(this.navLeaveTimer);
+      this.navLeaveTimer = setTimeout(() => { this.navHovered = false; }, 160);
+    },
     onNavFocusOut(event) {
       if (!event.currentTarget.contains(event.relatedTarget)) this.navFocused = false;
     },
@@ -685,6 +611,7 @@ export default {
     page_width() {
       const mobile = window.innerWidth < 992;
       if (mobile !== this.mobileNar) {
+        clearTimeout(this.navLeaveTimer);
         this.navHovered = false;
         this.navFocused = false;
         this.openPopups = {};
@@ -850,8 +777,17 @@ export default {
       }
     },
     $route(){
+      clearTimeout(this.navLeaveTimer);
+      this.navHovered = false;
+      this.navFocused = false;
+      this.openPopups = {};
       this.switchMode();
       this.onScroll();
+      this.$nextTick(() => {
+        const header = this.$el.querySelector('#header');
+        this.navHovered = !!header && header.matches(':hover');
+        this.navFocused = !!header && header.contains(document.activeElement);
+      });
     }
   },
 };

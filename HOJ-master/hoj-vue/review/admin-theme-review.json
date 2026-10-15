@@ -1,0 +1,81 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "checks": [
+    {
+      "check": "real-admin-login",
+      "passed": true
+    },
+    {
+      "check": "editor-theme",
+      "mode": "light",
+      "path": "/admin/contest/create",
+      "passed": true
+    },
+    {
+      "check": "editor-theme",
+      "mode": "light",
+      "path": "/admin/training/create",
+      "passed": true,
+      "limitation": "Existing category prerequisite shown; training form submission not tested."
+    },
+    {
+      "check": "editor-theme",
+      "mode": "light",
+      "path": "/admin/problem/create",
+      "passed": true
+    },
+    {
+      "check": "shell-dialog-notice-switch",
+      "mode": "light",
+      "off": "rgb(66, 93, 108)",
+      "passed": true
+    },
+    {
+      "check": "editor-theme",
+      "mode": "dark",
+      "path": "/admin/contest/create",
+      "passed": true
+    },
+    {
+      "check": "editor-theme",
+      "mode": "dark",
+      "path": "/admin/training/create",
+      "passed": true,
+      "limitation": "Existing category prerequisite shown; training form submission not tested."
+    },
+    {
+      "check": "editor-theme",
+      "mode": "dark",
+      "path": "/admin/problem/create",
+      "passed": true
+    },
+    {
+      "check": "shell-dialog-notice-switch",
+      "mode": "dark",
+      "off": "rgb(69, 95, 112)",
+      "passed": true
+    },
+    {
+      "check": "mobile-and-public-scope",
+      "passed": true
+    },
+    {
+      "check": "early-loader-badge-theme-reduced-motion",
+      "mode": "light",
+      "passed": true
+    },
+    {
+      "check": "early-loader-badge-theme-reduced-motion",
+      "mode": "dark",
+      "passed": true
+    },
+    {
+      "check": "early-loader-badge-theme-reduced-motion",
+      "mode": "system",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "blockedWrites": [],
+  "validated": true
+}

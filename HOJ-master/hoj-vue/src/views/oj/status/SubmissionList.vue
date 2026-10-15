@@ -125,14 +125,11 @@
         </div>
         <vxe-table
           border="inner"
-          stripe
           keep-source
           ref="xTable"
-          highlight-current-row
           highlight-hover-row
           align="center"
           auto-resize
-          :row-class-name="tableRowClassName"
           :data="submissions"
           :loading="loadingTable"
         >
@@ -936,11 +933,6 @@ export default {
     },
     getStatusColor(status) {
       return "el-tag el-tag--medium status-" + JUDGE_STATUS[status]["color"];
-    },
-    tableRowClassName({ row, rowIndex }) {
-      if (row.username == this.userInfo.username && this.isAuthenticated) {
-        return "own-submit-row";
-      }
     },
     disabledManualJudge(status){
       return !this.isSuperAdmin || status == JUDGE_STATUS_RESERVE['Judging'] 

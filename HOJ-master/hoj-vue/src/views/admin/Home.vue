@@ -109,8 +109,8 @@
           }}</el-menu-item>
         </el-submenu>
       </el-menu>
-      <div id="header">
-        <el-row>
+      <div id="admin-header">
+        <el-row class="admin-header-row">
           <el-col :span="18">
             <div class="breadcrumb-container">
               <el-breadcrumb separator-class="el-icon-arrow-right">
@@ -123,7 +123,8 @@
               </el-breadcrumb>
             </div>
           </el-col>
-          <el-col :span="6" v-show="isAuthenticated">
+          <el-col :span="6" v-show="isAuthenticated" class="admin-header-actions">
+            <AppearanceSettings theme-only />
             <i
               class="fa fa-font katex-editor fa-size"
               @click="katexVisible = true"
@@ -156,7 +157,7 @@
     </div>
 
     <div v-else>
-      <mu-appbar class="mobile-nav" color="primary">
+      <mu-appbar class="admin-mobile-nav">
         <mu-button icon slot="left" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
@@ -165,6 +166,7 @@
             ? websiteConfig.shortName + ' ADMIN'
             : 'ADMIN'
         }}
+        <AppearanceSettings slot="right" theme-only />
         <mu-menu slot="right" v-show="isAuthenticated">
           <mu-button flat @click="katexVisible = true">
             <i class="fa fa-font katex-editor"></i>
@@ -538,6 +540,7 @@
 
 <script>
 import BrandLogo from '@/components/oj/common/BrandLogo';
+import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
 import { mapGetters } from 'vuex';
 const KatexEditor = () => import('@/components/admin/KatexEditor.vue');
 import api from '@/common/api';
@@ -550,10 +553,11 @@ export default {
     this.languages = languages;
     this.currentPath = this.$route.path;
     this.getBreadcrumb();
-    window.onresize = () => {
-      this.page_width();
-    };
+    window.addEventListener('resize', this.page_width);
     this.page_width();
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.page_width);
   },
   data() {
     return {
@@ -569,6 +573,7 @@ export default {
   },
   components: {
     BrandLogo,
+    AppearanceSettings,
     KatexEditor,
     Avatar,
   },
@@ -583,7 +588,7 @@ export default {
       }
     },
     page_width() {
-      let screenWidth = window.screen.width;
+      let screenWidth = window.innerWidth;
       if (screenWidth < 992) {
         this.mobileNar = true;
       } else {
@@ -610,16 +615,10 @@ export default {
       'websiteConfig',
       'webLanguage',
     ]),
-    'window.screen.width'(newVal, oldVal) {
-      if (newVal < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
-      }
-    },
   },
   watch: {
     $route() {
+      this.currentPath = this.$route.path;
       this.getBreadcrumb(); //监听路由变化
     },
   },
@@ -684,7 +683,7 @@ img {
   box-sizing: border-box;
 }
 
-#header {
+#admin-header {
   text-align: right;
   margin-left: 15%;
   padding-right: 30px;
@@ -712,7 +711,7 @@ img {
   .vertical_menu {
     width: 20%;
   }
-  #header {
+  #admin-header {
     margin-left: 20%;
   }
 }
@@ -725,7 +724,7 @@ img {
   .vertical_menu {
     width: 210px;
   }
-  #header {
+  #admin-header {
     margin-left: 210px;
   }
 }

@@ -6,7 +6,9 @@
 #app .collection-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
 #app .collection-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #app .collection-actions .el-button { margin: 0; }
-#app .collection-primary-link { padding: 10px 18px; border-radius: 8px; background: var(--accent); color: var(--surface); white-space: nowrap; font-weight: 600; }
+#app .collection-primary-link { padding: 10px 18px; border-radius: 8px; background: var(--primary); color: var(--on-primary); white-space: nowrap; font-weight: 600; }
+#app .collection-primary-link:hover, #app .collection-primary-link:focus { background: var(--primary-hover); color: var(--on-primary) !important; }
+#app .collection-primary-link:active { background: var(--primary-active); color: var(--on-primary) !important; }
 #app .collection-filters { margin-bottom: 22px; }
 #app .collection-filters > .el-card__body { padding: 18px 22px; }
 #app .collection-search { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-width: 0; }

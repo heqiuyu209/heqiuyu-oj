@@ -417,13 +417,16 @@ export default {
     ];
     this.getTagList(this.query.oj);
     this.loadings.table = true;
-    setTimeout(() => {
+    this.tagVisibilityTimer = setTimeout(() => {
       // 将指定列设置为隐藏状态
       this.$refs.problemList.getColumnByField('tag').visible = false;
       this.$refs.problemList.refreshColumn();
       this.loadings.table = false;
     }, 200);
     this.getData();
+  },
+  beforeDestroy() {
+    clearTimeout(this.tagVisibilityTimer);
   },
   methods: {
     init() {

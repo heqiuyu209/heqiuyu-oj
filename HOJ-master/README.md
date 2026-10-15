@@ -47,6 +47,8 @@
 
 ## 二、部署
 
+本仓库本地开发：运行 `hoj-deploy/dev.ps1 up`，在 `http://localhost:8080/home` 边改前端边预览，详见 [Docker 热更新开发说明](hoj-deploy/README.md)。该模式复用本机已初始化的 OJ 服务与数据；下方链接为 HOJ 上游部署资料。
+
 部署文档：[基于docker-compose部署](https://docs.hdoi.cn/deploy/docker)
 
 部署仓库：https://gitee.com/himitzh0730/hoj-deploy

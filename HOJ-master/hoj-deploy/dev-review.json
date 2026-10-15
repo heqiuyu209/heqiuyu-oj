@@ -1,0 +1,68 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "api": [
+    {
+      "endpoint": "/api/get-website-config",
+      "http": 200,
+      "status": 200
+    },
+    {
+      "endpoint": "/api/get-problem-list?currentPage=1&limit=3",
+      "http": 200,
+      "status": 200
+    },
+    {
+      "endpoint": "/api/languages",
+      "http": 200,
+      "status": 200
+    }
+  ],
+  "pages": [
+    {
+      "path": "/home",
+      "overflow": false,
+      "heading": "欢迎来到 CDUTETC",
+      "failed": false
+    },
+    {
+      "path": "/problem",
+      "overflow": false,
+      "failed": false
+    },
+    {
+      "path": "/training",
+      "overflow": false,
+      "heading": "训练",
+      "failed": false
+    },
+    {
+      "path": "/contest",
+      "overflow": false,
+      "heading": "比赛",
+      "failed": false
+    },
+    {
+      "path": "/discussion",
+      "overflow": false,
+      "heading": "讨论",
+      "failed": false
+    },
+    {
+      "path": "/group",
+      "overflow": false,
+      "heading": "团队",
+      "failed": false
+    }
+  ],
+  "errors": [],
+  "validated": true,
+  "scoreboard": {
+    "status": 200,
+    "redirect": 301
+  },
+  "hmr": {
+    "applied": true,
+    "restored": true,
+    "pageStatePreserved": true
+  }
+}

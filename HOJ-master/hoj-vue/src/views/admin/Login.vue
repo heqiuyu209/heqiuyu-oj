@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <div class="admin-login">
+    <div class="admin-login-appearance"><AppearanceSettings theme-only /></div>
     <vue-particles
       color="#dedede"
       :particleOpacity="0.7"
@@ -63,10 +64,11 @@
 
 <script>
 import BrandLogo from '@/components/oj/common/BrandLogo';
+import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
 import api from '@/common/api';
 import mMessage from '@/common/message';
 export default {
-  components: { BrandLogo },
+  components: { BrandLogo, AppearanceSettings },
   data() {
     return {
       logining: false,

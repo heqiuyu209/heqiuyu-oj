@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -9,19 +8,20 @@
   <!-- 使用CDN的CSS文件 -->
   <% for (var i in htmlWebpackPlugin.options.cdn &&
   htmlWebpackPlugin.options.cdn.css) { %>
-  <link
-          href="<%= htmlWebpackPlugin.options.cdn.css[i] %>"
-          rel="stylesheet"
-  />
+  <link href="<%= htmlWebpackPlugin.options.cdn.css[i] %>" rel="stylesheet" />
   <% } %>
-  <!-- 使用CDN的CSS文件 -->
   <title>CDUTETC · 成理工程在线测评平台</title>
   <script>
+    // Match appearance.js before the application CSS and JavaScript have loaded.
+    var initialTheme = 'light';
     try {
       var appearance = JSON.parse(localStorage.getItem('cdutetc:appearance')) || {};
-      document.documentElement.dataset.theme = appearance.theme === 'dark' ||
-        (appearance.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      if (appearance.theme === 'dark' ||
+          (appearance.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+        initialTheme = 'dark';
+      }
     } catch (_) {}
+    document.documentElement.dataset.theme = initialTheme;
   </script>
   <script>
     // IE 10 and earlier
@@ -31,194 +31,59 @@
     }
   </script>
   <style>
-    @-webkit-keyframes enter {
-      0% {
-        opacity: 0;
-        top: -10px;
-      }
-
-      5% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      50.9% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      55.9% {
-        opacity: 0;
-        top: 10px;
-      }
+    :root {
+      --boot-page: #edf3f6; --boot-text: #233e4c; --boot-muted: #657c88;
+      --boot-accent: #217c9e; --boot-line: #d8e5eb;
+      color-scheme: light;
     }
-
-    @keyframes enter {
-      0% {
-        opacity: 0;
-        top: -10px;
-      }
-
-      5% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      50.9% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      55.9% {
-        opacity: 0;
-        top: 10px;
-      }
+    :root[data-theme='dark'] {
+      --boot-page: #101f29; --boot-text: #deedf4; --boot-muted: #a5bdc9;
+      --boot-accent: #7acbe5; --boot-line: #345260;
+      color-scheme: dark;
     }
-
-    @-moz-keyframes enter {
-      0% {
-        opacity: 0;
-        top: -10px;
-      }
-
-      5% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      50.9% {
-        opacity: 1;
-        top: 0px;
-      }
-
-      55.9% {
-        opacity: 0;
-        top: 10px;
-      }
-    }
-
-    body {
-      background: #f8f8f9;
-    }
-
+    body { background: var(--boot-page); }
     #app-loader {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      margin-left: -27.5px;
-      margin-top: -27.5px;
+      position: fixed; inset: 0; z-index: 10000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-sizing: border-box; padding: 24px; text-align: center;
+      background: var(--boot-page); color: var(--boot-text);
+      font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
     }
-
-    #app-loader .square {
-      background: #2d8cf0;
-      width: 15px;
-      height: 15px;
-      float: left;
-      top: -10px;
-      margin-right: 5px;
-      margin-top: 5px;
-      position: relative;
-      opacity: 0;
-      -webkit-animation: enter 6s infinite;
-      animation: enter 6s infinite;
+    #app-loader .loader-badge { position: relative; width: 92px; height: 92px; display: grid; place-items: center; margin-bottom: 24px; }
+    #app-loader .loader-badge::after {
+      content: ''; position: absolute; inset: 0;
+      border: 2px solid var(--boot-line); border-top-color: var(--boot-accent); border-radius: 50%;
+      animation: loader-turn 1.8s linear infinite;
     }
-
-    #app-loader .enter {
-      top: 0px;
-      opacity: 1;
-    }
-
-    #app-loader .square:nth-child(1) {
-      -webkit-animation-delay: 1.8s;
-      -moz-animation-delay: 1.8s;
-      animation-delay: 1.8s;
-    }
-
-    #app-loader .square:nth-child(2) {
-      -webkit-animation-delay: 2.1s;
-      -moz-animation-delay: 2.1s;
-      animation-delay: 2.1s;
-    }
-
-    #app-loader .square:nth-child(3) {
-      -webkit-animation-delay: 2.4s;
-      -moz-animation-delay: 2.4s;
-      animation-delay: 2.4s;
-      background: #ff9900;
-    }
-
-    #app-loader .square:nth-child(4) {
-      -webkit-animation-delay: 0.9s;
-      -moz-animation-delay: 0.9s;
-      animation-delay: 0.9s;
-    }
-
-    #app-loader .square:nth-child(5) {
-      -webkit-animation-delay: 1.2s;
-      -moz-animation-delay: 1.2s;
-      animation-delay: 1.2s;
-    }
-
-    #app-loader .square:nth-child(6) {
-      -webkit-animation-delay: 1.5s;
-      -moz-animation-delay: 1.5s;
-      animation-delay: 1.5s;
-    }
-
-    #app-loader .square:nth-child(8) {
-      -webkit-animation-delay: 0.3s;
-      -moz-animation-delay: 0.3s;
-      animation-delay: 0.3s;
-    }
-
-    #app-loader .square:nth-child(9) {
-      -webkit-animation-delay: 0.6s;
-      -moz-animation-delay: 0.6s;
-      animation-delay: 0.6s;
-    }
-
-    #app-loader .clear {
-      clear: both;
-    }
-
-    #app-loader .last {
-      margin-right: 0;
-    }
-
-    #app-loader .loader-content {
-      color: #3498db;
-      font-size: 16px;
-      font-weight: 600;
+    #app-loader img { display: block; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+    #app-loader .loader-name { font-size: 24px; font-weight: 650; letter-spacing: .04em; }
+    #app-loader .loader-caption { margin: 8px 0 22px; color: var(--boot-muted); font-size: 13px; line-height: 1.6; }
+    #app-loader .loader-status { color: var(--boot-muted); font-size: 13px; }
+    @keyframes loader-turn { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      #app-loader .loader-badge::after { animation: none; }
     }
   </style>
 </head>
-
 <body>
   <noscript>
-    <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled.
-      Please enable it to continue.</strong>
+    <strong>请启用 JavaScript 后使用成理工程在线测评平台。</strong>
+    <style>#app-loader { display: none; }</style>
   </noscript>
   <div id="app"></div>
-  <!-- built files will be auto injected -->
-  <div id="app-loader">
-    <div class="square"></div>
-    <div class="square"></div>
-    <div class="square last"></div>
-    <div class="square clear"></div>
-    <div class="square"></div>
-    <div class="square last"></div>
-    <div class="square clear"></div>
-    <div class="square "></div>
-    <div class="square last"></div>
-    <div class="loader-content">
-      <span>Loading...</span>
+  <!-- Removed by App.vue once Vue is ready. The badge keeps its original colors. -->
+  <div id="app-loader" role="status" aria-live="polite" aria-label="成理工程在线测评平台正在加载">
+    <div class="loader-badge" aria-hidden="true">
+      <img src="<%= BASE_URL %>cdutetc.webp" width="72" height="72" alt="">
     </div>
+    <div class="loader-name">CDUTETC</div>
+    <div class="loader-caption">成理工程在线测评平台</div>
+    <div class="loader-status">正在加载，请稍候…</div>
   </div>
   <!-- 使用CDN的JS文件 -->
   <% for (var i in htmlWebpackPlugin.options.cdn &&
   htmlWebpackPlugin.options.cdn.js) { %>
   <script src="<%= htmlWebpackPlugin.options.cdn.js[i] %>"></script>
   <% } %>
-  <!-- 使用CDN的JS文件 -->
 </body>
 </html>

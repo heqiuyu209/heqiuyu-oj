@@ -3,6 +3,7 @@ import App from './App.vue'
 import store from './store'
 import Element from 'element-ui'
 import i18n from '@/i18n'
+import spotlight from '@/common/spotlight'
 
 // import "element-ui/lib/theme-chalk/index.css"
 import 'font-awesome/css/font-awesome.min.css'
@@ -94,9 +95,12 @@ Vue.prototype.$axios = axios
 Vue.prototype.$markDown = mavonEditor.mavonEditor.getMarkdownIt().use(Md_Katex)  // 挂载到vue
 
 Vue.config.productionTip = false
+Vue.directive('spotlight', spotlight);
 // Keep the existing module initialization order; apply theme styles last.
 require('./styles/cdutetc.css');
 require('./styles/collections.css');
+require('./styles/admin-theme.css');
+require('./styles/appearance-effects.css');
 new Vue({
   router,
   store,

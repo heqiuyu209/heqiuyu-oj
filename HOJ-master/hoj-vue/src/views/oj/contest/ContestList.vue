@@ -18,7 +18,7 @@
     <section class="collection-results" v-loading="loading" :aria-busy="loading" aria-label="比赛列表">
       <ListFeedback :error="loadError" :loading="loading" :empty="!contests.length" @retry="getContestList" />
       <div v-if="!loadError" class="collection-grid">
-        <article v-for="contest in contests" :key="contest.id" class="collection-card contest-collection-card" :class="{ 'is-running': contest.status === 0 }">
+        <article v-spotlight v-for="contest in contests" :key="contest.id" class="collection-card contest-collection-card" :class="{ 'is-running': contest.status === 0 }">
           <div class="collection-card-top">
             <span class="contest-state" :style="{ '--contest-state': CONTEST_STATUS_REVERSE[contest.status].color }"><i aria-hidden="true" />{{ $t('m.' + CONTEST_STATUS_REVERSE[contest.status].name) }}</span>
             <el-tooltip :disabled="contest.type == 0" :content="contest.oiRankScoreType === 'Recent' ? $t('m.Based_on_The_Recent_Score_Submitted_Of_Each_Problem') : $t('m.Based_on_The_Highest_Score_Submitted_For_Each_Problem')">

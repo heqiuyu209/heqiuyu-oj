@@ -1,0 +1,39 @@
+{
+  "effects": {
+    "shortcutOrigin": {
+      "x": 1231.0625,
+      "y": 40
+    },
+    "themeDuration": 1400,
+    "profileMorph": true,
+    "spotlight": true,
+    "idleSpotlightStable": true
+  },
+  "contest": {
+    "automaticMinimal": true,
+    "preferencesPreserved": true,
+    "optOutWorks": true,
+    "restoredOnExit": true
+  },
+  "performance": {
+    "effectOnlyRequests": 0,
+    "idleRequests": 0,
+    "idleWindowMs": 800,
+    "idleTaskMs": 13,
+    "idleLayouts": 0,
+    "documentListenersStable": true,
+    "cpu4xFunctionalCheck": true,
+    "note": "headless browser checks, not GPU FPS or a 400-user server load test",
+    "routeAndReloadReads": 19
+  },
+  "mobile": {
+    "left": 29,
+    "right": 373,
+    "top": 60,
+    "bottom": 832.28125,
+    "viewport": 844,
+    "overflow": false
+  },
+  "validated": true,
+  "errors": []
+}
