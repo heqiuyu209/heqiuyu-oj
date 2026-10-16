@@ -103,6 +103,33 @@ public class PaperManager {
     public PaperDTO.Paper detail(Long id) { return content(paper(id, false, true)); }
     public List<Map<String, Object>> programChoices(String keyword) { uid(); return programs.choices(keyword); }
 
+    /** One paginated catalogue; old objective-only sets keep their IDs and student URLs. */
+    public Map<String, Object> collections(Integer page, String keyword, String kind) {
+        uid();
+        require(kind == null || kind.isEmpty() || Arrays.asList("PRACTICE", "PAPER").contains(kind), "集合类型无效");
+        String catalogue = "(SELECT id,title,published,created_by,gmt_modified,'PAPER' AS source,'PAPER' AS mode,content_json AS config FROM paper"
+                + " UNION ALL SELECT id,title,published,created_by,gmt_modified,'OBJECTIVE' AS source,mode,question_ids_json AS config FROM objective_set) catalogue";
+        String where = " WHERE 1=1";
+        List<Object> args = new ArrayList<>();
+        if (!manageAll()) { where += " AND created_by=?"; args.add(uid()); }
+        if (keyword != null && !keyword.trim().isEmpty()) { where += " AND title LIKE ?"; args.add("%" + text(keyword, 100, false) + "%"); }
+        if (kind != null && !kind.isEmpty()) { where += " AND mode=?"; args.add(kind); }
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM " + catalogue + where, Long.class, args.toArray());
+        args.add(20); args.add((Math.max(1, Math.min(100000, page == null ? 1 : page)) - 1) * 20);
+        List<Map<String, Object>> records = jdbc.queryForList("SELECT * FROM " + catalogue + where
+                + " ORDER BY gmt_modified DESC,source,id DESC LIMIT ? OFFSET ?", args.toArray()).stream().map(row -> {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("id", row.get("id")); result.put("title", row.get("title"));
+            result.put("published", enabled(row.get("published"))); result.put("source", row.get("source")); result.put("mode", row.get("mode"));
+            if ("PAPER".equals(row.get("source"))) {
+                PaperDTO.Paper value = read(row.get("config"), PaperDTO.Paper.class);
+                result.put("questionCount", value.getItems().size()); result.put("programMode", value.getProgramMode());
+            } else result.put("questionCount", read(row.get("config"), List.class).size());
+            return result;
+        }).collect(Collectors.toList());
+        Map<String, Object> result = new LinkedHashMap<>(); result.put("records", records); result.put("total", total); return result;
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public PaperDTO.Paper save(PaperDTO.Paper dto) {
         require(dto != null, "试卷不能为空");
@@ -121,9 +148,8 @@ public class PaperManager {
             require(keys.add(item.getKind() + ":" + item.getReferenceId()), "同一试卷不能重复引用同一道题");
             if ("OBJECTIVE".equals(item.getKind())) {
                 ObjectiveDTO.Question question = objectives.question(item.getReferenceId());
-                require(!Boolean.TRUE.equals(dto.getPublished()) || Boolean.TRUE.equals(question.getPublished()), "请先发布试卷中的客观题");
                 if ("FILL_BLANK".equals(question.getQuestionType())) item.setScore(objectives.maxScore(question));
-            } else programs.available(item.getReferenceId());
+            } else programs.availableForCollection(item.getReferenceId());
             require(item.getScore() != null && item.getScore() > 0 && item.getScore() <= 20000, "每题分值须为 1 到 20000");
         }
         dto.setPublished(Boolean.TRUE.equals(dto.getPublished()));
@@ -161,9 +187,9 @@ public class PaperManager {
             item.setKey(reference.getKind() + ":" + reference.getReferenceId()); item.setKind(reference.getKind());
             item.setReferenceId(reference.getReferenceId()); item.setScore(reference.getScore());
             if ("OBJECTIVE".equals(item.getKind())) {
-                item.setObjective(objectives.publishedQuestionSnapshot(item.getReferenceId()));
+                item.setObjective(objectives.collectionQuestionSnapshot(item.getReferenceId()));
                 if ("FILL_BLANK".equals(item.getObjective().getQuestionType())) item.setScore(objectives.maxScore(item.getObjective()));
-            } else item.setProgramSnapshotId(programs.freeze(id, item.getKey(), uid, item.getReferenceId()));
+            } else item.setProgramSnapshotId(programs.freezeForCollection(id, item.getKey(), uid, item.getReferenceId()));
             snapshot.getItems().add(item);
         }
         jdbc.update("UPDATE paper_run SET snapshot_json=? WHERE id=?", write(snapshot), id);

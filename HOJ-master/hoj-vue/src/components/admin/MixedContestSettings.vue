@@ -8,7 +8,7 @@
         <el-select :value="value.paperId" filterable remote :remote-method="search" :loading="loading" placeholder="搜索已有套卷" @input="set('paperId', $event)">
           <el-option v-for="paper in papers" :key="paper.id" :value="paper.id" :label="paper.title" />
         </el-select>
-        <p>在“客观题与组卷 → 混合试卷”中维护题目和分值。比赛保存时统一冻结题目版本；比赛开始后不能更换试卷。</p>
+        <p>在“题集与试卷 → 新建试卷”中维护题目和分值，保存后即可选择，无需开放日常答题或单题练习。比赛保存时统一冻结题目版本；比赛开始后不能更换试卷。</p>
       </el-form-item>
       <div class="release-fields" v-for="field in ['answer', 'explanation']" :key="field">
         <el-form-item :label="field === 'answer' ? '客观题答案开放' : '解析开放'">

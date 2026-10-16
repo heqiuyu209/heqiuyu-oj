@@ -19,6 +19,10 @@ public class AdminPaperController {
     @GetMapping("/program-questions")
     @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
     public CommonResult<List<Map<String, Object>>> programs(@RequestParam(required = false) String keyword) { return service.programs(keyword); }
+    @GetMapping("/collections")
+    @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
+    public CommonResult<Map<String, Object>> collections(@RequestParam(required = false) Integer currentPage,
+            @RequestParam(required = false) String keyword, @RequestParam(required = false) String kind) { return service.collections(currentPage, keyword, kind); }
     @GetMapping("/{id}")
     @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
     public CommonResult<PaperDTO.Paper> detail(@PathVariable Long id) { return service.detail(id); }

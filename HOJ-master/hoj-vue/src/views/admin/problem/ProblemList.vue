@@ -6,7 +6,7 @@
           query.contestId ? $t('m.Contest_Problem_List') : $t('m.Problem_List')
         }}</span>
         <div class="filter-row">
-          <span>
+          <span v-if="!bankMode">
             <el-button
               type="primary"
               size="small"
@@ -358,6 +358,7 @@ import { REMOTE_OJ } from '@/common/constants';
 import { mapGetters } from 'vuex';
 export default {
   name: 'ProblemList',
+  props: { bankMode: Boolean },
   components: {
     AddPublicProblem,
   },
@@ -411,7 +412,7 @@ export default {
   },
   methods: {
     init() {
-      this.routeName = this.$route.name;
+      this.routeName = this.bankMode ? 'admin-problem-list' : this.$route.name;
       let query = this.$route.query;
       this.query.currentPage = query.currentPage || 1;
       this.query.pageSize = parseInt(query.pageSize) || 10;

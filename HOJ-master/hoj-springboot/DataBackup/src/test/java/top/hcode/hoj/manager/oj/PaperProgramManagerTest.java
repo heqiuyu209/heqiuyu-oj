@@ -63,4 +63,19 @@ class PaperProgramManagerTest {
         problems.selectById(1L).setIsRemote(false).setJudgeMode("spj"); assertThrows(ObjectiveException.class, () -> manager.available(1L));
         problems.selectById(1L).setJudgeMode("default").setAuth(2); assertThrows(ObjectiveException.class, () -> manager.available(1L));
     }
+    @Test void privateReferencesRequireSourcePermissionButAuthorizedCollectionCanFreezeThemForStudents() {
+        freeze();
+        Problem privateProblem = problems.selectById(1L).setAuth(2).setAuthor("alice");
+        assertSame(privateProblem, manager.availableForCollection(1L));
+        privateProblem.setAuthor("bob");
+        assertEquals(403, assertThrows(ObjectiveException.class, () -> manager.availableForCollection(1L)).getStatus());
+        when(org.apache.shiro.SecurityUtils.getSubject().hasRole("problem_admin")).thenReturn(true);
+        assertSame(privateProblem, manager.availableForCollection(1L));
+        when(org.apache.shiro.SecurityUtils.getSubject().hasRole("problem_admin")).thenReturn(false);
+        assertNotNull(manager.freezeForCollection(9L, "PROGRAMMING:1", "student", 1L));
+        assertEquals(2, manager.snapshot(11L).getProblem().getAuth());
+        assertThrows(ObjectiveException.class, () -> manager.capture(1L));
+        privateProblem.setIsGroup(true);
+        assertThrows(ObjectiveException.class, () -> manager.freezeForCollection(9L, "PROGRAMMING:1", "student", 1L));
+    }
 }

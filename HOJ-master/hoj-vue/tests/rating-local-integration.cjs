@@ -61,8 +61,13 @@ async function practice(account, answer) {
   assert.equal(result.contestCount, 1); assert.equal(other.contestCount, 1);
   const home = await request(null, '/api/get-user-home-info?uid=' + a.uid); assert.equal(home.practiceRating, 829); assert.equal(home.contestRating, result.contestRating);
   const rank = await request(null, '/api/rating/rank?type=contest&searchUser=' + a.username); assert.equal(rank.records.length, 1); assert.equal(rank.records[0].rating, result.contestRating);
+  for (const type of ['practice', 'contest']) {
+    const typed = await request(null, '/api/rating/users/' + a.uid + '?type=' + type);
+    assert.equal(typed.history.length, 1); assert.equal(typed.history[0].type, type);
+  }
+  await request(null, '/api/rating/users/' + a.uid + '?type=invalid', 'GET', undefined, true);
   const finalRank = await request(a, '/api/contests/' + contestId + '/mixed/rank'); assert.equal(finalRank.records.find(row => row.uid === a.uid).objectiveScore, 10);
-  report.checks.push('Admin rating validation, numeric task interval query, first-correct practice credit exactly once despite retries, independent contest rating gain/loss, automatic deadline hand-in, public rank/history and user-home integration.');
+  report.checks.push('Admin rating validation, numeric task interval query, first-correct practice credit exactly once despite retries, independent contest rating gain/loss, automatic deadline hand-in, typed public history and invalid type rejection, public rank and user-home integration.');
   report.ratings = { practice: result.practiceRating, winner: result.contestRating, loser: other.contestRating };
   report.validated = true;
 })().catch(error => { report.failure = error.stack; process.exitCode = 1; }).finally(async () => {

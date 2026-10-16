@@ -81,6 +81,19 @@ class SiteRatingManagerTest {
         assertEquals(1L,rank.get("total"));
         assertNull(manager.profile("unknown").get("contestRating"));
     }
+    @Test void typedHistoryKeepsOlderContestsWhenMoreThanOneHundredPracticeEventsExist() {
+        jdbc.update("INSERT INTO site_rating_history(uid,type,source_key,title,occurred_at,old_rating,rating,delta,place) VALUES('a','contest','CONTEST:1','older round',?,1400,1496,96,1)", new Date(1000));
+        for (int index = 0; index < 105; index++) jdbc.update("INSERT INTO site_rating_history(uid,type,source_key,title,occurred_at,old_rating,rating,delta) VALUES('a','practice',?,'practice',?,800,829,29)", "PROGRAMMING:"+index, new Date(2000+index));
+        List<?> contestHistory = (List<?>) manager.profile("a", "contest").get("history");
+        assertEquals(1, contestHistory.size());
+        assertEquals("CONTEST:1", ((Map<?,?>)contestHistory.get(0)).get("sourceKey"));
+        List<?> practiceHistory = (List<?>) manager.profile("a", "practice").get("history");
+        assertEquals(100, practiceHistory.size());
+        assertTrue(practiceHistory.stream().allMatch(item -> "practice".equals(((Map<?,?>)item).get("type"))));
+        assertEquals(100, ((List<?>)manager.profile("a").get("history")).size());
+        assertTrue(((List<?>)manager.profile("unknown", "contest").get("history")).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> manager.profile("a", "invalid"));
+    }
     void contest(long id) {
         Date end=new Date(100000+id*1000); jdbc.update("INSERT INTO contest(id,rated,end_time) VALUES(?,1,?)",id,end);
         Contest contest=new Contest().setId(id).setType(0).setUid("coach").setTitle("round "+id).setStartTime(new Date(1000)).setEndTime(end).setSealRank(false);

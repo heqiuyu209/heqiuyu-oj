@@ -57,10 +57,10 @@ public class AdminProblemServiceImpl implements AdminProblemService {
     }
 
     @Override
-    public CommonResult<Void> addProblem(ProblemDTO problemDto) {
+    public CommonResult<Problem> addProblem(ProblemDTO problemDto) {
         try {
             adminProblemManager.addProblem(problemDto);
-            return CommonResult.successResponse();
+            return CommonResult.successResponse(problemDto.getProblem());
         } catch (StatusFailException e) {
             return CommonResult.errorResponse(e.getMessage());
         }

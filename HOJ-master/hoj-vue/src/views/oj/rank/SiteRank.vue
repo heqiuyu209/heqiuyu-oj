@@ -41,7 +41,7 @@ export default {
     date(value) { return new Date(value).toLocaleString(); },
     search() { this.page = 1; this.load(); }, changePage(page) { this.page = page; this.load(); },
     async load() { const request = ++this.request; this.loading = true; this.error = ''; this.rows = []; try { const data = responseData(await api.getSiteRatingRank({ type: this.type, currentPage: this.page, searchUser: this.keyword, limit: 30 })); if (request === this.request) { this.rows = data.records; this.total = data.total; this.updatedAt = data.updatedAt; } } catch (e) { if (request === this.request) this.error = errorMessage(e); } finally { if (request === this.request) this.loading = false; } },
-    async history(row) { const request = ++this.historyRequest; this.dialog = true; this.historyTitle = row.username; this.historyRows = []; this.historyError = ''; this.historyLoading = true; try { const data = responseData(await api.getSiteRatingProfile(row.uid)); if (request === this.historyRequest) this.historyRows = data.history.filter(item => item.type === this.type); } catch (e) { if (request === this.historyRequest) this.historyError = errorMessage(e); } finally { if (request === this.historyRequest) this.historyLoading = false; } },
+    async history(row) { const request = ++this.historyRequest; this.dialog = true; this.historyTitle = row.username; this.historyRows = []; this.historyError = ''; this.historyLoading = true; try { const data = responseData(await api.getSiteRatingProfile(row.uid, this.type)); if (request === this.historyRequest) this.historyRows = data.history; } catch (e) { if (request === this.historyRequest) this.historyError = errorMessage(e); } finally { if (request === this.historyRequest) this.historyLoading = false; } },
   },
 };
 </script>

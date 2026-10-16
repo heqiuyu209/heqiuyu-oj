@@ -2,9 +2,11 @@ package top.hcode.hoj.manager.oj;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.shiro.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import top.hcode.hoj.common.exception.ObjectiveException;
@@ -47,16 +49,38 @@ public class PaperProgramManager {
         return problem;
     }
 
+    private Problem collectionProblem(Long id) {
+        Problem problem = problemMapper.selectById(id);
+        require(problem != null && !Boolean.TRUE.equals(problem.getIsGroup()), "请选择主题库编程题");
+        require(!Boolean.TRUE.equals(problem.getIsRemote()) && "default".equals(problem.getJudgeMode()),
+                "混合试卷支持本地标准判题，请选择本地非特判编程题");
+        return problem;
+    }
+
+    /** Only administrators who can read the source may create a reference to a private problem. */
+    public Problem availableForCollection(Long id) {
+        Problem problem = collectionProblem(id);
+        boolean all = SecurityUtils.getSubject().hasRole("root") || SecurityUtils.getSubject().hasRole("problem_admin");
+        if (!Objects.equals(problem.getAuth(), 1) && !all
+                && (ShiroUtils.getProfile() == null || !Objects.equals(problem.getAuthor(), ShiroUtils.getProfile().getUsername())))
+            throw new ObjectiveException(403, "只能引用公开题目或自己有权管理的保密题目");
+        return problem;
+    }
+
     public List<Map<String, Object>> choices(String keyword) {
         QueryWrapper<Problem> query = new QueryWrapper<>();
-        query.select("id", "problem_id", "title", "source").eq("auth", 1).eq("is_remote", false)
+        query.select("id", "problem_id", "title", "source", "auth").eq("is_remote", false)
                 .eq("judge_mode", "default").and(q -> q.eq("is_group", false).or().isNull("is_group"));
+        if (!SecurityUtils.getSubject().hasRole("root") && !SecurityUtils.getSubject().hasRole("problem_admin")) {
+            require(ShiroUtils.getProfile() != null, "请先登录");
+            query.and(q -> q.eq("auth", 1).or().eq("author", ShiroUtils.getProfile().getUsername()));
+        }
         if (keyword != null && !keyword.trim().isEmpty()) {
             require(keyword.length() <= 100, "搜索词过长"); query.like("title", keyword.trim());
         }
         return problemMapper.selectList(query.orderByDesc("id").last("LIMIT 100")).stream().map(p -> {
             Map<String, Object> row = new LinkedHashMap<>(); row.put("id", p.getId());
-            row.put("problemId", p.getProblemId()); row.put("title", p.getTitle()); row.put("source", p.getSource()); return row;
+            row.put("problemId", p.getProblemId()); row.put("title", p.getTitle()); row.put("source", p.getSource()); row.put("auth", p.getAuth()); return row;
         }).collect(Collectors.toList());
     }
 
@@ -66,7 +90,18 @@ public class PaperProgramManager {
 
     public PaperProgramSnapshotDTO capture(Long problemId) {
         jdbc.queryForList("SELECT id FROM problem WHERE id=? FOR UPDATE", problemId);
-        Problem problem = available(problemId);
+        available(problemId);
+        return captureForCollection(problemId);
+    }
+
+    // Called only with references from an authorized, persisted paper/contest; never from a student's arbitrary problem ID.
+    Long freezeForCollection(Long runId, String itemKey, String uid, Long problemId) {
+        return copy(runId, itemKey, uid, captureForCollection(problemId));
+    }
+
+    PaperProgramSnapshotDTO captureForCollection(Long problemId) {
+        jdbc.queryForList("SELECT id FROM problem WHERE id=? FOR UPDATE", problemId);
+        Problem problem = collectionProblem(problemId);
         List<ProblemCase> cases = caseMapper.selectList(new QueryWrapper<ProblemCase>().eq("pid", problemId).eq("status", 0).orderByAsc("id"));
         require(!cases.isEmpty(), "编程题缺少可用测试数据");
         long size = 0;
@@ -159,6 +194,24 @@ public class PaperProgramManager {
 
     public void retry(Long runId, String uid) {
         retry(runId, uid, false);
+    }
+
+    /** System recovery of an accepted submission; never consult the current question bank or actor. */
+    @Transactional(rollbackFor = Exception.class)
+    public void recoverPending(Long submitId, Date pendingBefore) {
+        Judge judge = judgeMapper.selectOne(new QueryWrapper<Judge>().eq("submit_id", submitId).last("FOR UPDATE"));
+        if (judge == null || judge.getPaperRunId() == null
+                || !Objects.equals(judge.getStatus(), Constants.Judge.STATUS_PENDING.getStatus())
+                || judge.getGmtModified() == null || !judge.getGmtModified().before(pendingBefore)) return;
+        PaperProgramSnapshot snapshot = snapshotMapper.selectById(judge.getPaperSnapshotId());
+        require(snapshot != null && Objects.equals(snapshot.getRunId(), judge.getPaperRunId())
+                && Objects.equals(snapshot.getUid(), judge.getUid()), "编程题快照不属于本次作答");
+        // The row lock and refreshed timestamp prevent duplicate recovery by concurrent schedulers.
+        judge.setVersion(judge.getVersion() + 1).setGmtModified(new Date());
+        judgeMapper.updateById(judge);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { dispatcher.sendTask(judge.getSubmitId(), judge.getPid(), false); }
+        });
     }
 
     public void retry(Long runId, String uid, boolean contest) {

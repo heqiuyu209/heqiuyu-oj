@@ -14,6 +14,7 @@ export default {
   paperFinish: id => axios.post('/api/papers/runs/' + id + '/finish'),
   paperRetry: id => axios.post('/api/papers/runs/' + id + '/retry'),
   adminPapers: params => axios.get('/api/admin/papers', { params }),
+  adminCollections: params => axios.get('/api/admin/papers/collections', { params }),
   adminPaper: id => axios.get('/api/admin/papers/' + id),
   adminSavePaper: data => axios.post('/api/admin/papers', data),
   adminPaperPrograms: params => axios.get('/api/admin/papers/program-questions', { params }),

@@ -26,6 +26,7 @@ import top.hcode.hoj.dao.user.SessionEntityService;
 import top.hcode.hoj.dao.user.UserInfoEntityService;
 import top.hcode.hoj.dao.user.UserRecordEntityService;
 import top.hcode.hoj.manager.msg.AdminNoticeManager;
+import top.hcode.hoj.manager.oj.PaperProgramManager;
 import top.hcode.hoj.pojo.entity.common.File;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.msg.AdminSysNotice;
@@ -98,6 +99,9 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Resource
     private RejudgeService rejudgeService;
+
+    @Resource
+    private PaperProgramManager paperProgramManager;
 
     @Resource
     private ProblemEntityService problemEntityService;
@@ -398,17 +402,21 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Scheduled(cron = "0 0/20 * * * ?")
     public void check20MPendingSubmission() {
         DateTime dateTime = DateUtil.offsetMinute(new Date(), -15);
-        String strTime = DateFormatUtils.format(dateTime, "yyyy-MM-dd HH:mm:ss");
 
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
-        judgeQueryWrapper.select("distinct submit_id");
+        judgeQueryWrapper.select("submit_id", "paper_run_id");
         judgeQueryWrapper.eq("status", Constants.Judge.STATUS_PENDING.getStatus());
-        judgeQueryWrapper.apply("UNIX_TIMESTAMP('" + strTime + "') > UNIX_TIMESTAMP(gmt_modified)");
+        judgeQueryWrapper.lt("gmt_modified", dateTime);
         List<Judge> judgeList = judgeEntityService.list(judgeQueryWrapper);
         if (!CollectionUtils.isEmpty(judgeList)) {
             log.info("Half An Hour Check Pending Submission to Rejudge:" + Arrays.toString(judgeList.toArray()));
             for (Judge judge : judgeList) {
-                rejudgeService.rejudge(judge.getSubmitId());
+                try {
+                    if (judge.getPaperRunId() != null) paperProgramManager.recoverPending(judge.getSubmitId(), dateTime);
+                    else rejudgeService.rejudge(judge.getSubmitId());
+                } catch (Exception e) {
+                    log.error("Recover pending submission {} failed", judge.getSubmitId(), e);
+                }
             }
         }
     }

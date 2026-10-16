@@ -11,6 +11,10 @@
         label-position="top"
         label-width="70px"
       >
+        <el-form-item v-if="embedded" label="开放单题练习">
+          <el-switch :value="problem.auth === 1" @change="problem.auth = $event ? 1 : 2" />
+          <p class="program-publication-help">关闭时仅保存在题库，仍可用于试卷和比赛；开启后可从题目列表单独练习。</p>
+        </el-form-item>
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item
@@ -180,7 +184,7 @@
             :md="4"
             :xs="24"
           >
-            <el-form-item :label="$t('m.Auth')">
+            <el-form-item v-if="!embedded" :label="$t('m.Auth')">
               <el-select
                 v-model="problem.auth"
                 size="small"
@@ -599,7 +603,6 @@
           >
             <el-radio-group
               v-model="problem.judgeCaseMode"
-              @change="switchJudgeCaseMode"
             >
               <el-radio :label="JUDGE_CASE_MODE.DEFAULT">
                 {{ problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode'): $t('m.ACM_Judge_Case_Default_Mode')}}
@@ -840,6 +843,7 @@
 
         <el-button
           type="primary"
+          :loading="saving"
           @click.native="submit()"
           size="small"
         >{{
@@ -862,6 +866,7 @@ const AddExtraFile = () => import("@/components/admin/AddExtraFile.vue");
 const CodeMirror = () => import("@/components/admin/CodeMirror.vue");
 export default {
   name: "Problem",
+  props: { embedded: Boolean },
   components: {
     Accordion,
     AddExtraFile,
@@ -870,6 +875,7 @@ export default {
   },
   data() {
     return {
+      saving: false,
       rules: {
         title: {
           required: true,
@@ -977,8 +983,8 @@ export default {
   mounted() {
     this.PROBLEM_LEVEL = Object.assign({}, PROBLEM_LEVEL);
     this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
-    this.routeName = this.$route.name;
-    let contestID = this.$route.params.contestId;
+    this.routeName = this.embedded ? "admin-create-problem" : this.$route.name;
+    let contestID = this.embedded ? null : this.$route.params.contestId;
     this.uploadFileUrl = "/api/file/upload-testcase-zip";
     if (
       this.routeName === "admin-edit-problem" ||
@@ -997,7 +1003,7 @@ export default {
         }
       })
       .catch(() => {});
-    api.getLanguages(this.$route.params.problemId, false).then((res) => {
+    api.getLanguages(this.embedded ? null : this.$route.params.problemId, false).then((res) => {
       let allLanguage = res.data.data;
       this.allLanguage = allLanguage;
       for (let i = 0; i < allLanguage.length; i++) {
@@ -1017,7 +1023,7 @@ export default {
         stackLimit: 128,
         difficulty: 0,
         rating: undefined,
-        auth: 1,
+        auth: this.embedded ? 2 : 1,
         codeShare: true,
         examples: [],
         spjLanguage: "",
@@ -1058,6 +1064,7 @@ export default {
   },
   watch: {
     $route() {
+      if (this.embedded) return;
       this.routeName = this.$route.name;
       if (
         this.routeName === "admin-edit-problem" ||
@@ -1495,6 +1502,7 @@ export default {
       });
     },
     submit() {
+      if (this.saving) return;
       if (!this.problem.problemId) {
         myMessage.error(
           this.$i18n.t("m.Problem_Display_ID") +
@@ -1821,8 +1829,14 @@ export default {
         problemDto["changeJudgeCaseMode"] = false;
       }
 
+      this.saving = true;
       api[funcName](problemDto)
         .then((res) => {
+          if (this.embedded) {
+            myMessage.success("题目已保存到题库");
+            this.$emit("saved", res.data.data);
+            return;
+          }
           if (
             this.routeName === "admin-create-contest-problem" ||
             this.routeName === "admin-edit-contest-problem"
@@ -1848,7 +1862,8 @@ export default {
             }
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { this.saving = false; });
     },
   },
   computed: {
@@ -1858,6 +1873,7 @@ export default {
 </script>
 
 <style scoped>
+.program-publication-help { color: var(--muted); font-size: 13px; line-height: 1.8; }
 /deep/.el-form-item__label {
   padding: 0 !important;
 }

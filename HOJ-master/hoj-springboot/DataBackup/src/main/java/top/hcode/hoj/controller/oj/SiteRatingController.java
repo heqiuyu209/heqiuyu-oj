@@ -20,5 +20,8 @@ public class SiteRatingController {
         return CommonResult.successResponse(ratings.rank(type, currentPage, limit, searchUser));
     }
     @GetMapping("/users/{uid}")
-    public CommonResult<Map<String, Object>> profile(@PathVariable String uid) { return CommonResult.successResponse(ratings.profile(uid)); }
+    public CommonResult<Map<String, Object>> profile(@PathVariable String uid, @RequestParam(required = false) String type) {
+        if (type != null && !"practice".equals(type) && !"contest".equals(type)) return CommonResult.errorResponse("未知排名类型");
+        return CommonResult.successResponse(ratings.profile(uid, type));
+    }
 }

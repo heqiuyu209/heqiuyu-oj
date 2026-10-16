@@ -147,13 +147,22 @@ public class SiteRatingManager {
     }
 
     public Map<String, Object> profile(String uid) {
+        return profile(uid, null);
+    }
+
+    public Map<String, Object> profile(String uid, String historyType) {
+        if (historyType != null && !Arrays.asList("practice", "contest").contains(historyType))
+            throw new IllegalArgumentException("未知排名类型");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("practiceRating", null); result.put("contestRating", null);
         for (Map<String, Object> row : jdbc.queryForList("SELECT * FROM site_rating_profile WHERE uid=?", uid)) {
             String type = (String) row.get("type");
             result.put(type + "Rating", row.get("rating")); result.put(type + "Count", row.get("rated_count")); result.put(type + "Peak", row.get("peak"));
         }
-        result.put("history", jdbc.queryForList("SELECT type,source_key AS sourceKey,title,occurred_at AS occurredAt,old_rating AS oldRating,rating,delta,place FROM site_rating_history WHERE uid=? ORDER BY occurred_at DESC,source_key DESC LIMIT 100", uid));
+        String historySql = "SELECT type,source_key AS sourceKey,title,occurred_at AS occurredAt,old_rating AS oldRating,rating,delta,place FROM site_rating_history WHERE uid=?";
+        String order = " ORDER BY occurred_at DESC,source_key DESC LIMIT 100";
+        result.put("history", historyType == null ? jdbc.queryForList(historySql + order, uid)
+                : jdbc.queryForList(historySql + " AND type=?" + order, uid, historyType));
         return result;
     }
 }

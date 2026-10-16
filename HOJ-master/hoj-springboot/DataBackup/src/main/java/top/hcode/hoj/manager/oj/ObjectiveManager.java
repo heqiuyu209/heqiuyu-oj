@@ -190,6 +190,13 @@ public class ObjectiveManager {
         return content(question);
     }
 
+    // A published container grants access to its persisted references independently of standalone practice.
+    ObjectiveDTO.Question collectionQuestionSnapshot(Long id) {
+        ObjectiveQuestion question = questionMapper.selectById(id);
+        if (question == null) throw fail(404, "引用的客观题不存在");
+        return content(question);
+    }
+
     void validateQuestion(ObjectiveDTO.Question dto) {
         require(dto != null, "题目不能为空");
         require(dto.getRating() == null || dto.getRating() >= 0 && dto.getRating() <= 5000, "题目rating必须在0到5000之间，或留空为未评级");
@@ -421,8 +428,6 @@ public class ObjectiveManager {
         require(questions.size() == dto.getQuestionIds().size(), "部分题目已不存在");
         for (ObjectiveQuestion question : questions) {
             owner(question.getCreatedBy());
-            require(!Boolean.TRUE.equals(dto.getPublished()) || Boolean.TRUE.equals(question.getPublished()),
-                    "发布题集前，请先发布其中所有题目");
         }
         ObjectiveSet set;
         if (dto.getId() == null) {
@@ -496,7 +501,7 @@ public class ObjectiveManager {
         if (setQuestionIds != null) {
             for (Long id : setQuestionIds) {
                 ObjectiveQuestion question = questionMapper.selectById(id);
-                require(question != null && Boolean.TRUE.equals(question.getPublished()), "题集中有题目暂未开放");
+                require(question != null, "题集中有题目已不存在");
                 snapshot.add(content(question));
             }
         }

@@ -1,6 +1,6 @@
 export const m = {
   Paper_Practice: '套卷练习',
-  Paper_Admin: '整套试卷',
+  Paper_Admin: '题集与试卷',
   Objective_Practice: '客观题练习',
   Objective_Admin: '客观题与组卷',
 

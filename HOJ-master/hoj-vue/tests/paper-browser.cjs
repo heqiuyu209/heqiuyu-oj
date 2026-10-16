@@ -66,7 +66,7 @@ function fixture(request) {
     const page = Number(url.searchParams.get('currentPage') || 1), limit = Number(url.searchParams.get('limit') || 30);
     return ok({ records: rows.slice((page - 1) * limit, page * limit), total: rows.length, updatedAt: Date.now() });
   }
-  if (p.startsWith('/api/rating/users/')) return ok({ practiceRating: 1200, contestRating: 1600, history: ['practice', 'contest'].map(type => ({ type, title: type === 'practice' ? '二分查找练习' : '正式计分比赛', occurredAt: Date.now(), oldRating: 1375, rating: 1400, delta: 25 })) });
+  if (p.startsWith('/api/rating/users/')) return ok({ practiceRating: 1200, contestRating: 1600, history: ['practice', 'contest'].filter(type => !url.searchParams.has('type') || type === url.searchParams.get('type')).map(type => ({ type, title: type === 'practice' ? '二分查找练习' : '正式计分比赛', occurredAt: Date.now(), oldRating: 1375, rating: 1400, delta: 25 })) });
   if (p === '/api/get-contest-info') return ok({ id: 6, mixedPaperId: 2, title: '蓝桥杯混合赛', author: 'teacher', type: 0, auth: 0, status: 0, startTime: new Date(Date.now() - 60000).toISOString(), endTime: new Date(contestEnd).toISOString(), now: new Date().toISOString(), sealRank: false, duration: 3660, rankShowName: 'username' });
   if (p === '/api/contests/6/mixed/run') {
     let run = [...runs.values()].find(r => r.contestId === 6 && r.uid === uid);
@@ -98,12 +98,18 @@ function fixture(request) {
     return ok(run.contestId ? contestView(run) : view(run));
   }
   if (p === '/api/admin/papers/program-questions') return ok([clone(program)]);
+  if (p === '/api/admin/papers/collections') return ok({ records: [...clone(papers).map(paper => ({ ...paper, source: 'PAPER', mode: 'PAPER' })), { id: 3, title: '旧版逐题训练集', source: 'OBJECTIVE', mode: 'PRACTICE', questionCount: 1, published: false }], total: papers.length + 1 });
+  if (p === '/api/languages') return ok([{ id: 1, name: 'C++', contentType: 'text/x-c++src', oj: 'ME', isSpj: false }]);
+  if (p === '/api/admin/problem' && method === 'POST') return ok({ ...data.problem, id: 20 });
+  if (p === '/api/admin/problem/get-problem-list') return ok({ records: [], total: 0 });
   if (p === '/api/admin/papers' && method === 'GET') return ok({ records: clone(papers), total: papers.length });
   if (p === '/api/admin/papers') { assert(data.items.some(item => item.kind === 'PROGRAMMING')); assert(data.items.some(item => item.kind === 'OBJECTIVE')); const paper = { ...data, id: data.id || 9, version: (data.version || 0) + 1, questionCount: data.items.length }; papers.push(paper); return ok(paper); }
   if (p.match(/^\/api\/admin\/papers\/\d+$/)) return ok(clone(papers.find(paper => paper.id === Number(p.split('/').pop()))));
   if (p === '/api/admin/objective/questions' && method === 'GET') return ok({ records: [clone(blank), clone(choice)], total: 2 });
   if (p === '/api/admin/objective/questions') return ok({ ...data, id: 10, version: 1 });
   if (p.match(/^\/api\/admin\/objective\/questions\/\d+$/)) return ok(clone(Number(p.split('/').pop()) === 4 ? blank : choice));
+  if (p === '/api/admin/objective/sets/3') return ok({ id: 3, title: '旧版逐题训练集', mode: 'PRACTICE', questionIds: [1], version: 1, published: false, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'NEVER' });
+  if (p === '/api/admin/objective/sets' && method === 'POST') return ok({ ...data, id: data.id || 11, version: 1 });
   return ok([]);
 }
 let ws, stderr = '';
@@ -201,6 +207,67 @@ async function until(check, label, timeout = 30000) {
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('token','objective-fixture-token');localStorage.setItem('Web_Language','\"zh-CN\"');localStorage.setItem('userInfo'," + JSON.stringify(JSON.stringify(user())) + ");" });
   await cdp('Page.navigate', { url: base + '/papers' });
   await until(() => ev("document.querySelectorAll('.paper-card').length===2"), 'paper list');
+  if (process.env.PAPER_REVIEW_CASE === 'authoring') {
+    await route('/admin/problems');
+    await until(() => ev(find('QuestionBank') + '&&!'+find('ProblemList')+'.loading'), 'unified question bank');
+    await ev(find('QuestionBank')+'.$refs.creator.open();true');
+    await until(() => ev("document.querySelectorAll('.type-grid button').length===5"), 'question type picker');
+    await shot('authoring-question-types');
+    await ev(find('QuestionBank')+".$refs.creator.select('TRUE_FALSE');true");
+    const objective = find('QuestionBank') + '.$refs.creator.$refs.objective';
+    assert.equal(await ev(objective+'.standalone'), false);
+    await ev(objective+".question.title='保密判断题';"+objective+".question.stem='二分查找要求序列有序。';"+objective+".question.correctAnswers=['TRUE'];"+objective+'.preview=true;true');
+    await shot('authoring-question-preview');
+    await ev(objective+'.saveQuestion();true');
+    await until(() => ev(find('QuestionBank')+".tab==='objective'"), 'created question in objective bank');
+    const savedQuestion = report.requests.filter(r=>r.path==='/api/admin/objective/questions'&&r.method==='POST').pop().data;
+    assert.equal(savedQuestion.published, false); assert.equal(savedQuestion.practiceEnabled, false);
+    report.checks.push('Unified bank offers five types; new objective questions default to confidential, preview safely, and return to the correct bank.');
+    await route('/admin/papers');
+    await until(() => ev(find('CollectionAdmin')+'.rows.length===3'), 'combined collection catalogue');
+    await shot('authoring-collections');
+    await ev(find('PaperAdmin')+'.create();'+find('PaperAdmin')+".form.title='保密蓝桥杯试卷';"+find('PaperAdmin')+".form.description='组卷中录题，不丢失已填写的内容。';true");
+    await until(() => ev('!!'+find('PaperAdmin')+'.$refs.creator'), 'in-paper question creator');
+    const creator = find('PaperAdmin')+'.$refs.creator', inPaper = creator+'.$refs.objective';
+    await ev(creator+".select('FILL_BLANK');true");
+    await ev(inPaper+".question.title='填空：加法';"+inPaper+".question.stem='1+2=____';"+inPaper+".question.blanks[0].answers=['3'];"+inPaper+'.question.blanks[0].score=5;'+inPaper+'.saveQuestion();true');
+    await until(() => ev(find('PaperAdmin')+'.form.items.length===1'), 'inline objective added');
+    assert.equal(await ev(find('PaperAdmin')+'.form.title'), '保密蓝桥杯试卷');
+    assert.equal(await ev(find('PaperAdmin')+'.form.items[0].score'), 5);
+    await ev(creator+".select('PROGRAMMING');true");
+    const programEditor = creator+'.$refs.program';
+    await until(() => ev(programEditor+'?.allLanguage?.length===1&&!!'+programEditor+'.problem.problemId===false'), 'inline programming editor');
+    assert.equal(await ev(programEditor+'.problem.auth'), 2);
+    await ev("document.querySelector('.program-create-dialog .el-switch').click();true"); assert.equal(await ev(programEditor+'.problem.auth'), 1);
+    await ev("document.querySelector('.program-create-dialog .el-switch').click();true"); assert.equal(await ev(programEditor+'.problem.auth'), 2);
+    await shot('authoring-program-editor', true);
+    await ev(programEditor+".problem.problemId='AUTHORING20';"+programEditor+".problem.title='组卷中录入的加法';"+programEditor+".problem.description='输出 a+b';"+programEditor+".problem.input='两个整数';"+programEditor+".problem.output='两数之和';"+programEditor+'.problem.isUploadCase=false;'+programEditor+".problemSamples=[{input:'1 2',output:'3',score:100}];"+programEditor+'.problemLanguages='+programEditor+'.allLanguage.map(language=>language.name);'+programEditor+'.submit();true');
+    await until(() => ev(find('PaperAdmin')+'.form.items.length===2&&!'+creator+'.programDialog'), 'inline programming added');
+    assert.equal(await ev(find('PaperAdmin')+'.form.title'), '保密蓝桥杯试卷');
+    assert.equal(await ev("document.getElementById('app').__vue__.$route.path"), '/admin/papers');
+    await ev(find('PaperAdmin')+'.preview=true;true'); await shot('authoring-paper-preview');
+    await ev(find('PaperAdmin')+'.save();true'); await until(() => ev('!'+find('PaperAdmin')+'.dialog'), 'private paper save');
+    const paperPayload = report.requests.filter(r=>r.path==='/api/admin/papers'&&r.method==='POST').pop().data;
+    assert.equal(paperPayload.published, false); assert.deepEqual(paperPayload.items.map(item=>item.kind), ['OBJECTIVE','PROGRAMMING']);
+    report.checks.push('Inline objective and programming creation preserves paper fields, derives blank scores, adds both saved IDs, and saves a private mixed paper without navigation.');
+    await ev(find('CollectionAdmin')+'.edit({id:3,source:"OBJECTIVE"});true');
+    const sets = find('CollectionAdmin')+'.$refs.sets';
+    await until(() => ev(sets+'.setDialog&&'+sets+'.problemSet.id===3'), 'legacy collection editor');
+    await ev(sets+'.$refs.setCreator.select("SINGLE_CHOICE");true');
+    const setQuestion = sets+'.$refs.setCreator.$refs.objective';
+    await ev(setQuestion+".question.title='题集中新增';"+setQuestion+".question.stem='1+1=?';"+setQuestion+".question.options=[{id:'A',text:'2'},{id:'B',text:'3'}];"+setQuestion+".question.correctAnswers=['A'];"+setQuestion+'.standalone=true;'+setQuestion+'.saveQuestion();true');
+    await until(() => ev(sets+'.problemSet.questionIds.length===2'), 'new question auto-added to legacy set');
+    assert.equal(await ev(sets+'.problemSet.title'), '旧版逐题训练集');
+    await ev(sets+'.saveSet();true'); await until(() => ev('!'+sets+'.setDialog'), 'save legacy set');
+    report.checks.push('Existing objective sets remain editable in the unified catalogue; inline creation preserves old references and explicit standalone publishing.');
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await shot('authoring-collections-mobile'); assert.equal(await ev('document.documentElement.scrollWidth>innerWidth'),false);
+    assert.equal(await ev("document.querySelector('.mobile-collections article .el-button').getBoundingClientRect().width>0"),true);
+    await route('/admin/questions/create'); await until(() => ev("document.querySelectorAll('.type-grid button').length===5"), 'mobile type chooser');
+    await shot('authoring-types-mobile', true); assert.equal(await ev('document.documentElement.scrollWidth>innerWidth'),false);
+    report.checks.push('Unified administration and type selection fit mobile without horizontal overflow.');
+    assert.deepEqual(report.errors, []); report.validated=true; fs.writeFileSync(path.join(output,'paper-browser.json'),JSON.stringify(report,null,2)); console.log('Authoring browser: '+report.checks.length+' workflows passed; '+report.screenshots.length+' screenshots.'); return;
+  }
   if (process.env.PAPER_REVIEW_CASE === 'rating') {
     await route('/acm-rank'); await until(() => ev("document.querySelectorAll('.rating-table .el-table__body tbody tr').length===30"), 'practice rating rank');
     assert.equal(await ev("document.querySelector('.rank-tabs [aria-current]').textContent"), '平时排名');
@@ -211,10 +278,12 @@ async function until(check, label, timeout = 30000) {
     assert.equal(await ev(find('SiteRank')+'.rows[0].rank'),1);
     await ev("document.querySelector('.rating-table .el-button').click();true"); await until(() => ev(find('SiteRank')+'.historyRows.length===1'), 'practice rating history');
     assert.equal(await ev(find('SiteRank')+'.historyRows[0].type'),'practice');
+    assert.equal(report.requests.filter(request => request.path.startsWith('/api/rating/users/')).pop().query.type, 'practice');
     await ev(find('SiteRank')+'.dialog=false;true'); await route('/oi-rank'); await until(() => ev(find('SiteRank')+".type==='contest'&&"+find('SiteRank')+'.rows.length===2'), 'contest rating alias');
     assert.equal(await ev(find('SiteRank')+'.keyword'),''); await shot('site-rating-contest-desktop');
     await ev("document.querySelector('.rating-table .el-button').click();true"); await until(() => ev(find('SiteRank')+'.historyRows.length===1'), 'contest rating history');
     assert.equal(await ev(find('SiteRank')+'.historyRows[0].type'),'contest'); await ev(find('SiteRank')+'.dialog=false;true');
+    assert.equal(report.requests.filter(request => request.path.startsWith('/api/rating/users/')).pop().query.type, 'contest');
     await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }); await sleep(250);
     assert.equal(await ev('document.documentElement.scrollWidth>innerWidth'), false); await shot('site-rating-mobile');
     await route('/rank/practice'); await until(() => ev(find('SiteRank')+'.rows.length===30'), 'practice tab on mobile');

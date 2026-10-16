@@ -102,6 +102,8 @@ function fixture(request) {
     return ok(question);
   }
   if (p.match(/^\/api\/admin\/objective\/questions\/\d+$/)) return ok({ ...clone(questions.find(q => q.id === Number(p.split('/').pop()))), published: true });
+  if (p === '/api/admin/papers/collections') return ok({ records: clone(sets).map(set => ({ ...set, source: 'OBJECTIVE' })), total: sets.length });
+  if (p === '/api/admin/problem/get-problem-list') return ok({ records: [], total: 0 });
   if (p === '/api/admin/objective/sets' && method === 'GET') return ok({ records: clone(sets), total: sets.length });
   if (p === '/api/admin/objective/sets') { const set = { ...data, id: data.id || ++nextSet, version: (data.version || 0) + 1, questionCount: data.questionIds.length }; sets.push(set); return ok(set); }
   if (p.match(/^\/api\/admin\/objective\/sets\/\d+$/)) return ok(clone(sets.find(set => set.id === Number(p.split('/').pop()))));
@@ -360,12 +362,12 @@ async function until(check, label, timeout = 30000) {
   await until(() => ev("!!document.querySelector('.objective-admin .el-table__body tr')"), 'admin');
   await ev(find('ObjectiveAdmin') + ".newQuestion()");
   await until(() => ev("!!document.querySelector('.el-dialog__body textarea')"), 'question editor');
-  await ev("Object.assign(" + find('ObjectiveAdmin') + ".question,{title:'新判断题',source:'课堂练习',stem:'二分查找需要有序性。',questionType:'TRUE_FALSE',correctAnswers:['TRUE'],explanation:'本题考查前提条件。',published:true});" + find('ObjectiveAdmin') + ".saveQuestion()");
+  await ev("Object.assign(" + find('ObjectiveAdmin') + ".question,{title:'新判断题',source:'课堂练习',stem:'二分查找需要有序性。',questionType:'TRUE_FALSE',correctAnswers:['TRUE'],explanation:'本题考查前提条件。',published:true,practiceEnabled:true});" + find('ObjectiveAdmin') + ".saveQuestion()");
   await until(() => ev("!" + find('ObjectiveAdmin') + ".questionDialog"), 'save question');
   assert(report.requests.some(r => r.path === '/api/admin/objective/questions' && r.method === 'POST' && r.data.questionType === 'TRUE_FALSE'));
   assert.equal(report.requests.filter(r => r.path === '/api/admin/objective/questions' && r.method === 'POST').pop().data.source, '课堂练习');
-  await ev(find('ObjectiveAdmin') + ".tab='sets';" + find('ObjectiveAdmin') + ".reset();");
-  await until(() => ev("!!document.querySelector('.objective-admin .el-table__body tr')"), 'admin sets');
+  await route('/admin/papers');
+  await until(() => ev("!!document.querySelector('.collection-admin .el-table__body tr')"), 'unified admin sets');
   await ev(find('ObjectiveAdmin') + ".newSet();");
   const future = Date.now() + 3600000;
   await ev("Object.assign(" + find('ObjectiveAdmin') + ".problemSet,{title:'指定时间开放试卷',mode:'PAPER',questionIds:[1,2,3],answerPolicy:'AT_TIME',answerReleaseAt:" + future + ",explanationPolicy:'NEVER',published:true});true");
@@ -382,13 +384,13 @@ async function until(check, label, timeout = 30000) {
   await ev("document.querySelector('.admin-mobile-nav button').click()");
   await until(() => ev("!!document.querySelector('.mu-drawer')"), 'mobile admin drawer');
   await ev("[...document.querySelectorAll('.mu-drawer .mu-item-title')].find(item=>item.textContent.trim()==='题目管理').click()");
-  await until(() => ev("!!document.querySelector('.mu-drawer a[href=\"/admin/objective\"]')?.getBoundingClientRect().height"), 'mobile objective menu entry');
+  await until(() => ev("!!document.querySelector('.mu-drawer a[href=\"/admin/papers\"]')?.getBoundingClientRect().height"), 'mobile objective menu entry');
   await shot('objective-admin-mobile-menu');
-  await ev("document.querySelector('.mu-drawer a[href=\"/admin/objective\"]').click()");
-  await until(() => ev("document.getElementById('app').__vue__.$route.path==='/admin/objective'&&!!document.querySelector('.objective-admin')"), 'mobile objective navigation');
+  await ev("document.querySelector('.mu-drawer a[href=\"/admin/papers\"]').click()");
+  await until(() => ev("document.getElementById('app').__vue__.$route.path==='/admin/papers'&&!!document.querySelector('.collection-admin')"), 'mobile objective navigation');
   await until(() => ev("!document.querySelector('.mu-drawer')||getComputedStyle(document.querySelector('.mu-drawer')).visibility==='hidden'"), 'mobile drawer closes');
   assert.equal(await ev('document.documentElement.scrollWidth>innerWidth'), false);
-  report.checks.push('Mobile admin drawer exposes objective management, navigates to it, and closes after selection.');
+  report.checks.push('Mobile admin drawer exposes unified collection management, navigates to it, and closes after selection.');
 
   uid = 'objective-bob'; role = 'default_user';
   await ev("const store=document.getElementById('app').__vue__.$store;store.commit('changeUserInfo',{userInfo:" + JSON.stringify(user()) + "});true");

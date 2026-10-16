@@ -46,12 +46,9 @@
             ><i class="fa fa-bars fa-size" aria-hidden="true"></i
             >{{ $t('m.Problem_Admin') }}</template
           >
-          <el-menu-item index="/admin/problems">{{
-            $t('m.Problem_List')
-          }}</el-menu-item>
-          <el-menu-item index="/admin/objective">客观题与组卷</el-menu-item>
-          <el-menu-item index="/admin/papers">整套试卷</el-menu-item>
-          <el-menu-item index="/admin/problem/create">{{
+          <el-menu-item index="/admin/problems">题库</el-menu-item>
+          <el-menu-item index="/admin/papers">题集与试卷</el-menu-item>
+          <el-menu-item index="/admin/questions/create">{{
             $t('m.Create_Problem')
           }}</el-menu-item>
           <el-menu-item index="/admin/problem/tag">{{
@@ -315,24 +312,14 @@
                 $t('m.Problem_List')
               }}</mu-list-item-title>
             </mu-list-item>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/admin/objective"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>客观题与组卷</mu-list-item-title>
-            </mu-list-item>
             <mu-list-item button :ripple="false" slot="nested" to="/admin/papers" @click="opendrawer = !opendrawer" active-class="mobile-menu-active">
-              <mu-list-item-title>整套试卷</mu-list-item-title>
+              <mu-list-item-title>题集与试卷</mu-list-item-title>
             </mu-list-item>
             <mu-list-item
               button
               :ripple="false"
               slot="nested"
-              to="/admin/problem/create"
+              to="/admin/questions/create"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >

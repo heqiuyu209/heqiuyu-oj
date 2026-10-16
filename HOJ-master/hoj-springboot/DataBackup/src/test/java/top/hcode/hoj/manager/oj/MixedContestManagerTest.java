@@ -45,14 +45,14 @@ class MixedContestManagerTest {
         jdbc.update("INSERT INTO user_info VALUES('alice','alice',NULL,NULL),('bob','bob',NULL,NULL),('charlie','charlie',NULL,NULL)");
         programs = mock(PaperProgramManager.class); objectives = mock(ObjectiveManager.class);
         question = new ObjectiveDTO.Question(); question.setId(1L); question.setVersion(1); question.setQuestionType("SINGLE_CHOICE"); question.setTitle("冻结的选择题"); question.setCorrectAnswers(Collections.singletonList("A")); question.setOptions(Collections.emptyList());
-        when(objectives.publishedQuestionSnapshot(1L)).thenAnswer(a -> json.readValue(json.writeValueAsString(question), ObjectiveDTO.Question.class));
+        when(objectives.collectionQuestionSnapshot(1L)).thenAnswer(a -> json.readValue(json.writeValueAsString(question), ObjectiveDTO.Question.class));
         when(objectives.normalize(any(), any(), anyBoolean())).thenAnswer(a -> a.getArgument(1));
         when(objectives.score(any(), any())).thenAnswer(a -> ((List<?>) a.getArgument(1)).contains("A") ? 1 : 0);
         when(objectives.correctAnswers(any())).thenReturn(Collections.singletonList("A"));
         PaperProgramSnapshotDTO program = new PaperProgramSnapshotDTO(); program.setProblem(new Problem().setId(1L).setTitle("冻结的编程题").setType(0)); program.setLanguages(Collections.singletonList("C++"));
-        when(programs.capture(1L)).thenReturn(program);
+        when(programs.captureForCollection(1L)).thenReturn(program);
         when(programs.copy(anyLong(), anyString(), anyString(), any())).thenAnswer(a -> { long id = ++sequence; snapshots.put(id, a.getArgument(3)); return id; });
-        when(programs.freeze(anyLong(), anyString(), anyString(), anyLong())).thenAnswer(a -> { long id = ++sequence; snapshots.put(id, program); return id; });
+        when(programs.freezeForCollection(anyLong(), anyString(), anyString(), anyLong())).thenAnswer(a -> { long id = ++sequence; snapshots.put(id, program); return id; });
         when(programs.snapshot(anyLong())).thenAnswer(a -> snapshots.get(a.getArgument(0)));
         when(programs.submissions(anyLong(), anyLong(), anyString())).thenReturn(Collections.emptyList());
         ContestEntityService contests = mock(ContestEntityService.class);
@@ -102,7 +102,7 @@ class MixedContestManagerTest {
         time = 200000; long first = start(); question.setTitle("后来修改的题目");
         jdbc.update("UPDATE paper SET published=0,content_json=? WHERE id=1", json.writeValueAsString(paper));
         uid = "bob"; long second = start(); assertEquals("冻结的选择题", item(papers.run(second)).get("title"));
-        uid = "alice"; assertEquals("冻结的选择题", item(papers.run(first)).get("title")); verify(programs, times(1)).capture(1L);
+        uid = "alice"; assertEquals("冻结的选择题", item(papers.run(first)).get("title")); verify(programs, times(1)).captureForCollection(1L);
     }
     @Test void practiceApisCannotBypassOwnershipRegistrationDeadlineOrContestRelease() {
         time = 200000; contest.setAuth(2); assertThrows(ObjectiveException.class, this::start); registered = true;

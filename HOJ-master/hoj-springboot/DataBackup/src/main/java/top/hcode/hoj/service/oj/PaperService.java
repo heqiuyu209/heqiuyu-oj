@@ -18,6 +18,7 @@ public class PaperService {
     }
     public CommonResult<Map<String, Object>> list(Integer page, String keyword, boolean admin) { return execute(() -> manager.list(page, keyword, admin)); }
     public CommonResult<PaperDTO.Paper> detail(Long id) { return execute(() -> manager.detail(id)); }
+    public CommonResult<Map<String, Object>> collections(Integer page, String keyword, String kind) { return execute(() -> manager.collections(page, keyword, kind)); }
     public CommonResult<PaperDTO.Paper> save(PaperDTO.Paper dto) { return execute(() -> manager.save(dto)); }
     public CommonResult<List<Map<String, Object>>> programs(String keyword) { return execute(() -> manager.programChoices(keyword)); }
     public CommonResult<Map<String, Object>> start(PaperDTO.Start dto) { return execute(() -> manager.start(dto)); }

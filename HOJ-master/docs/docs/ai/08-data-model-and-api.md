@@ -217,10 +217,33 @@ GET  /api/contests/{cid}/mixed/rank # 登录与比赛访问权限，返回 ACM �
 ```text
 GET /api/rating/rank?type=practice|contest&currentPage=1&limit=30&searchUser=...
     # 匿名可读，最高每页100；搜索保留全局名次。records/total/current/size/updatedAt。
-GET /api/rating/users/{uid}
-    # 匿名可读，practiceRating/contestRating/Count/Peak及最近100条history。
+GET /api/rating/users/{uid}?type=practice|contest
+    # 匿名可读，practiceRating/contestRating/Count/Peak；history 先按 type 筛选再取最近100条。
+    # type 可省略以兼容旧调用，此时仍返回两类合计最近100条；未知 type 拒绝。
 GET /api/get-problem-list?...&ratingMin=1200&ratingMax=1800
     # 服务端区间筛选，不包含未评级题。原有题库/标签/分页条件保留。
 ```
 
 个人主页接口同时返回 `practiceRating`、`contestRating`。前端榜单 `/rank/practice`、`/rank/contest`；旧 `/acm-rank`、`/oi-rank` 仅作地址兼容跳转，不改变单场比赛的 ACM/OI 成绩规则。
+
+2026-10-16 审查修复：原每 20 分钟的 Pending 恢复任务仍检查超过 15 分钟未更新的提交，套卷分流到专用事务恢复入口。该入口重新加行锁检查状态/时间及原快照归属，更新版本与恢复时间，提交事务后派发原提交；不改原提交时间、代码、答卷或快照，不重新读取题库或要求在线用户。并发扫描只恢复一次，已完成或新 Pending 不处理；普通管理员重判入口继续拒绝套卷提交。首页周提交统计增加相同的 `paper_run_id IS NULL` 隔离条件，缓存使用新键以立即避开旧口径数据。
+
+## 2026-10-16 管理端录题与组卷
+
+题库入口 `/admin/problems` 汇总编程题与客观题；`/admin/questions/create` 统一选择编程、单选、多选、判断、填空。原编程编辑与比赛专用录题地址保留，`/admin/objective` 转到题库客观题页。新建题目默认仅题库保存；录入完整合法题目后可关闭单题开放并加入题集、试卷和比赛。此处“保存到题库”仍执行完整题目校验，并非未完成表单的自动草稿。
+
+`/admin/papers` 统一列出 `objective_set` 与 `paper`，按类型、标题、权限分页；旧记录与学生作答地址保持原数据来源，不搬迁作答。新建题集采用逐题客观题训练，新建试卷统一使用可混合题型的 `paper`；已有客观题整卷记录继续编辑。题集和试卷都可在编辑器内新建题目并自动加入，编程题只用于混合试卷。试卷结构预览不创建学生答卷；已开放记录可跳转学生列表查看。
+
+```text
+GET /api/admin/papers/collections?currentPage=1&keyword=...&kind=PRACTICE|PAPER
+    # root/admin/problem_admin；普通 admin 仅自己的记录；每页20，跨两来源统一分页。
+    # records: id/title/source(OBJECTIVE|PAPER)/mode/questionCount/published；不返回答案或题目配置 JSON。
+POST /api/admin/problem
+    # 原状态与校验保持；成功 data 现在返回创建后的 Problem（含数据库 id），供组卷自动加入。
+GET /api/admin/papers/program-questions?keyword=...
+    # 本地标准、非团队题：公开题 + 当前管理员有权引用的保密题；附 auth 元数据。
+```
+
+客观题单题开放要求 `published && practiceEnabled`；新建界面用一个开关同时控制两项。编程题单题开放使用 `auth=1`，新建关闭时 `auth=2`。发布题集 / 试卷只控制容器访问，不再要求先公开其中题目；未发布试卷仍可由有权管理员用于比赛配置。客观题引用校验创建者，编程题的私有/比赛题引用校验作者或 root/problem_admin；学生不可通过任意题目 ID 调用私有快照入口。
+
+学生仅从已发布试卷、已发布题集或有参赛权限的比赛内访问持久化引用，服务端冻结题面/答案/测试数据，沿用原开放与判分规则。套卷与比赛的内部快照入口允许保密题，独立题目 API 保留可见性校验。比赛保存时再次检查引用权限，固定模板后沿用原冻结规则。之后独立开放单题练习不改变已有答卷或比赛模板。

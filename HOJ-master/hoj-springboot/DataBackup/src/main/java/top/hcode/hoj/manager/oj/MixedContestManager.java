@@ -109,9 +109,13 @@ public class MixedContestManager {
                 item.setKey(reference.getKind() + ":" + reference.getReferenceId()); item.setKind(reference.getKind());
                 item.setReferenceId(reference.getReferenceId()); item.setScore(reference.getScore());
                 if ("OBJECTIVE".equals(item.getKind())) {
-                    item.setObjective(objectives.publishedQuestionSnapshot(item.getReferenceId()));
+                    objectives.question(item.getReferenceId());
+                    item.setObjective(objectives.collectionQuestionSnapshot(item.getReferenceId()));
                     if ("FILL_BLANK".equals(item.getObjective().getQuestionType())) item.setScore(objectives.maxScore(item.getObjective()));
-                } else frozen.getPrograms().put(item.getKey(), programs.capture(item.getReferenceId()));
+                } else {
+                    programs.availableForCollection(item.getReferenceId());
+                    frozen.getPrograms().put(item.getKey(), programs.captureForCollection(item.getReferenceId()));
+                }
                 snapshot.getItems().add(item);
             }
             template = write(frozen);

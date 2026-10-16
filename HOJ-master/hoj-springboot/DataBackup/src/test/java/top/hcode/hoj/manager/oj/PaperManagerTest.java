@@ -62,8 +62,8 @@ class PaperManagerTest {
                 ScriptUtils.executeSqlScript(connection, new ByteArrayResource(schema.getBytes(StandardCharsets.UTF_8)));
             }
         }
-        when(programs.available(anyLong())).thenAnswer(call -> new Problem().setId(call.getArgument(0)).setType(0).setIoScore(100));
-        when(programs.freeze(anyLong(), anyString(), anyString(), anyLong())).thenAnswer(call -> {
+        when(programs.availableForCollection(anyLong())).thenAnswer(call -> new Problem().setId(call.getArgument(0)).setType(0).setIoScore(100));
+        when(programs.freezeForCollection(anyLong(), anyString(), anyString(), anyLong())).thenAnswer(call -> {
             long id = ++nextId; PaperProgramSnapshotDTO snapshot = new PaperProgramSnapshotDTO();
             snapshot.setProblem(new Problem().setId(call.getArgument(3)).setTitle("冻结的 A+B").setDescription("输入两个整数").setSource("蓝桥杯练习").setType(0).setIoScore(100));
             snapshot.setLanguages(Arrays.asList("C++", "Python3")); snapshots.put(id, snapshot); submissions.put(id, new ArrayList<>()); return id;
@@ -149,7 +149,7 @@ class PaperManagerTest {
     }
     @Test void repeatedStartReusesRunAndSnapshotAndNonceCannotTargetAnotherPaper() {
         ObjectiveDTO.Question q = blank(); PaperDTO.Paper p = paper("LIVE", q); Long a = id(start(p.getId(), "start_same")); Long b = id(start(p.getId(), "start_same")); assertEquals(a, b);
-        verify(programs, times(1)).freeze(anyLong(), anyString(), anyString(), anyLong());
+        verify(programs, times(1)).freezeForCollection(anyLong(), anyString(), anyString(), anyLong());
         PaperDTO.Paper other = paper("LIVE", q); assertThrows(ObjectiveException.class, () -> start(other.getId(), "start_same"));
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM paper_run", Integer.class));
     }
@@ -160,7 +160,7 @@ class PaperManagerTest {
     }
     @Test void failedFreezingRollsBackRunInsertionAndDoesNotLeavePartialPaper() {
         ObjectiveDTO.Question q = blank(); PaperDTO.Paper p = paper("AFTER_FINISH", q);
-        when(programs.freeze(anyLong(), anyString(), anyString(), anyLong())).thenThrow(new ObjectiveException(400, "缺少测试数据"));
+        when(programs.freezeForCollection(anyLong(), anyString(), anyString(), anyLong())).thenThrow(new ObjectiveException(400, "缺少测试数据"));
         assertThrows(ObjectiveException.class, () -> start(p.getId(), "start_fail")); assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM paper_run", Integer.class));
     }
 
@@ -172,5 +172,31 @@ class PaperManagerTest {
         assertEquals("FINISHED", manager.retry(id).get("state")); assertEquals(false, manager.run(id).get("gradingComplete"));
         judge().setStatus(0); assertEquals(20.0, manager.run(id).get("score"));
         uid = "bob"; assertThrows(ObjectiveException.class, () -> manager.retry(id)); verify(programs, never()).retry(id, "bob");
+    }
+
+    @Test void publishedPaperCanUsePrivateObjectivesWithoutOpeningStandalonePractice() {
+        ObjectiveDTO.Question q = blank(); q.setPublished(false); q.setPracticeEnabled(false); q = objectives.saveQuestion(q);
+        PaperDTO.Paper p = paper("AFTER_FINISH", q);
+        assertThrows(ObjectiveException.class, () -> objectives.publishedQuestionSnapshot(p.getItems().get(0).getReferenceId()));
+        Map<String, Object> run = start(p.getId(), "private_paper");
+        assertEquals("填空题", item(run, 0).get("title"));
+        assertFalse(item(run, 0).containsKey("correctAnswers"));
+        assertFalse(objectives.question(q.getId()).getPublished());
+    }
+
+    @Test void unifiedCollectionCataloguePaginatesBothSourcesAndScopesOwnersAndKinds() {
+        ObjectiveDTO.Question q = blank(); paper("LIVE", q);
+        for (int i = 0; i < 22; i++) {
+            ObjectiveDTO.ProblemSet set = new ObjectiveDTO.ProblemSet(); set.setTitle("题集 " + i); set.setMode("PRACTICE");
+            set.setQuestionIds(Collections.singletonList(q.getId())); set.setPublished(false); set.setAnswerPolicy("AFTER_ANSWER"); set.setExplanationPolicy("NEVER"); objectives.saveSet(set);
+        }
+        Map<String, Object> first = manager.collections(1, "", "");
+        assertEquals(23L, first.get("total")); assertEquals(20, ((List<?>) first.get("records")).size());
+        assertEquals(3, ((List<?>) manager.collections(2, "", "").get("records")).size());
+        assertEquals(22L, manager.collections(1, "", "PRACTICE").get("total"));
+        assertEquals(1L, manager.collections(1, "", "PAPER").get("total"));
+        assertEquals(0L, manager.collections(1, "不存在", "").get("total"));
+        assertFalse(((Map<?, ?>) ((List<?>) first.get("records")).get(0)).containsKey("config"));
+        all = false; uid = "bob"; assertEquals(0L, manager.collections(1, "", "").get("total"));
     }
 }

@@ -32,8 +32,9 @@ const adminRoutes= [
       component: Home,
       meta: { requireAuth:true, requireAdmin: true },
       children: [
-        { path: 'papers', name: 'admin-papers', component: () => import('@/views/admin/problem/PaperAdmin'), meta: { title: 'Paper Admin' } },
-        { path: 'objective', name: 'admin-objective', component: () => import('@/views/admin/problem/ObjectiveAdmin'), meta: { title: 'Objective Admin' } },
+        { path: 'papers', name: 'admin-papers', component: () => import('@/views/admin/problem/CollectionAdmin'), meta: { title: 'Paper Admin' } },
+        { path: 'objective', name: 'admin-objective', redirect: { path: '/admin/problems', query: { type: 'objective' } } },
+        { path: 'questions/create', name: 'admin-create-question', component: () => import('@/views/admin/problem/QuestionCreate'), meta: { title: 'Create Problem' } },
         {
           path: '',
           redirect: 'dashboard',
@@ -79,7 +80,7 @@ const adminRoutes= [
         {
           path: 'problems',
           name: 'admin-problem-list',
-          component: ProblemList,
+          component: () => import('@/views/admin/problem/QuestionBank'),
           meta: { title:'Problem List'},
         },
         {
