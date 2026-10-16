@@ -1,6 +1,6 @@
 <template>
   <div class="rating-summary">
-    <div v-for="item in scores" :key="item.key"><small>{{ item.label }}</small><strong>{{ item.value === null ? '待定' : item.value }}</strong><span>{{ item.hint }}</span></div>
+    <div v-for="item in scores" :key="item.key"><small>{{ item.label }}</small><strong>{{ item.value === null ? '未定级' : item.value }}</strong><span>{{ item.hint }}</span></div>
   </div>
 </template>
 <script>
@@ -8,8 +8,8 @@ import { finiteRating } from '@/common/learning';
 export default {
   props: { profile: { type: Object, default: () => ({}) } },
   computed: { scores() { return [
-    { key: 'practice', label: '练习 Rating', value: finiteRating(this.profile.practiceRating), hint: '日常训练 · 计分规则待定' },
-    { key: 'contest', label: '比赛 Rating', value: finiteRating(this.profile.contestRating), hint: '计分比赛 · 计分规则待定' },
+    { key: 'practice', label: '平时 Rating', value: finiteRating(this.profile.practiceRating), hint: '公开评级题首次独立通过' },
+    { key: 'contest', label: '比赛 Rating', value: Number.isFinite(this.profile.contestRating) ? this.profile.contestRating : null, hint: '正式计分赛成绩更新' },
   ]; } },
 };
 </script>

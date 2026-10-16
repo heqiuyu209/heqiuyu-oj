@@ -22,14 +22,25 @@
     <el-dialog title="客观题编辑" :visible.sync="questionDialog" width="min(900px, 94vw)" top="5vh" custom-class="objective-editor-dialog" append-to-body :close-on-click-modal="false" :before-close="closeQuestion">
       <el-form v-if="question" label-position="top" @submit.native.prevent>
         <el-form-item label="标题"><el-input v-model="question.title" maxlength="200" show-word-limit /></el-form-item>
+        <el-form-item label="题目 Rating"><el-input-number v-model="question.rating" :min="0" :max="5000" :step="100" :precision="0" placeholder="未评级" /><span class="form-help">留空为未评级</span></el-form-item>
         <el-form-item label="题目来源"><el-input v-model="question.source" maxlength="200" show-word-limit placeholder="例如：计算机二级 2025 年真题；留空显示本校题库" /></el-form-item>
         <el-form-item label="题型"><el-select v-model="question.questionType" @change="changeQuestionType"><el-option v-for="(label, value) in questionTypes" :key="value" :value="value" :label="label" /></el-select></el-form-item>
         <el-form-item label="题干"><el-input v-model="question.stem" type="textarea" :rows="6" maxlength="30000" /></el-form-item>
-        <el-form-item v-if="question.questionType !== 'TRUE_FALSE'" label="选项（2 至 10 个）">
+        <el-form-item v-if="!['TRUE_FALSE', 'FILL_BLANK'].includes(question.questionType)" label="选项（2 至 10 个）">
           <div v-for="(option, index) in question.options" :key="option.id" class="option-editor"><strong>{{ option.id }}</strong><el-input v-model="option.text" type="textarea" :rows="2" maxlength="4000" /><el-button :disabled="question.options.length <= 2" @click="removeOption(index)">移除</el-button></div>
           <el-button :disabled="question.options.length >= 10" @click="addOption">添加选项</el-button>
         </el-form-item>
-        <el-form-item label="标准答案">
+        <el-form-item v-if="question.questionType === 'FILL_BLANK'" label="填空与标准答案（按顺序，每空独立计分）">
+          <div v-for="(blank, index) in question.blanks" :key="blank.id" class="blank-editor">
+            <strong>第 {{ index + 1 }} 空</strong>
+            <el-input v-model="blank.label" maxlength="100" placeholder="填空说明，例如：最短路径长度" />
+            <el-input :value="blank.answers.join('\n')" type="textarea" :rows="3" placeholder="每行一个可接受答案，最多 20 个" @input="blank.answers = $event.split('\n')" />
+            <div class="blank-settings"><span>分值</span><el-input-number v-model="blank.score" :min="1" :max="1000" :precision="0" size="small" /><el-checkbox v-model="blank.trim">忽略首尾空格</el-checkbox><el-checkbox v-model="blank.caseSensitive">区分大小写</el-checkbox><el-button type="text" :disabled="question.blanks.length <= 1" @click="question.blanks.splice(index, 1)">移除此空</el-button></div>
+          </div>
+          <el-button :disabled="question.blanks.length >= 20" @click="addBlank">添加填空</el-button>
+          <small class="form-help">支持单空与多空，题目总分为各空分值之和。等价答案由你逐项设置，系统不推断数学表达式等价。</small>
+        </el-form-item>
+        <el-form-item v-else label="标准答案">
           <el-checkbox-group v-if="question.questionType === 'MULTIPLE_CHOICE'" v-model="question.correctAnswers"><el-checkbox v-for="option in question.options" :key="option.id" :label="option.id">{{ option.id }}</el-checkbox></el-checkbox-group>
           <el-radio-group v-else :value="question.correctAnswers[0] || ''" @input="$set(question, 'correctAnswers', [$event])"><el-radio v-for="option in answerOptions" :key="option.id" :label="option.id">{{ option.id }}{{ question.questionType === 'TRUE_FALSE' ? '（' + option.text + '）' : '' }}</el-radio></el-radio-group>
           <small v-if="question.questionType === 'MULTIPLE_CHOICE'" class="form-help">多选全部选对得 1 分，少选、多选、错选均为 0 分。</small>
@@ -106,7 +117,7 @@ export default {
     newQuestion() {
       if (this.saving) return;
       this.formRequest++; this.formError = '';
-      this.question = { title: '', source: '', questionType: 'SINGLE_CHOICE', stem: '', options: options(), correctAnswers: [], explanation: '', tagIds: [], published: false, practiceEnabled: true, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null };
+      this.question = { title: '', source: '', questionType: 'SINGLE_CHOICE', stem: '', options: options(), blanks: [], correctAnswers: [], explanation: '', tagIds: [], published: false, practiceEnabled: true, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null };
       this.questionDialog = true;
     },
     newSet() {
@@ -135,8 +146,11 @@ export default {
     closeSet(done) { if (this.saving) return; this.setDialog = false; this.formRequest++; if (typeof done === 'function') done(); },
     changeQuestionType() {
       if (this.question.options.some(option => ['TRUE', 'FALSE'].includes(option.id))) this.question.options = options();
+      if (this.question.options.length < 2) this.question.options = options();
+      if (this.question.questionType === 'FILL_BLANK' && !(this.question.blanks || []).length) { this.$set(this.question, 'blanks', []); this.addBlank(); }
       this.question.correctAnswers = [];
     },
+    addBlank() { this.question.blanks.push({ id: 'blank_' + Date.now() + '_' + this.question.blanks.length, label: '', answers: [''], score: 1, trim: true, caseSensitive: true }); },
     addOption() { this.question.options.push({ id: String.fromCharCode(65 + this.question.options.length), text: '' }); },
     removeOption(index) { this.question.options.splice(index, 1); this.question.options.forEach((option, i) => { option.id = String.fromCharCode(65 + i); }); this.question.correctAnswers = []; },
     changeMode() { const policy = this.problemSet.mode === 'PAPER' ? 'AFTER_FINISH' : 'AFTER_ANSWER'; this.problemSet.answerPolicy = policy; this.problemSet.explanationPolicy = policy; },
@@ -155,7 +169,8 @@ export default {
     },
     async saveQuestion() {
       if (this.saving) return;
-      if (!this.question.title.trim() || !this.question.stem.trim() || !this.question.correctAnswers.length) { this.formError = '请填写标题、题干和标准答案。'; return; }
+      const blank = this.question.questionType === 'FILL_BLANK';
+      if (!this.question.title.trim() || !this.question.stem.trim() || (blank ? !this.question.blanks.length || this.question.blanks.some(item => !item.answers.length || item.answers.some(answer => !answer.trim())) : !this.question.correctAnswers.length)) { this.formError = '请填写标题、题干和各项标准答案。'; return; }
       this.saving = true; this.formError = ''; const request = this.formRequest;
       try {
         const payload = { ...this.question, answerReleaseAt: this.question.answerReleaseAt ? Number(this.question.answerReleaseAt) : null, explanationReleaseAt: this.question.explanationReleaseAt ? Number(this.question.explanationReleaseAt) : null };
@@ -189,6 +204,8 @@ export default {
 .admin-objective-filters .el-input { max-width: 360px; }
 .option-editor { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .option-editor strong { padding-top: 8px; }
+.blank-editor { display: grid; gap: 12px; background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.blank-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .form-help { display: block; margin-top: 8px; }
 .release-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .release-fields .el-date-editor { margin-top: 12px; width: 100%; }

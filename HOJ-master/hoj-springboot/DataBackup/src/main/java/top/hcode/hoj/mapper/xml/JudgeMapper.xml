@@ -6,7 +6,7 @@
             j.time,j.memory,j.score,j.oi_rank_score,j.length,j.language,j.cid,j.cpid,j.judger,j.is_manual
             from judge j
             <where>
-                j.cid = 0 AND j.cpid = 0
+                j.cid = 0 AND j.cpid = 0 AND j.paper_run_id IS NULL
                 <if test="username!='' and username!=null">
                     AND j.username like concat('%',#{username},'%')
                 </if>
@@ -86,7 +86,7 @@
     </select>
 
     <select id="getTodayJudgeNum" resultType="int">
-        SELECT count(*) FROM judge WHERE DATE(gmt_create) = CURDATE();
+        SELECT count(*) FROM judge WHERE paper_run_id IS NULL AND DATE(gmt_create) = CURDATE();
     </select>
 
     <select id="getContestProblemCount" resultType="top.hcode.hoj.pojo.vo.ProblemCountVO">
@@ -132,7 +132,7 @@
         COUNT(*) AS total
         FROM judge
         <where>
-            pid=#{pid} AND cid=0
+            pid=#{pid} AND cid=0 AND paper_run_id IS NULL
             <if test="gid!=null">
                 AND gid = #{gid}
             </if>
@@ -155,7 +155,7 @@
         COUNT(*) AS total
         FROM judge
         <where>
-            cid=0 AND gid is null
+            cid=0 AND gid is null AND paper_run_id IS NULL
             <if test="pidList!=null and pidList.size > 0">
                 AND pid in
                 <foreach collection="pidList" item="pid" open="(" separator="," close=")">
@@ -169,7 +169,7 @@
     <select id="getLastYearUserJudgeList" resultType="top.hcode.hoj.pojo.entity.judge.Judge">
         select submit_time from judge
         <where>
-            cid = 0 AND gmt_create >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+            cid = 0 AND paper_run_id IS NULL AND gmt_create >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
             <if test="uid!=null">
                 AND uid = #{uid}
             </if>

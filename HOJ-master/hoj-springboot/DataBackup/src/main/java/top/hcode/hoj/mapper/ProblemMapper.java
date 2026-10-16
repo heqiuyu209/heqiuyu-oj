@@ -27,5 +27,5 @@ public interface ProblemMapper extends BaseMapper<Problem> {
                                    @Param("difficulty") Integer difficulty,
                                    @Param("tid") List<Long> tid,
                                    @Param("tagListSize") Integer tagListSize,
-                                   @Param("oj") String oj);
+                                   @Param("oj") String oj, @Param("ratingMin") Integer ratingMin, @Param("ratingMax") Integer ratingMax);
 }

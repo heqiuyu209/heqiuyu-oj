@@ -653,6 +653,8 @@ const ojApi = {
   },
 
   // ACM赛制或OI赛制的排行榜
+  getSiteRatingRank(params) { return ajax('/api/rating/rank', 'get', { params }) },
+  getSiteRatingProfile(uid) { return ajax('/api/rating/users/' + encodeURIComponent(uid), 'get') },
   getUserRank(currentPage, limit, type, searchUser) {
     return ajax('/api/get-rank-list', 'get', {
       params: {

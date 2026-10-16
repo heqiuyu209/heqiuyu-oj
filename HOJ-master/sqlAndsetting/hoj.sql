@@ -130,6 +130,7 @@ CREATE TABLE `comment_like` (
 DROP TABLE IF EXISTS `contest`;
 
 CREATE TABLE `contest` (
+  `rated` tinyint(1) NOT NULL DEFAULT 0 COMMENT '计入站内比赛rating',
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `uid` varchar(32) NOT NULL COMMENT '比赛创建者id',
   `author` varchar(255) DEFAULT NULL COMMENT '比赛创建者的用户名',
@@ -429,6 +430,8 @@ CREATE TABLE `judge` (
   `language` varchar(255) DEFAULT NULL COMMENT '代码语言',
   `gid` bigint(20) unsigned DEFAULT NULL COMMENT '团队id，不为团队内提交则为null',
   `cid` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '比赛id，非比赛题目默认为0',
+  `paper_run_id` bigint NULL DEFAULT NULL,
+  `paper_snapshot_id` bigint NULL DEFAULT NULL,
   `cpid` bigint(20) unsigned DEFAULT '0' COMMENT '比赛中题目排序id，非比赛题目默认为0',
   `judger` varchar(20) DEFAULT NULL COMMENT '判题机ip',
   `ip` varchar(20) DEFAULT NULL COMMENT '提交者所在ip',
@@ -544,6 +547,7 @@ CREATE TABLE `problem` (
   `examples` longtext COMMENT '题面样例',
   `is_remote` tinyint(1) DEFAULT '0' COMMENT '是否为vj判题',
   `source` text COMMENT '题目来源',
+  `rating` int DEFAULT NULL COMMENT '站内题目评级，未评级为null',
   `difficulty` int(11) DEFAULT '0' COMMENT '题目难度,0简单，1中等，2困难',
   `hint` longtext COMMENT '备注,提醒',
   `auth` int(11) DEFAULT '1' COMMENT '默认为1公开，2为私有，3为比赛题目',
@@ -1288,4 +1292,67 @@ CREATE TABLE IF NOT EXISTS objective_run (
     KEY idx_objective_run_user (uid, id),
     KEY idx_objective_run_set (set_id),
     KEY idx_objective_run_question (question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Mixed papers reference existing objective and programming questions.
+CREATE TABLE IF NOT EXISTS paper (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    content_json LONGTEXT NOT NULL,
+    version INT NOT NULL,
+    published TINYINT(1) NOT NULL DEFAULT 0,
+    created_by VARCHAR(32) NOT NULL,
+    gmt_create DATETIME(3) NOT NULL,
+    gmt_modified DATETIME(3) NOT NULL,
+    KEY idx_paper_owner (created_by, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS paper_run (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    paper_id BIGINT NOT NULL,
+    paper_version INT NOT NULL,
+    contest_id BIGINT NULL,
+    uid VARCHAR(32) NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    state VARCHAR(24) NOT NULL,
+    snapshot_json LONGTEXT NOT NULL,
+    answers_json LONGTEXT NOT NULL,
+    gmt_create DATETIME(3) NOT NULL,
+    gmt_modified DATETIME(3) NOT NULL,
+    UNIQUE KEY uk_paper_run_request (uid, request_id),
+    UNIQUE KEY uk_paper_run_contest (contest_id, uid),
+    KEY idx_paper_run_user (uid, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS paper_program_snapshot (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    run_id BIGINT NOT NULL,
+    item_key VARCHAR(64) NOT NULL,
+    uid VARCHAR(32) NOT NULL,
+    content_json LONGTEXT NOT NULL,
+    UNIQUE KEY uk_paper_program_snapshot (run_id, item_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS contest_paper (
+    contest_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    paper_id BIGINT NOT NULL,
+    rules_json TEXT NOT NULL,
+    template_json LONGTEXT NOT NULL,
+    CONSTRAINT fk_contest_paper_contest FOREIGN KEY (contest_id) REFERENCES contest(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS site_rating_lock (
+    id INT PRIMARY KEY, updated_at DATETIME(3) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO site_rating_lock(id) VALUES (1);
+CREATE TABLE IF NOT EXISTS site_rating_profile (
+    uid VARCHAR(32) NOT NULL, type VARCHAR(12) NOT NULL,
+    rating INT NOT NULL, peak INT NOT NULL, delta INT NOT NULL, rated_count INT NOT NULL,
+    PRIMARY KEY(uid,type), KEY idx_site_rating_rank(type,rating)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS site_rating_history (
+    uid VARCHAR(32) NOT NULL, type VARCHAR(12) NOT NULL, source_key VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL, occurred_at DATETIME(3) NOT NULL,
+    old_rating INT NOT NULL, rating INT NOT NULL, delta INT NOT NULL, place DOUBLE NULL,
+    PRIMARY KEY(uid,type,source_key), KEY idx_site_rating_history(uid,type,occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

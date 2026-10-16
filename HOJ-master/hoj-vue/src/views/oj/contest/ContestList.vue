@@ -29,9 +29,9 @@
           <div class="contest-schedule"><p><i class="el-icon-date" aria-hidden="true" />{{ contest.startTime | localtime }}</p><p><i class="el-icon-time" aria-hidden="true" />{{ getDuration(contest.startTime, contest.endTime) }}<span v-if="contest.count != null"><i class="el-icon-user" aria-hidden="true" />{{ contest.count }} 人参与</span></p></div>
           <div class="collection-meta">
             <el-tooltip :content="$t('m.' + CONTEST_TYPE_REVERSE[contest.auth].tips)"><el-tag size="small" :type="CONTEST_TYPE_REVERSE[contest.auth].color" effect="plain"><i v-if="contest.auth" class="el-icon-lock" />{{ $t('m.' + CONTEST_TYPE_REVERSE[contest.auth].name) }}</el-tag></el-tooltip>
-            <el-tooltip v-if="contest.openRank" :content="$t('m.Contest_Outside_ScoreBoard')"><el-button class="contest-scoreboard" size="mini" icon="el-icon-data-analysis" :disabled="contest.status == CONTEST_STATUS.SCHEDULED" @click="toContestOutsideScoreBoard(contest.id, contest.type)">{{ $t('m.Contest_Rank') }}</el-button></el-tooltip>
+            <el-tooltip v-if="contest.openRank && !contest.mixedPaperId" :content="$t('m.Contest_Outside_ScoreBoard')"><el-button class="contest-scoreboard" size="mini" icon="el-icon-data-analysis" :disabled="contest.status == CONTEST_STATUS.SCHEDULED" @click="toContestOutsideScoreBoard(contest.id, contest.type)">{{ $t('m.Contest_Rank') }}</el-button></el-tooltip>
           </div>
-          <footer class="collection-card-footer"><span class="collection-hint">{{ parseContestType(contest.type) }} 赛制</span><el-button size="small" :type="contest.status === 0 ? 'primary' : 'default'" @click="toContest(contest)">{{ contest.status === 0 ? '进入比赛' : contest.status === 1 ? '查看与补题' : '查看比赛' }}</el-button></footer>
+          <footer class="collection-card-footer"><span class="collection-hint">{{ contest.mixedPaperId ? '混合题 · ' : '' }}{{ parseContestType(contest.type) }} 赛制</span><el-button size="small" :type="contest.status === 0 ? 'primary' : 'default'" @click="toContest(contest)">{{ contest.status === 0 ? '进入比赛' : contest.status === 1 ? '查看与补题' : '查看比赛' }}</el-button></footer>
         </article>
       </div>
     </section>

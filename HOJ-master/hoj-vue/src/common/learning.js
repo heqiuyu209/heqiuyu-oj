@@ -15,6 +15,10 @@ export function cfRating(problem = {}) {
   if (normalized !== null) return normalized;
   return problemSource(problem) === 'Codeforces' ? finiteRating(problem.sourceRating) : null;
 }
+export function taskRating(problem = {}) {
+  const rating = finiteRating(problem.rating);
+  return rating === null ? cfRating(problem) : rating;
+}
 export function safeSourceUrl(value) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch (_) { return ''; }
 }

@@ -23,7 +23,7 @@
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <div v-if="tab === 'questions'" v-loading="loading" class="single-question-list">
       <article v-for="row in rows" :key="row.id" class="single-question-row">
-        <div><p>{{ questionTypes[row.questionType] }} <span>题号 {{ row.id }}</span></p><h2>{{ row.title }}</h2></div>
+        <div><p>{{ questionTypes[row.questionType] }} <span>题号 {{ row.id }}</span><span>Rating {{ row.rating == null ? '未评级' : row.rating }}</span></p><h2>{{ row.title }}</h2></div>
         <el-button type="primary" size="small" :loading="starting === row.id" :disabled="starting !== null" @click="start(row)">开始练习</el-button>
       </article>
       <p v-if="!rows.length && !loading" class="single-empty">{{ emptyText }}</p>
@@ -33,6 +33,7 @@
       <el-table-column prop="title" :label="tab === 'questions' ? '题目' : '名称'" min-width="220" />
       <el-table-column v-if="tab === 'questions'" label="题型" width="120"><template slot-scope="{ row }">{{ questionTypes[row.questionType] }}</template></el-table-column>
       <el-table-column v-else label="模式" width="120"><template slot-scope="{ row }">{{ row.questionId ? '单题练习' : modes[row.mode] }}</template></el-table-column>
+      <el-table-column v-if="tab === 'questions'" label="Rating" width="100"><template slot-scope="{ row }">{{ row.rating == null ? '未评级' : row.rating }}</template></el-table-column>
       <el-table-column v-if="tab === 'sets'" prop="questionCount" label="题数" width="80" />
       <el-table-column v-if="tab === 'sets'" label="答案开放" min-width="170"><template slot-scope="{ row }">{{ releaseLabel(row.answerPolicy, row.answerReleaseAt) }}</template></el-table-column>
       <el-table-column v-if="tab === 'history'" label="状态" width="110"><template slot-scope="{ row }">{{ row.state === 'FINISHED' ? row.mode === 'PAPER' ? '已交卷' : '已完成' : '进行中' }}</template></el-table-column>

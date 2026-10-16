@@ -246,6 +246,8 @@ public class JudgeManager {
             throw new StatusNotFoundException("此提交数据不存在！");
         }
 
+        if (judge.getPaperRunId() != null) throw new StatusForbiddenException("请从套卷答卷查看和操作本次提交");
+
         // 需要获取一下该token对应用户的数据
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
         if (!Objects.equals(judge.getUid(), userRolesVo.getUid())){
@@ -328,6 +330,8 @@ public class JudgeManager {
         if (judge == null) {
             throw new StatusNotFoundException("此提交数据不存在！");
         }
+
+        if (judge.getPaperRunId() != null) throw new StatusAccessDeniedException("请从套卷答卷查看和操作本次提交");
 
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
@@ -437,10 +441,11 @@ public class JudgeManager {
         }
 
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
-        judgeQueryWrapper.select("submit_id", "cid", "uid")
+        judgeQueryWrapper.select("submit_id", "cid", "uid", "paper_run_id")
                 .eq("submit_id", judge.getSubmitId());
 
         Judge judgeInfo = judgeEntityService.getOne(judgeQueryWrapper);
+        if (judgeInfo == null || judgeInfo.getPaperRunId() != null) throw new StatusForbiddenException("此提交不可分享");
 
         // 需要获取一下该token对应用户的数据
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
@@ -522,7 +527,7 @@ public class JudgeManager {
 
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
         // lambada表达式过滤掉code
-        queryWrapper.select(Judge.class, info -> !info.getColumn().equals("code")).in("submit_id", submitIds);
+        queryWrapper.select(Judge.class, info -> !info.getColumn().equals("code")).in("submit_id", submitIds).isNull("paper_run_id");
         List<Judge> judgeList = judgeEntityService.list(queryWrapper);
         HashMap<Long, Object> result = new HashMap<>();
         for (Judge judge : judgeList) {
@@ -565,7 +570,7 @@ public class JudgeManager {
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
         // lambada表达式过滤掉code
         queryWrapper.select(Judge.class, info -> !info.getColumn().equals("code"))
-                .in("submit_id", submitIdListDto.getSubmitIds())
+                .in("submit_id", submitIdListDto.getSubmitIds()).isNull("paper_run_id")
                 .eq("cid", submitIdListDto.getCid())
                 .between(isSealRank, "submit_time", contest.getStartTime(), contest.getSealRankTime());
         List<Judge> judgeList = judgeEntityService.list(queryWrapper);
@@ -601,6 +606,8 @@ public class JudgeManager {
         if (judge == null) {
             throw new StatusNotFoundException("此提交数据不存在！");
         }
+
+        if (judge.getPaperRunId() != null) throw new StatusForbiddenException("请从套卷答卷查看和操作本次提交");
 
         Problem problem = problemEntityService.getById(judge.getPid());
 

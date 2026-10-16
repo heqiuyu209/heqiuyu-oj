@@ -7,6 +7,8 @@
         </span>
       </div>
       <el-form label-position="top">
+        <MixedContestSettings v-model="contest.mixed" :type="contest.type" />
+        <el-form-item label="计入比赛 Rating"><el-switch v-model="contest.rated" :disabled="!!contest.id && new Date(contest.startTime).getTime() <= Date.now()" /><p>主站公开赛可开启；开始后不能修改。至少两名有效参赛者，比赛结束、解封并完成判题后结算。</p></el-form-item>
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item
@@ -219,6 +221,7 @@
             :xs="24"
           >
             <el-form-item
+              v-if="!contest.mixed"
               :label="$t('m.Contest_Outside_ScoreBoard')"
               required
             >
@@ -236,6 +239,7 @@
             :xs="24"
           >
             <el-form-item
+              v-if="!contest.mixed"
               :label="$t('m.Allow_Submission_After_The_Contest_Ends')"
               required
             >
@@ -288,6 +292,7 @@
 
           <el-col>
             <el-form-item
+              v-if="!contest.mixed"
               :label="$t('m.Star_User_UserName')"
               required
             >
@@ -482,6 +487,7 @@
             :xs="24"
           >
             <el-form-item
+              v-if="!contest.mixed"
               :label="$t('m.Contest_Award')"
               required
             >
@@ -506,7 +512,7 @@
           </el-col>
           <el-col
             :span="24"
-            v-if="contest.awardType != 0"
+            v-if="!contest.mixed && contest.awardType != 0"
           >
             <div style="margin-bottom:10px">
               <el-button
@@ -638,11 +644,13 @@ import time from "@/common/time";
 import moment from "moment";
 import { mapGetters } from "vuex";
 import myMessage from "@/common/message";
+import MixedContestSettings from '@/components/admin/MixedContestSettings';
 const Editor = () => import("@/components/admin/Editor.vue");
 const RankBox = () => import("@/components/oj/common/RankBox");
 export default {
   name: "CreateContest",
   components: {
+    MixedContestSettings,
     Editor,
     RankBox,
   },
@@ -653,6 +661,8 @@ export default {
       durationText: "", // 比赛时长文本表示
       seal_rank_time: 2, // 当开启封榜模式，即实时榜单关闭时，可选择前半小时，前一小时，全程封榜,默认全程封榜
       contest: {
+        mixed: null,
+        rated: false,
         title: "",
         description: "",
         startTime: "",
@@ -842,6 +852,14 @@ export default {
           this.contest.sealRankTime = moment(this.contest.startTime);
       }
       let data = Object.assign({}, this.contest);
+      if (data.mixed) {
+        if (!data.mixed.paperId) { myMessage.error('请选择比赛试卷'); return; }
+        data.allowEndSubmit = false;
+        data.openRank = false;
+        data.starAccount = [];
+        data.awardType = 0;
+        data.mixed.scoreRule = data.oiRankScoreType === 'Recent' ? 'LAST' : 'BEST';
+      }
       if (funcName === "admin_createContest") {
         data["uid"] = this.userInfo.uid;
         data["author"] = this.userInfo.username;

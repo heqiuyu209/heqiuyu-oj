@@ -27,6 +27,8 @@ import java.util.Date;
 @ApiModel(value = "Contest对象", description = "")
 public class Contest implements Serializable {
 
+    private Boolean rated;
+
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)

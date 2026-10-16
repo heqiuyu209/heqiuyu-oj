@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Component
 public class ObjectiveManager {
     private static final Set<String> TYPES = new HashSet<>(Arrays.asList(
-            "SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE"));
+            "SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE", "FILL_BLANK"));
     private static final Set<String> POLICIES = new HashSet<>(Arrays.asList(
             "AFTER_ANSWER", "AFTER_FINISH", "AT_TIME", "NEVER"));
     private static final TypeReference<List<Long>> IDS = new TypeReference<List<Long>>() {};
@@ -155,7 +155,7 @@ public class ObjectiveManager {
 
     private Map<String, Object> questionList(Integer currentPage, Integer limit, String keyword, String type, boolean admin) {
         QueryWrapper<ObjectiveQuestion> query = new QueryWrapper<>();
-        query.select("id", "title", "question_type", "version", "published", "practice_enabled");
+        query.select("id", "title", "question_type", "version", "published", "practice_enabled", "content_json");
         if (admin) query.eq(!canManageAll(), "created_by", currentUid());
         else query.eq("published", true).eq("practice_enabled", true);
         query.like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
@@ -171,6 +171,7 @@ public class ObjectiveManager {
             row.put("version", q.getVersion());
             row.put("published", q.getPublished());
             row.put("practiceEnabled", q.getPracticeEnabled());
+            row.put("rating", q.getContentJson() == null ? null : content(q).getRating());
             return row;
         }).collect(Collectors.toList());
         return page(rows, result.getTotal());
@@ -183,7 +184,15 @@ public class ObjectiveManager {
         return content(question);
     }
 
+    public ObjectiveDTO.Question publishedQuestionSnapshot(Long id) {
+        ObjectiveQuestion question = questionMapper.selectById(id);
+        if (question == null || !Boolean.TRUE.equals(question.getPublished())) throw fail(403, "题目暂未发布");
+        return content(question);
+    }
+
     void validateQuestion(ObjectiveDTO.Question dto) {
+        require(dto != null, "题目不能为空");
+        require(dto.getRating() == null || dto.getRating() >= 0 && dto.getRating() <= 5000, "题目rating必须在0到5000之间，或留空为未评级");
         require(dto != null, "题目不能为空");
         defaultPracticeRules(dto);
         validatePolicy(dto.getAnswerPolicy(), dto.getAnswerReleaseAt());
@@ -194,27 +203,49 @@ public class ObjectiveManager {
         dto.setStem(text(dto.getStem(), 30000, "题干", true));
         dto.setSource(text(dto.getSource(), 200, "来源", false));
         dto.setExplanation(text(dto.getExplanation(), 30000, "解析", false));
-        require(TYPES.contains(dto.getQuestionType()), "仅支持单选、多选和判断题");
-        if ("TRUE_FALSE".equals(dto.getQuestionType())) {
-            List<ObjectiveDTO.Option> options = new ArrayList<>();
-            for (String id : Arrays.asList("TRUE", "FALSE")) {
-                ObjectiveDTO.Option option = new ObjectiveDTO.Option();
-                option.setId(id);
-                option.setText("TRUE".equals(id) ? "正确" : "错误");
-                options.add(option);
+        require(TYPES.contains(dto.getQuestionType()), "仅支持单选、多选、判断和结果填空题");
+        if ("FILL_BLANK".equals(dto.getQuestionType())) {
+            require(dto.getBlanks() != null && !dto.getBlanks().isEmpty() && dto.getBlanks().size() <= 20, "填空题须有 1 到 20 个空");
+            Set<String> blankIds = new HashSet<>();
+            for (ObjectiveDTO.Blank blank : dto.getBlanks()) {
+                require(blank != null && blank.getId() != null && blank.getId().matches("[A-Za-z0-9_]{1,32}")
+                        && blankIds.add(blank.getId()), "填空标识无效或重复");
+                blank.setLabel(text(blank.getLabel(), 100, "填空说明", false));
+                require(blank.getScore() != null && blank.getScore() > 0 && blank.getScore() <= 1000, "每空分值须为 1 到 1000");
+                if (blank.getTrim() == null) blank.setTrim(true);
+                if (blank.getCaseSensitive() == null) blank.setCaseSensitive(true);
+                require(blank.getAnswers() != null && !blank.getAnswers().isEmpty() && blank.getAnswers().size() <= 20, "每空须配置 1 到 20 个可接受答案");
+                List<String> accepted = new ArrayList<>();
+                for (String answer : blank.getAnswers()) {
+                    require(answer != null && answer.length() <= 2000 && !answer.trim().isEmpty(), "填空标准答案不能为空或超过 2000 字");
+                    accepted.add(Boolean.TRUE.equals(blank.getTrim()) ? answer.trim() : answer);
+                }
+                blank.setAnswers(accepted);
             }
-            dto.setOptions(options);
+            dto.setOptions(Collections.emptyList()); dto.setCorrectAnswers(Collections.emptyList());
+        } else {
+            dto.setBlanks(null);
+            if ("TRUE_FALSE".equals(dto.getQuestionType())) {
+                List<ObjectiveDTO.Option> options = new ArrayList<>();
+                for (String id : Arrays.asList("TRUE", "FALSE")) {
+                    ObjectiveDTO.Option option = new ObjectiveDTO.Option();
+                    option.setId(id);
+                    option.setText("TRUE".equals(id) ? "正确" : "错误");
+                    options.add(option);
+                }
+                dto.setOptions(options);
+            }
+            require(dto.getOptions() != null && dto.getOptions().size() >= 2
+                    && dto.getOptions().size() <= 10, "选项数量须为 2 到 10 个");
+            Set<String> ids = new HashSet<>();
+            for (ObjectiveDTO.Option option : dto.getOptions()) {
+                require(option != null && option.getId() != null
+                        && option.getId().matches("[A-Z]{1,5}"), "选项标识须为大写字母");
+                require(ids.add(option.getId()), "选项标识不能重复");
+                option.setText(text(option.getText(), 4000, "选项", true));
+            }
+            dto.setCorrectAnswers(normalize(dto, dto.getCorrectAnswers(), false));
         }
-        require(dto.getOptions() != null && dto.getOptions().size() >= 2
-                && dto.getOptions().size() <= 10, "选项数量须为 2 到 10 个");
-        Set<String> ids = new HashSet<>();
-        for (ObjectiveDTO.Option option : dto.getOptions()) {
-            require(option != null && option.getId() != null
-                    && option.getId().matches("[A-Z]{1,5}"), "选项标识须为大写字母");
-            require(ids.add(option.getId()), "选项标识不能重复");
-            option.setText(text(option.getText(), 4000, "选项", true));
-        }
-        dto.setCorrectAnswers(normalize(dto, dto.getCorrectAnswers(), false));
         dto.setPublished(Boolean.TRUE.equals(dto.getPublished()));
         if (dto.getTagIds() == null) dto.setTagIds(new ArrayList<>());
         require(dto.getTagIds().size() <= 20
@@ -235,6 +266,13 @@ public class ObjectiveManager {
 
     List<String> normalize(ObjectiveDTO.Question question, List<String> selected, boolean allowEmpty) {
         require(selected != null, "请选择答案");
+        if ("FILL_BLANK".equals(question.getQuestionType())) {
+            if (allowEmpty && selected.isEmpty()) return new ArrayList<>();
+            require(selected.size() == question.getBlanks().size(), "填空数量与题目不符");
+            require(selected.stream().allMatch(value -> value != null && value.length() <= 2000), "填空答案过长或无效");
+            require(allowEmpty || selected.stream().anyMatch(value -> !value.trim().isEmpty()), "请至少填写一个空");
+            return new ArrayList<>(selected);
+        }
         Set<String> valid = question.getOptions().stream()
                 .map(ObjectiveDTO.Option::getId).collect(Collectors.toSet());
         require(!selected.contains(null) && new HashSet<>(selected).size() == selected.size()
@@ -247,6 +285,38 @@ public class ObjectiveManager {
         List<String> result = new ArrayList<>(selected);
         Collections.sort(result);
         return result;
+    }
+
+    int maxScore(ObjectiveDTO.Question question) {
+        return "FILL_BLANK".equals(question.getQuestionType()) ? question.getBlanks().stream().mapToInt(ObjectiveDTO.Blank::getScore).sum() : 1;
+    }
+
+    int score(ObjectiveDTO.Question question, List<String> selected) {
+        if (!"FILL_BLANK".equals(question.getQuestionType())) return !selected.isEmpty() && selected.equals(question.getCorrectAnswers()) ? 1 : 0;
+        int score = 0;
+        for (int i = 0; i < question.getBlanks().size(); i++) {
+            ObjectiveDTO.Blank blank = question.getBlanks().get(i);
+            String answer = i < selected.size() ? selected.get(i) : "";
+            if (Boolean.TRUE.equals(blank.getTrim())) answer = answer.trim();
+            final String value = answer;
+            if (!value.isEmpty() && blank.getAnswers().stream().anyMatch(expected -> Boolean.FALSE.equals(blank.getCaseSensitive())
+                    ? expected.equalsIgnoreCase(value) : expected.equals(value))) score += blank.getScore();
+        }
+        return score;
+    }
+
+    List<Map<String, Object>> publicBlanks(ObjectiveDTO.Question question) {
+        if (question.getBlanks() == null) return Collections.emptyList();
+        return question.getBlanks().stream().map(blank -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", blank.getId()); row.put("label", blank.getLabel()); row.put("score", blank.getScore());
+            return row;
+        }).collect(Collectors.toList());
+    }
+
+    List<String> correctAnswers(ObjectiveDTO.Question question) {
+        return "FILL_BLANK".equals(question.getQuestionType()) ? question.getBlanks().stream()
+                .map(blank -> String.join(" / ", blank.getAnswers())).collect(Collectors.toList()) : question.getCorrectAnswers();
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -523,7 +593,7 @@ public class ObjectiveManager {
             return runView(run, rules);
         }
         if (!"IN_PROGRESS".equals(run.getState())) throw fail(409, "已交卷，不能修改答案");
-        if (selected.isEmpty()) answers.remove(key);
+        if (selected.isEmpty() || selected.stream().noneMatch(value -> !value.trim().isEmpty())) answers.remove(key);
         else answers.put(key, selected);
         run.setAnswersJson(write(answers));
         if (run.getQuestionId() != null) run.setState("FINISHED");
@@ -577,6 +647,7 @@ public class ObjectiveManager {
         boolean finished = "FINISHED".equals(run.getState());
         long time = now();
         int correctCount = 0;
+        int totalScore = 0, totalMaxScore = 0;
         boolean allResultsVisible = finished;
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ObjectiveDTO.Question question : questions) {
@@ -585,26 +656,31 @@ public class ObjectiveManager {
             boolean answerVisible = released(rules.answerPolicy, rules.answerReleaseAt, submitted, finished, time);
             boolean explanationVisible = released(rules.explanationPolicy, rules.explanationReleaseAt,
                     submitted, finished, time);
-            boolean correct = !selected.isEmpty() && selected.equals(question.getCorrectAnswers());
+            int questionScore = score(question, selected), questionMaxScore = maxScore(question);
+            boolean correct = questionScore == questionMaxScore;
+            totalScore += questionScore; totalMaxScore += questionMaxScore;
             if (correct) correctCount++;
             allResultsVisible &= answerVisible;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", question.getId());
             row.put("version", question.getVersion());
+            row.put("rating", question.getRating());
             row.put("title", question.getTitle());
             row.put("questionType", question.getQuestionType());
             row.put("stem", question.getStem());
             row.put("source", question.getSource());
             row.put("options", question.getOptions());
+            row.put("blanks", publicBlanks(question));
+            row.put("maxScore", questionMaxScore);
             row.put("tagIds", question.getTagIds());
             row.put("selectedAnswers", selected);
             row.put("submitted", submitted);
             row.put("answerVisible", answerVisible);
             row.put("explanationVisible", explanationVisible);
             if (answerVisible) {
-                row.put("correctAnswers", question.getCorrectAnswers());
+                row.put("correctAnswers", correctAnswers(question));
                 row.put("correct", correct);
-                row.put("score", correct ? 1 : 0);
+                row.put("score", questionScore);
             }
             if (explanationVisible) row.put("explanation", question.getExplanation());
             rows.add(row);
@@ -618,6 +694,7 @@ public class ObjectiveManager {
         result.put("mode", run.getMode());
         result.put("state", run.getState());
         result.put("questions", rows);
+        result.put("maxScore", totalMaxScore);
         result.put("answeredCount", answers.size());
         result.put("createdAt", run.getGmtCreate().getTime());
         result.put("answerPolicy", rules.answerPolicy);
@@ -626,8 +703,8 @@ public class ObjectiveManager {
         result.put("explanationReleaseAt", rules.explanationReleaseAt);
         if (allResultsVisible) {
             result.put("correctCount", correctCount);
-            result.put("score", correctCount);
-            result.put("maxScore", questions.size());
+            result.put("score", totalScore);
+            result.put("maxScore", totalMaxScore);
         }
         return result;
     }

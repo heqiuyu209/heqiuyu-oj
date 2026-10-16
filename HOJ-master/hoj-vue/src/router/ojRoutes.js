@@ -8,12 +8,11 @@ import SubmissionList from "@/views/oj/status/SubmissionList.vue"
 import SubmissionDetails from "@/views/oj/status/SubmissionDetails.vue"
 import ContestList from "@/views/oj/contest/ContestList.vue"
 import Problem from "@/views/oj/problem/Problem.vue"
-import ACMRank from "@/views/oj/rank/ACMRank.vue"
-import OIRank from "@/views/oj/rank/OIRank.vue"
+import SiteRank from "@/views/oj/rank/SiteRank.vue"
 import ContestDetails from "@/views/oj/contest/ContestDetails.vue"
 import ACMScoreBoard from "@/views/oj/contest/outside/ACMScoreBoard.vue"
 import OIScoreBoard from "@/views/oj/contest/outside/OIScoreBoard.vue"
-import ContestProblemList from "@/views/oj/contest/children/ContestProblemList.vue"
+import ContestProblemList from "@/views/oj/contest/children/ContestQuestions.vue"
 import ContestRank from "@/views/oj/contest/children/ContestRank.vue"
 import ACMInfoAdmin from "@/views/oj/contest/children/ACMInfoAdmin.vue"
 import Announcements from "@/components/oj/common/Announcements.vue"
@@ -46,6 +45,9 @@ import GroupRank from '@/views/oj/group/children/GroupRank.vue'
 import NotFound from "@/views/404.vue"
 
 const ojRoutes = [
+  { path: '/papers', name: 'PaperList', component: () => import('@/views/oj/problem/PaperList'), meta: { title: 'Paper Practice', requireAuth: true } },
+  { path: '/contest/:contestID/mixed/run/:runID', name: 'MixedContestRun', component: () => import('@/views/oj/problem/PaperRun'), meta: { title: 'Mixed Contest', requireAuth: true } },
+  { path: '/papers/run/:runID', name: 'PaperRun', component: () => import('@/views/oj/problem/PaperRun'), meta: { title: 'Paper Practice', requireAuth: true } },
   { path: '/objective', name: 'ObjectiveList', component: () => import('@/views/oj/problem/ObjectiveList'), meta: { title: 'Objective Practice', requireAuth: true } },
   { path: '/objective/run/:runID', name: 'ObjectiveRun', component: () => import('@/views/oj/problem/ObjectiveRun'), meta: { title: 'Objective Practice', requireAuth: true } },
   {
@@ -238,18 +240,10 @@ const ojRoutes = [
     component: SubmissionDetails,
     meta: {title: 'Submission Details' }
   },
-  {
-    path: '/acm-rank',
-    name: 'ACM Rank',
-    component: ACMRank,
-    meta: { title: 'ACM Rank' }
-  },
-  {
-    path: '/oi-rank',
-    name: 'OI Rank',
-    component: OIRank,
-    meta: { title: 'OI Rank' }
-  },
+  { path: '/rank/:type(practice|contest)', name: 'SiteRank', component: SiteRank, meta: { title: '站内排名' } },
+  { path: '/rank', redirect: '/rank/practice' },
+  { path: '/acm-rank', redirect: '/rank/practice' },
+  { path: '/oi-rank', redirect: '/rank/contest' },
   {
     path: '/reset-password',
     name: 'SetNewPassword',

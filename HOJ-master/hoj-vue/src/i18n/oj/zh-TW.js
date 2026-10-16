@@ -1,4 +1,6 @@
 export const m = {
+  Paper_Practice: '套卷練習',
+  Paper_Admin: '整套試卷',
   Objective_Practice: '客觀題練習',
   Objective_Admin: '客觀題與組卷',
 
@@ -20,8 +22,8 @@ export const m = {
   NavBar_Contest: '比賽',
   NavBar_Status: '評測',
   NavBar_Rank: '排名',
-  NavBar_ACM_Rank: 'ACM 排名',
-  NavBar_OI_Rank: 'OI 排名',
+  NavBar_ACM_Rank: '平時排名',
+  NavBar_OI_Rank: '比賽排名',
   NavBar_Discussion: '討論',
   NavBar_Group: '團隊',
   NavBar_About: '關於',

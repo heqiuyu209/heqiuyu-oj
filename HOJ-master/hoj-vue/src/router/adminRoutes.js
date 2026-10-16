@@ -32,6 +32,7 @@ const adminRoutes= [
       component: Home,
       meta: { requireAuth:true, requireAdmin: true },
       children: [
+        { path: 'papers', name: 'admin-papers', component: () => import('@/views/admin/problem/PaperAdmin'), meta: { title: 'Paper Admin' } },
         { path: 'objective', name: 'admin-objective', component: () => import('@/views/admin/problem/ObjectiveAdmin'), meta: { title: 'Objective Admin' } },
         {
           path: '',

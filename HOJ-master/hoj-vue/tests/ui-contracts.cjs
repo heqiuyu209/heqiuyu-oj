@@ -7,7 +7,7 @@ const path = require("path");
     path.join(__dirname, "../src/common/learning.js"),
     "utf8"
   );
-  const { finiteRating, cfRating, problemSource, safeSourceUrl, draftKey } =
+  const { finiteRating, cfRating, taskRating, problemSource, safeSourceUrl, draftKey } =
     await import(
       "data:text/javascript;base64," + Buffer.from(source).toString("base64")
     );
@@ -16,6 +16,10 @@ const path = require("path");
   assert.equal(finiteRating("1500"), null);
   assert.equal(finiteRating(NaN), null);
   assert.equal(finiteRating(0), 0);
+  assert.equal(taskRating({ rating: 1200, difficulty: 1 }), 1200);
+  assert.equal(taskRating({ rating: 0 }), 0);
+  assert.equal(taskRating({ difficulty: 2 }), null);
+  assert.equal(taskRating({ rating: null, sourcePlatform: 'CF', sourceRating: 1600 }), 1600);
   assert.equal(cfRating({ difficulty: 3, ioScore: 100 }), null);
   assert.equal(
     cfRating({ sourcePlatform: "NowCoder", sourceRating: 1800 }),
@@ -60,7 +64,7 @@ const path = require("path");
   assert.notEqual(key, draftKey("alice", { ...base, groupID: "3" }, "C++ 17"));
   assert.notEqual(key, draftKey("alice", base, "Python3"));
   console.log(
-    "UI contracts: 22 assertions passed (missing ratings, source provenance, safe links, draft isolation)."
+    "UI contracts: 26 assertions passed (station ratings, missing ratings, source provenance, safe links, draft isolation)."
   );
 })().catch((error) => {
   console.error(error);

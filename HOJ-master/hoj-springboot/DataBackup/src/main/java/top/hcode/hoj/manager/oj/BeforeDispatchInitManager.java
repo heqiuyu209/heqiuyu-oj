@@ -43,6 +43,7 @@ import java.util.Objects;
  */
 @Component
 public class BeforeDispatchInitManager {
+    @Autowired private MixedContestManager mixed;
 
     @Resource
     private ContestEntityService contestEntityService;
@@ -121,6 +122,7 @@ public class BeforeDispatchInitManager {
 
     @Transactional(rollbackFor = Exception.class)
     public void initContestSubmission(Long cid, String displayId, AccountProfile userRolesVo, Judge judge) throws StatusNotFoundException, StatusForbiddenException {
+        if (mixed.configuration(cid) != null) throw new StatusForbiddenException("混合比赛请从比赛答卷提交代码");
         Contest contest = contestEntityService.getById(cid);
         if (contest == null) {
             throw new StatusNotFoundException("对不起，该比赛不存在！");

@@ -3,6 +3,20 @@ import axios from 'axios';
 const base = '/api/objective';
 const admin = '/api/admin/objective';
 export default {
+  mixedContestRun: cid => axios.post('/api/contests/' + cid + '/mixed/run'),
+  mixedContestRank: cid => axios.get('/api/contests/' + cid + '/mixed/rank'),
+  papers: params => axios.get('/api/papers', { params }),
+  paperStart: data => axios.post('/api/papers/runs', data),
+  paperRuns: params => axios.get('/api/papers/runs', { params }),
+  paperRun: id => axios.get('/api/papers/runs/' + id),
+  paperAnswer: (id, data) => axios.put('/api/papers/runs/' + id + '/answers', data),
+  paperSubmit: (id, data) => axios.post('/api/papers/runs/' + id + '/program-submissions', data),
+  paperFinish: id => axios.post('/api/papers/runs/' + id + '/finish'),
+  paperRetry: id => axios.post('/api/papers/runs/' + id + '/retry'),
+  adminPapers: params => axios.get('/api/admin/papers', { params }),
+  adminPaper: id => axios.get('/api/admin/papers/' + id),
+  adminSavePaper: data => axios.post('/api/admin/papers', data),
+  adminPaperPrograms: params => axios.get('/api/admin/papers/program-questions', { params }),
   objectiveQuestions: params => axios.get(base + '/questions', { params }),
   objectiveNeighbors: (id, params) => axios.get(base + '/questions/' + id + '/neighbors', { params }),
   objectiveSets: params => axios.get(base + '/sets', { params }),

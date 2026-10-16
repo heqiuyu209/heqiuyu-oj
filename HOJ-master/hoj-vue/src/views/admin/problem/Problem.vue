@@ -142,23 +142,7 @@
             :md="6"
             :xs="24"
           >
-            <el-form-item
-              :label="$t('m.Level')"
-              required
-            >
-              <el-select
-                class="difficulty-select"
-                placeholder="Enter the level of problem"
-                v-model="problem.difficulty"
-              >
-                <el-option
-                  :label="getLevelName(key)"
-                  :value="parseInt(key)"
-                  v-for="(value, key, index) in PROBLEM_LEVEL"
-                  :key="index"
-                ></el-option>
-              </el-select>
-            </el-form-item>
+            <el-form-item label="题目 Rating"><el-input-number v-model="problem.rating" :min="0" :max="5000" :step="100" :precision="0" placeholder="未评级" /><p>留空为未评级，不按原难度换算。</p></el-form-item>
           </el-col>
         </el-row>
 
@@ -927,6 +911,7 @@ export default {
         memoryLimit: 256,
         stackLimit: 128,
         difficulty: 0,
+        rating: undefined,
         auth: 1,
         codeShare: true,
         examples: [], // 题面上的样例输入输出
@@ -1031,6 +1016,7 @@ export default {
         memoryLimit: 256,
         stackLimit: 128,
         difficulty: 0,
+        rating: undefined,
         auth: 1,
         codeShare: true,
         examples: [],

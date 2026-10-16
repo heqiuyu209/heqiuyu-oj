@@ -57,6 +57,8 @@ public class AdminContestServiceImpl implements AdminContestService {
         try {
             adminContestManager.addContest(adminContestVo);
             return CommonResult.successResponse();
+        } catch (top.hcode.hoj.common.exception.ObjectiveException e) {
+            return CommonResult.errorResponse(e.getMessage(), e.getStatus());
         } catch (StatusFailException e) {
             return CommonResult.errorResponse(e.getMessage());
         }
@@ -77,6 +79,8 @@ public class AdminContestServiceImpl implements AdminContestService {
 
         try {
             adminContestManager.updateContest(adminContestVo);
+        } catch (top.hcode.hoj.common.exception.ObjectiveException e) {
+            return CommonResult.errorResponse(e.getMessage(), e.getStatus());
         } catch (StatusForbiddenException e) {
             return CommonResult.errorResponse(e.getMessage(), ResultStatus.FORBIDDEN);
         } catch (StatusFailException e) {

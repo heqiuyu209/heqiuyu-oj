@@ -430,6 +430,7 @@ public class TrainingManager {
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.isNull("paper_run_id");
         queryWrapper.select("distinct pid,status,score,submit_time")
                 .in("pid", pidList)
                 .eq("uid", userRolesVo.getUid())

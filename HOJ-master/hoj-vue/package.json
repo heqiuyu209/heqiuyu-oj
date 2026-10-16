@@ -7,6 +7,8 @@
     "build": "vue-cli-service build",
     "test:ui": "node tests/ui-contracts.cjs",
     "test:objective": "node tests/objective-browser.cjs",
+    "test:paper": "node tests/paper-browser.cjs",
+    "test:paper:local": "node tests/paper-local-integration.cjs",
     "test:browser": "node tests/browser-review.cjs",
     "test:dev": "node tests/dev-smoke.cjs"
   },

@@ -1,6 +1,6 @@
-export const questionTypes = { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题' };
+export const questionTypes = { SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', FILL_BLANK: '填空题' };
 export const modes = { PRACTICE: '逐题练习', PAPER: '整卷答题' };
-export const releasePolicies = { AFTER_ANSWER: '提交本题后', AFTER_FINISH: '交完整卷后', AT_TIME: '指定时间', NEVER: '暂不开放' };
+export const releasePolicies = { AFTER_END: '比赛结束后', AFTER_ANSWER: '提交本题后', AFTER_FINISH: '交完整卷后', AT_TIME: '指定时间', NEVER: '暂不开放' };
 export function requestId() {
   const values = new Uint32Array(4);
   if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(values);

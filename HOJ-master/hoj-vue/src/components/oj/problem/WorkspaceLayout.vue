@@ -1,5 +1,5 @@
 <template>
-  <section class="workspace" @keydown.esc="expanded = ''">
+  <section class="workspace" :class="{ 'with-question-navigation': !!($slots.navigation || $scopedSlots.navigation) }" @keydown.esc="expanded = ''">
     <div class="workspace-toolbar">
       <div><strong>解题工作台</strong><span class="muted">拖动卡片标题调整顺序，拖动分隔线调整宽度</span></div>
       <div class="workspace-actions">
@@ -29,6 +29,7 @@
           @pointerdown="startResize($event, index)" @keydown.left.prevent="nudge(index, -2)" @keydown.right.prevent="nudge(index, 2)"><span /></div>
       </template>
     </div>
+    <slot name="navigation" />
     <p v-if="!saved" class="muted">浏览器无法保存布局，当前调整仍可使用。</p>
   </section>
 </template>
@@ -99,6 +100,7 @@ export default {
 .workspace-split span { width: 3px; height: 48px; border-radius: 8px; background: var(--line); }
 .workspace-split:hover span, .workspace-split:focus span { background: var(--accent); }
 .workspace-card.expanded { position: fixed; inset: 88px 18px 48px; z-index: 1998; }
+.with-question-navigation .workspace-card.expanded { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 .expanded .workspace-card-body { height: calc(100% - 50px) !important; resize: none; }
 @media(max-width: 1100px) { .workspace-toolbar { align-items: flex-start; flex-direction: column; } }
 @media(max-width: 767px) { .workspace-grid { display: block; } .workspace-card { margin-bottom: 16px; } .workspace-split { display: none; } .workspace-card.expanded { inset: 68px 6px 12px; } .workspace-toolbar .muted { font-size: 12px; } }

@@ -39,10 +39,10 @@
               <template slot="title"
                 ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</template
               >
-              <el-menu-item index="/acm-rank">{{
+              <el-menu-item index="/rank/practice">{{
                 $t('m.NavBar_ACM_Rank')
               }}</el-menu-item>
-              <el-menu-item index="/oi-rank">{{
+              <el-menu-item index="/rank/contest">{{
                 $t('m.NavBar_OI_Rank')
               }}</el-menu-item>
             </el-submenu>
@@ -408,7 +408,7 @@
               button
               :ripple="false"
               slot="nested"
-              to="/acm-rank"
+              to="/rank/practice"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
@@ -420,7 +420,7 @@
               button
               :ripple="false"
               slot="nested"
-              to="/oi-rank"
+              to="/rank/contest"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
@@ -731,7 +731,7 @@ export default {
       return { training: '当前训练', contest: '当前比赛', group: '当前团队' }[this.mode];
     },
     activeMenuName() {
-      if (this.$route.path.split('/')[1] === 'objective') return '/problem';
+      if (['objective', 'papers'].includes(this.$route.path.split('/')[1])) return '/problem';
       if (this.$route.path.split('/')[1] == 'submission-detail') {
         return '/status';
       } else if (this.$route.path.split('/')[1] == 'discussion-detail') {

@@ -1,4 +1,6 @@
 export const m = {
+  Paper_Practice: '套卷练习',
+  Paper_Admin: '整套试卷',
   Objective_Practice: '客观题练习',
   Objective_Admin: '客观题与组卷',
 
@@ -20,8 +22,8 @@ export const m = {
   NavBar_Contest: '比赛',
   NavBar_Status: '测评',
   NavBar_Rank: '排名',
-  NavBar_ACM_Rank: 'ACM 排名',
-  NavBar_OI_Rank: 'OI 排名',
+  NavBar_ACM_Rank: '平时排名',
+  NavBar_OI_Rank: '比赛排名',
   NavBar_Discussion: '讨论',
   NavBar_Group: '团队',
   NavBar_About: '关于',

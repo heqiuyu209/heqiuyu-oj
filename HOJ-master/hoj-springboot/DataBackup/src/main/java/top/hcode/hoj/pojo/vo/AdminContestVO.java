@@ -15,6 +15,8 @@ import java.util.List;
 @ApiModel(value="管理比赛的回传实体", description="")
 @Data
 public class AdminContestVO {
+    private Boolean rated;
+    private top.hcode.hoj.pojo.dto.MixedContestDTO.Config mixed;
 
     @ApiModelProperty(value = "比赛id")
     private Long id;

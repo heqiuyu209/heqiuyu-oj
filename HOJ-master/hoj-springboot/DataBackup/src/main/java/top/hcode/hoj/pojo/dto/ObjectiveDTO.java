@@ -14,7 +14,18 @@ public final class ObjectiveDTO {
     }
 
     @Data
+    public static class Blank {
+        private String id;
+        private String label;
+        private List<String> answers;
+        private Integer score;
+        private Boolean trim;
+        private Boolean caseSensitive;
+    }
+
+    @Data
     public static class Question {
+        private Integer rating;
         private Long id;
         private Integer version;
         private String title;
@@ -22,6 +33,7 @@ public final class ObjectiveDTO {
         private String stem;
         private String source;
         private List<Option> options;
+        private List<Blank> blanks;
         private List<String> correctAnswers;
         private String explanation;
         private List<Long> tagIds;

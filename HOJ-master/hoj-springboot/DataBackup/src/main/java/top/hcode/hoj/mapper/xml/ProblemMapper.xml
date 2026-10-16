@@ -7,6 +7,7 @@
         <result column="problem_id" property="problemId"></result>
         <result column="title" property="title"></result>
         <result column="difficulty" property="difficulty"></result>
+        <result column="rating" property="rating"></result>
         <result column="type" property="type"></result>
         <collection property="tags" ofType="top.hcode.hoj.pojo.entity.problem.Tag" select="getProblemTag" column="pid">
         </collection>
@@ -14,7 +15,7 @@
 
     <!-- 主查询 -->
     <select id="getProblemList" resultMap="map_ProblemList" useCache="true">
-        SELECT DISTINCT p.id AS pid, p.problem_id, p.title, p.difficulty, p.type
+        SELECT DISTINCT p.id AS pid, p.problem_id, p.title, p.difficulty, p.rating, p.type
         FROM problem p
         <if test="tid != null and tid.size() > 0">
             RIGHT JOIN
@@ -41,6 +42,8 @@
                 </if>
                 )
             </if>
+            <if test="ratingMin != null">AND p.rating &gt;= #{ratingMin}</if>
+            <if test="ratingMax != null">AND p.rating &lt;= #{ratingMax}</if>
             <if test="difficulty != null">
                 and p.difficulty = #{difficulty}
             </if>

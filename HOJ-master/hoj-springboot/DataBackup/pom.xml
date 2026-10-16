@@ -55,7 +55,7 @@
             </testResource>
             <testResource>
                 <directory>../../sqlAndsetting</directory>
-                <includes><include>objective.sql</include></includes>
+                <includes><include>objective.sql</include><include>paper.sql</include><include>site-rating.sql</include></includes>
             </testResource>
         </testResources>
     </build>

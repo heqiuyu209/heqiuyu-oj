@@ -9,6 +9,7 @@ import { mapGetters } from 'vuex';
 import { RULE_TYPE } from '@/common/constants';
 const ACMContestRank = () => import('./ACMContestRank.vue');
 const OIContestRank = () => import('./OIContestRank.vue');
+const MixedContestRank = () => import('./MixedContestRank.vue');
 const NullComponent = {
   name: 'null-component',
   template: '<div></div>',
@@ -17,18 +18,21 @@ const NullComponent = {
 export default {
   name: 'contest-rank',
   components: {
+    MixedContestRank,
     ACMContestRank,
     OIContestRank,
     NullComponent,
   },
   beforeCreate() {
-    if (this.$store.state.contest.contestProblems.length === 0) {
+    if (!this.$store.state.contest.contest.mixedPaperId && this.$store.state.contest.contestProblems.length === 0) {
       this.$store.dispatch('getContestProblems');
     }
   },
   computed: {
     ...mapGetters(['contestRuleType']),
+    contest() { return this.$store.state.contest.contest; },
     currentView() {
+      if (this.contest.mixedPaperId) return 'MixedContestRank';
       if (this.contestRuleType === null) {
         return 'NullComponent';
       }

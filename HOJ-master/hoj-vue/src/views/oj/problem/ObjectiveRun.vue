@@ -13,11 +13,6 @@
         <span v-else-if="finished">判分反馈尚未开放</span>
       </div>
       </div>
-      <div class="question-switcher" aria-label="上一题和下一题">
-        <el-button class="previous-question" icon="el-icon-arrow-left" :disabled="saving || navigating || neighborsLoading || !previousQuestion" :title="previousQuestion ? previousQuestion.title : '已是第一题'" @click="navigateQuestion(-1)">上一题</el-button>
-        <span>{{ run.questionId ? '按题库列表顺序练习' : selectedQuestion ? '第 ' + (run.questions.findIndex(q => q.id === selectedId) + 1) + ' / ' + run.questions.length + ' 题' : '暂无匹配题目' }}</span>
-        <el-button class="next-question" :disabled="saving || navigating || neighborsLoading || !nextQuestion" :title="nextQuestion ? nextQuestion.title : '已是最后一题'" @click="navigateQuestion(1)">下一题 <i class="el-icon-arrow-right" /></el-button>
-      </div>
       <p v-if="neighborsError" class="navigation-error" role="alert">{{ neighborsError }} <el-button type="text" @click="loadNeighbors">重试加载相邻题目</el-button></p>
       <div v-if="!run.questionId" class="run-filters">
         <el-select :value="type" :disabled="saving || navigating" clearable placeholder="全部题型" @change="changeType">
@@ -31,15 +26,16 @@
         </el-button>
       </nav>
       <WorkspaceLayout v-if="selectedQuestion" editor-title="选项与作答" statement-title="题目内容" :allow-learning="false" preference-key="objective-workspace-v1">
+        <template #navigation><QuestionNavigation :position="run.questionId ? '题号 ' + selectedQuestion.id : '第 ' + (run.questions.findIndex(q => q.id === selectedId) + 1) + ' / ' + run.questions.length + ' 题'" :question-title="selectedQuestion.title" :previous-disabled="saving || navigating || neighborsLoading || !previousQuestion" :next-disabled="saving || navigating || neighborsLoading || !nextQuestion" :previous-title="previousQuestion ? previousQuestion.title : '已是第一题'" :next-title="nextQuestion ? nextQuestion.title : '已是最后一题'" @previous="navigateQuestion(-1)" @next="navigateQuestion(1)" /></template>
         <template #statement>
           <article class="question-content">
             <header><el-tag size="small" effect="plain">{{ questionTypes[selectedQuestion.questionType] }}</el-tag><h2>{{ selectedQuestion.title }}</h2>
-              <div class="question-origin"><span><i class="el-icon-collection-tag" /> 来源：{{ selectedQuestion.source || '本校题库' }}</span><span>题号 {{ selectedQuestion.id }}</span><span>版本 {{ selectedQuestion.version }}</span></div>
+              <div class="question-origin"><span><i class="el-icon-collection-tag" /> 来源：{{ selectedQuestion.source || '本校题库' }}</span><span>Rating {{ selectedQuestion.rating == null ? '未评级' : selectedQuestion.rating }}</span><span>题号 {{ selectedQuestion.id }}</span><span>版本 {{ selectedQuestion.version }}</span></div>
               <p v-if="!run.questionId" class="question-set"><i class="el-icon-folder-opened" /> 所属{{ run.mode === 'PAPER' ? '试卷' : '题集' }}：{{ run.title }}</p>
             </header>
             <h3>题目描述</h3><p class="question-stem">{{ selectedQuestion.stem }}</p>
             <div class="practice-rules"><h3>作答说明</h3>
-              <p>{{ run.questionId ? '提交即完成本次练习，需要重答时可重新练习。' : run.mode === 'PAPER' ? '可以逐题保存和修改，交卷后统一判分。每题 1 分，多选须全部选对。' : '逐题提交后本次答案不能修改；需要重答时可重新练习。每题 1 分，多选须全部选对。' }}</p>
+              <p>{{ run.questionId ? '提交即完成本次练习，需要重答时可重新练习。' : run.mode === 'PAPER' ? '可以逐题保存和修改，交卷后统一判分。填空按各空分值计分，多选须全部选对。' : '逐题提交后本次答案不能修改；需要重答时可重新练习。填空按各空分值计分，多选须全部选对。' }}</p>
               <p>答案：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}<br>解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}</p>
             </div>
           </article>
@@ -58,10 +54,11 @@
 import api from '@/common/api';
 import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
 import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
+import QuestionNavigation from '@/components/oj/problem/QuestionNavigation';
 import { modes, questionTypes, releaseLabel, requestId, responseData, errorMessage } from '@/common/objective';
 export default {
   name: 'ObjectiveRun',
-  components: { ObjectiveAnswer, WorkspaceLayout },
+  components: { ObjectiveAnswer, WorkspaceLayout, QuestionNavigation },
   data: () => ({ run: null, selectedId: null, type: '', onlyWrong: false, loading: false, saving: false, error: '', request: 0, restartId: '',
     neighbors: { previous: null, next: null }, neighborsLoading: false, neighborsError: '', navigating: false, approvedRunId: '', navigationIds: {}, visitedRuns: {}, modes, questionTypes }),
   computed: {
@@ -222,7 +219,7 @@ export default {
 };
 </script>
 <style scoped>
-.objective-run { max-width: 1440px; margin: 24px auto; color: var(--text); }
+.objective-run { max-width: 1440px; margin: 24px auto; padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); color: var(--text); }
 .run-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .run-breadcrumb { display: flex; align-items: center; gap: 20px; color: var(--muted); font-size: 14px; }
 .run-back, .run-refresh { border-radius: 9px; min-height: 42px; }
@@ -234,10 +231,6 @@ export default {
 .run-summary { color: var(--muted); font-size: 13px; }
 .run-summary strong { color: var(--accent); }
 .run-filters { margin: 16px 0; }
-.question-switcher { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 22px; }
-.question-switcher > span { font-size: 13px; color: var(--muted); text-align: center; }
-.question-switcher .el-button { border-radius: 8px; min-height: 42px; margin: 0; }
-.next-question:not(.is-disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
 .navigation-error { color: var(--muted); font-size: 13px; }
 .run-notice { color: var(--muted); line-height: 1.7; }
 .question-nav { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 18px; }
@@ -256,9 +249,6 @@ export default {
   .run-breadcrumb > span { display: none; }
   .run-title { align-items: flex-start; flex-direction: column; margin: 22px 0; gap: 14px; }
   .run-title h1 { font-size: 24px; }
-  .question-switcher { gap: 8px; padding: 12px; }
-  .question-switcher > span { font-size: 12px; max-width: 84px; }
-  .question-switcher .el-button { padding: 12px; }
   .question-content { padding: 20px 16px; }
 }
 </style>

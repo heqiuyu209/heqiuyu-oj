@@ -77,6 +77,9 @@ public class Problem implements Serializable {
     @ApiModelProperty(value = "题目难度")
     private Integer difficulty;
 
+    @ApiModelProperty(value = "站内题目rating，未评级为null")
+    private Integer rating;
+
     @ApiModelProperty(value = "备注,提醒")
     private String hint;
 

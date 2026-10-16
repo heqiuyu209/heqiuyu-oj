@@ -79,32 +79,7 @@
             </div>
           </section>
 
-          <section>
-            <b class="problem-filter">{{ $t('m.Level') }}</b>
-            <div>
-              <el-tag
-                size="medium"
-                class="filter-item"
-                :effect="
-                  query.difficulty === 'All' || query.difficulty === ''
-                    ? 'dark'
-                    : 'plain'
-                "
-                @click="filterByDifficulty('All')"
-                >{{ $t('m.All') }}</el-tag
-              >
-              <el-tag
-                size="medium"
-                class="filter-item"
-                v-for="(value, key, index) in PROBLEM_LEVEL"
-                :effect="query.difficulty == key ? 'dark' : 'plain'"
-                :style="getLevelBlockColor(key)"
-                :key="index"
-                @click="filterByDifficulty(key)"
-                >{{ getLevelName(key) }}</el-tag
-              >
-            </div>
-          </section>
+          <section class="rating-filter"><b class="problem-filter">Rating</b><div><el-input-number v-model="query.ratingMin" :min="0" :max="5000" :step="100" :precision="0" placeholder="最低" aria-label="最低 Rating" /> <span>至</span> <el-input-number v-model="query.ratingMax" :min="0" :max="5000" :step="100" :precision="0" placeholder="最高" aria-label="最高 Rating" /> <el-button size="small" @click="applyRating">筛选</el-button></div></section>
           <template v-if="filterTagList.length > 0 && buildFilterTagList">
             <el-row>
               <b class="problem-filter">{{ $t('m.Tags') }}</b>
@@ -179,19 +154,6 @@
 
           <vxe-table-column title="来源 / Rating" min-width="210">
             <template v-slot="{ row }"><ProblemMeta :problem="row" /></template>
-          </vxe-table-column>
-          <vxe-table-column
-            field="difficulty"
-            :title="$t('m.Level')"
-            min-width="100"
-          >
-            <template v-slot="{ row }">
-              <span
-                class="el-tag el-tag--small"
-                :style="getLevelColor(row.difficulty)"
-                >{{ getLevelName(row.difficulty) }}</span
-              >
-            </template>
           </vxe-table-column>
 
           <vxe-table-column
@@ -380,7 +342,8 @@ export default {
       routeName: '',
       query: {
         keyword: '',
-        difficulty: 'All',
+        ratingMin: undefined,
+        ratingMax: undefined,
         oj: '',
         tagId: '',
         currentPage: 1,
@@ -435,7 +398,8 @@ export default {
     init() {
       this.routeName = this.$route.name;
       let query = this.$route.query;
-      this.query.difficulty = query.difficulty || '';
+      this.query.ratingMin = query.ratingMin === undefined || query.ratingMin === '' ? undefined : Number(query.ratingMin);
+      this.query.ratingMax = query.ratingMax === undefined || query.ratingMax === '' ? undefined : Number(query.ratingMax);
       this.query.oj = query.oj || 'Mine';
       this.query.keyword = query.keyword || '';
       try {
@@ -515,9 +479,6 @@ export default {
     },
     getProblemList() {
       let queryParams = Object.assign({}, this.query);
-      if (queryParams.difficulty == 'All') {
-        queryParams.difficulty = '';
-      }
       if (queryParams.oj == 'All') {
         queryParams.oj = '';
       } else if (!queryParams.oj) {
@@ -649,6 +610,7 @@ export default {
       this.query.currentPage = 1;
       this.pushRouter();
     },
+    applyRating() { if (this.query.ratingMin != null && this.query.ratingMax != null && this.query.ratingMin > this.query.ratingMax) return this.$message.warning('最低 Rating 不能大于最高 Rating'); this.query.currentPage = 1; this.pushRouter(); },
     filterByDifficulty(difficulty) {
       this.query.difficulty = difficulty;
       this.query.currentPage = 1;

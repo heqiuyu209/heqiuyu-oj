@@ -3,7 +3,7 @@ FROM maven:3.9-eclipse-temurin-8 AS builder
 WORKDIR /build
 COPY hoj-springboot/ ./
 
-RUN mvn -B -pl DataBackup -am package -DskipTests
+RUN --mount=type=cache,id=hoj-java8-maven,target=/root/.m2,sharing=locked mvn -B -pl DataBackup -am package -DskipTests
 
 FROM eclipse-temurin:8-jre
 

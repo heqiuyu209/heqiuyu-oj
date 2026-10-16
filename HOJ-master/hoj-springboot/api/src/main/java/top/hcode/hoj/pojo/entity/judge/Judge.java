@@ -79,6 +79,14 @@ public class Judge implements Serializable {
     @ApiModelProperty(value = "比赛id，非比赛提交默认为0")
     private Long cid;
 
+    private Long paperRunId;
+
+    private Long paperSnapshotId;
+
+    @TableField(exist = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private top.hcode.hoj.pojo.dto.PaperProgramSnapshotDTO paperSnapshot;
+
     @ApiModelProperty(value = "比赛中题目排序id，非比赛提交默认为0")
     private Long cpid;
 

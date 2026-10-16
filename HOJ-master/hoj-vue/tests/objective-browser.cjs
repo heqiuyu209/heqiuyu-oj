@@ -149,11 +149,11 @@ async function until(check, label, timeout = 30000) {
   };
   const find = name => "(function find(vm){if(vm.$options.name===" + JSON.stringify(name) + ")return vm;for(const child of vm.$children||[]){const result=find(child);if(result)return result;}})(document.getElementById('app').__vue__)";
   const route = async location => { await ev("document.getElementById('app').__vue__.$router.push(" + JSON.stringify(location) + ").then(()=>true,()=>false)"); await sleep(400); };
-  const shot = async name => {
+  const shot = async (name, viewport = false) => {
     // Let user feedback expire and dialog transitions settle before layout QA.
     await sleep(4600);
     if (name === 'objective-admin-policies') await ev("document.querySelectorAll('.objective-editor-dialog .el-dialog__body').forEach(body=>{if(body.getBoundingClientRect().height)body.scrollTop=body.scrollHeight});true");
-    const result = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+    const result = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !viewport });
     const file = path.join(output, name + '.png'); fs.writeFileSync(file, Buffer.from(result.data, 'base64')); report.screenshots.push(file);
   };
   await cdp('Runtime.enable'); await cdp('Page.enable');
@@ -180,6 +180,13 @@ async function until(check, label, timeout = 30000) {
   assert.equal(await ev("document.querySelector('.next-question').disabled"), true);
   assert.equal(await ev("document.querySelector('[data-panel=\"editor\"]').getBoundingClientRect().left>document.querySelector('[data-panel=\"statement\"]').getBoundingClientRect().left"), true);
   await shot('objective-cards-desktop');
+  await ev("window.scrollTo(0,document.querySelector('.workspace-grid').getBoundingClientRect().top+scrollY-12);true");
+  await ev("document.querySelector('[data-panel=\"editor\"]').closest('.workspace-card').querySelector('button[aria-label=\"展开卡片\"]').click();true");
+  await sleep(350);
+  assert.equal(await ev("(()=>{const n=document.querySelector('.question-dock'),r=n.getBoundingClientRect(),b=n.querySelector('.previous-question').getBoundingClientRect();return getComputedStyle(n).position==='fixed'&&r.top>=0&&r.bottom<=innerHeight&&document.querySelector('.workspace-card.expanded').getBoundingClientRect().bottom<r.top&&!!document.elementFromPoint(b.left+b.width/2,b.top+b.height/2)?.closest('.question-dock')})()"), true);
+  await shot('objective-navigation-focus', true);
+  await ev("document.querySelector('.workspace-card.expanded button[aria-label=\"恢复卡片\"]').click();window.scrollTo(0,0);true");
+  report.checks.push('Standalone question navigation stays visible and clickable while the answer card is expanded and the page is scrolled.');
   await ev("document.documentElement.dataset.theme='dark';true");
   await shot('objective-cards-dark');
   await ev("document.documentElement.dataset.theme='light';true");

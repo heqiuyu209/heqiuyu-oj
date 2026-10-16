@@ -12,6 +12,6 @@
                COUNT(IF(status=4,status,NULL)) AS se,
                COUNT(IF(status=8,status,NULL)) AS pa,
                COUNT(*) AS total
-        FROM judge where pid=#{pid} and cpid = #{cpid} and cid = #{cid}
+        FROM judge where paper_run_id IS NULL AND pid=#{pid} and cpid = #{cpid} and cid = #{cid}
     </select>
 </mapper>

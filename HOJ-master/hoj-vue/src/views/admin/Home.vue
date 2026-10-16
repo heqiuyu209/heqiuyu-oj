@@ -50,6 +50,7 @@
             $t('m.Problem_List')
           }}</el-menu-item>
           <el-menu-item index="/admin/objective">客观题与组卷</el-menu-item>
+          <el-menu-item index="/admin/papers">整套试卷</el-menu-item>
           <el-menu-item index="/admin/problem/create">{{
             $t('m.Create_Problem')
           }}</el-menu-item>
@@ -323,6 +324,9 @@
               active-class="mobile-menu-active"
             >
               <mu-list-item-title>客观题与组卷</mu-list-item-title>
+            </mu-list-item>
+            <mu-list-item button :ripple="false" slot="nested" to="/admin/papers" @click="opendrawer = !opendrawer" active-class="mobile-menu-active">
+              <mu-list-item-title>整套试卷</mu-list-item-title>
             </mu-list-item>
             <mu-list-item
               button

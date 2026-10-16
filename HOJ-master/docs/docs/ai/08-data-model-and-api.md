@@ -145,7 +145,7 @@ PUT      /api/objective/runs/{id}/answers     # {questionId, selectedAnswers}
 POST     /api/objective/runs/{id}/finish      # 幂等交卷
 ```
 
-- 题型：`SINGLE_CHOICE`、`MULTIPLE_CHOICE`、`TRUE_FALSE`；判断题选项固定为 `TRUE` / `FALSE`。每题 1 分，多选全部选对才得分。本轮不含部分得分配置。
+- 题型：`SINGLE_CHOICE`、`MULTIPLE_CHOICE`、`TRUE_FALSE`、`FILL_BLANK`；判断题选项固定为 `TRUE` / `FALSE`。选择和判断在原练习/客观题集内每题 1 分，多选全部选对才得分。填空题各空独立计分，见下方混合卷扩展。
 - 模式：`PRACTICE` / `PAPER`。单题练习使用 `PRACTICE`，记录带 `questionId`、`setId` 为空；题集/试卷记录带 `setId`、`questionId` 为空。单题提交后自动结束本次练习，可重新练习。整卷保存支持清空答案；交卷后不可修改。题集练习中已提交题目不可改答，可重新开卷练习。未答题交卷计 0 分。
 - `answerPolicy` / `explanationPolicy` 独立取 `AFTER_ANSWER`、`AFTER_FINISH`、`AT_TIME`、`NEVER`；指定时间使用毫秒时间戳。整卷无论选择哪种策略，交卷前均不返回判分、答案或解析。练习须提交该题或交卷后才可能开放。
 - 题目编辑中的 `practiceEnabled` 默认开启，答案/解析策略默认 `AFTER_ANSWER`，同时受题目发布状态控制。单题提交即结束本次练习，因此 `AFTER_ANSWER` / `AFTER_FINISH` 在此场景同时满足。关闭单题练习不影响已发布题集/试卷的组卷与作答；题集/试卷仍有独立开放策略。
@@ -157,3 +157,70 @@ POST     /api/objective/runs/{id}/finish      # 幂等交卷
 - 作答页复用编程题 `WorkspaceLayout`，题目与选项各占一张卡片，手机纵向排列；客观题使用独立布局偏好键 `objective-workspace-v1`。来源随题目版本显示，题集/试卷另标所属名称。上一题/下一题：单题按原列表筛选与 ID 倒序查询（只返回 `id/title/questionType`，边界为 `null`）；同一页面访问过的题目复用该次记录，新题才开独立记录。题集/整卷只切换当前快照内符合题型/错题筛选的题目，不新开卷。未保存选择需确认后丢弃，返回按钮恢复列表标签、页码与筛选条件；答案开放条件仍由服务端控制。
 
 源码完成、隔离测试、真实数据库迁移、运行环境联调及用户验收分别记录于 `TODO.md`，不能将其视为相同状态。
+
+### 混合试卷与结果填空（2026-10-16）
+
+已确认：同一题既保留题库单题入口，也可被试卷引用；两处的答案、进度、成绩分别保存。开卷冻结题面、题目版本、顺序、分值、编程判题方式/计分规则，以及编程题测试数据和支持语言。之后编辑题库不改变已有答卷。答案/解析开放策略读取当前试卷配置，调整会影响已有答卷；下架暂停学生访问。
+
+管理页面 `/admin/papers`、学生列表 `/papers`、答题 `/papers/run/:runID`。原客观题集接口与页面继续使用。试卷通过 `{kind: OBJECTIVE|PROGRAMMING, referenceId, score}` 引用现有题库，两类 ID 命名空间互相独立。每卷 1–50 题，不允许同种题目重复引用；不复制题库记录。选择/判断可设置本卷分值；填空题分值由各空之和决定。题库和试卷记录不混入 ICPC 比赛。
+
+填空配置 `blanks: [{id, label, answers, score, trim, caseSensitive}]`：1–20 空，每空 1–20 个可接受答案，每空分值 1–1000 整数，单个答案最多 2000 字；默认去首尾空格、区分大小写。等价答案须管理员枚举，不自动推断表达式等价。作答 `selectedAnswers` 按空的顺序传值，允许重复答案；整卷保存可清空各空。学生端的 `blanks` 只含 id/label/score，标准答案与判分依开放策略返回。
+
+编程模式 `LIVE`：答卷进行中可多次提交并看到本题判题结果，仅保存代码不判题；最高分 `BEST` 或最后一次 `LAST` 按开卷规则计分，每题最多 100 次提交。`AFTER_FINISH`：作答时只保存代码，交卷后将非空代码统一派发一次。ACM 全对得本题满分，OI 按原题 ioScore 比例折算，保留两位小数。交卷与提交通过行锁和请求标识去重，派发在数据库事务提交后进行。原提交频率和公开判题开关仍有效；整卷交卷按一次操作限频。
+
+首版编程支持公开主题库、本地 default 标准判题；远程、特判、交互判题暂不列入可选项。每题测试文本最多 16 MiB；开卷会检查数据与语言是否齐全。JudgeServer 从不可变快照加载题面配置与测试数据，使用 `paper_<snapshotId>` 独立缓存；不写普通题库的用户 AC、训练或比赛记录。通用提交详情、分享、状态轮询、测试点详情和重判不能绕过套卷归属与开放规则；列表/题库/训练/用户统计排除套卷提交。
+
+服务端系统异常/派发失败不结算为零分，答卷提供重试入口，仅重试本人的状态 4/10 提交，保留代码、提交归属和已交卷状态。正常 WA、CE、TLE 按判题结果计分。总分须交卷、答案开放且全部判题完成后才返回；`LIVE` 的逐次编程反馈为显式例外，管理页会提示。解析可单独开放。
+
+```text
+GET  /api/admin/papers                         # 管理分页，普通 admin 仅自己创建
+GET  /api/admin/papers/program-questions        # keyword，最多 100 条可用本地编程题元信息
+GET  /api/admin/papers/{id}                     # 编辑完整配置
+POST /api/admin/papers                         # 创建/修改；修改带 id/version
+GET  /api/papers                               # 已发布试卷分页
+POST /api/papers/runs                          # {paperId, requestId}；冻结并开卷
+GET  /api/papers/runs                          # 本人历史，不含隐藏成绩
+GET  /api/papers/runs/{id}                     # 本人答卷和允许的反馈
+PUT  /api/papers/runs/{id}/answers             # {key, selectedAnswers} 或 {key, language, code}
+POST /api/papers/runs/{id}/program-submissions # LIVE: {key, language, code, requestId}
+POST /api/papers/runs/{id}/finish              # 幂等交卷
+POST /api/papers/runs/{id}/retry               # 重试本人的系统/派发失败代码
+```
+
+管理端沿用 root/admin/problem_admin，学生接口均须登录，写操作须 submit 权限。客观题引用沿用题目所有权规则，编程题仅引用公开题。整卷未保存修改有切题/离开/刷新保护，交卷先保存当前题；判题轮询不覆盖未保存代码与选项。套卷与客观题作答页共用底部常驻切题栏，滚动与卡片展开时仍显示上一题、当前题号/标题和下一题；展开卡片为导航预留空间，套卷切题保留展开状态。
+
+### 正式混合比赛（2026-10-16）
+
+主站比赛仍使用原有 `type=0 ACM / 1 OI`、可见性、报名及账号限制。管理员在原比赛 DTO 中传 `mixed: {paperId, scoreRule, answerPolicy, explanationPolicy, answerReleaseAt, explanationReleaseAt}`；没有 `mixed` 的比赛保持原编程题流程。编程计分读取原 OI 的 Highest/Recent 选择，分别归一化为 BEST/LAST；混合比赛强制即时判题，不允许赛后继续作答。管理页的题目入口转向混合卷配置。
+
+`contest_paper(contest_id, paper_id, rules_json, template_json)` 保存独立比赛规则和全体参赛者共用的冻结题目、分值、语言及测试数据。开始前保存比赛可刷新模板，开始后或已有答卷时，只允许修改开放规则等不影响题目与计分的配置；赛制、试卷、计分方式、起止时间均冻结。沿用本地标准编程题限制，总模板 UTF-8 大小不超过 32 MiB。修改日常试卷或题库不会改变比赛。
+
+`paper_run.contest_id` 可空，唯一索引 `(contest_id,uid)` 保证每人每场仅一份；普通套卷历史排除比赛答卷。开始、保存、提交和交卷沿用数据库行锁；通用套卷 API 访问比赛答卷同样检查实际服务器时间、身份、可见性与参赛权限，不能借旧接口绕过比赛截止。截止时后台每 5 秒扫描到期作答（每批 100 份），读取/继续答卷也会幂等交卷；无需浏览器在线，服务恢复后补处理。只计已保存的客观答案和已提交判题的编程代码；未提交的编程草稿不判题。
+
+客观题交卷后可见分数，但标准答案与解析分别按比赛的 AFTER_END / AT_TIME / NEVER 控制，不能早于结束。比赛中的编程判题结果即时显示。开放规则读取当前比赛设置，与日常练习的开放设置独立。比赛编程提交复用冻结快照判题，但不写普通题库、训练及旧比赛排行榜记录；新的比赛榜单单独汇总。
+
+ACM 排序：客观题分数降序 → 编程 AC 数降序 → 罚时升序，相同成绩并列。每个编程题取首次 AC 的服务端提交时刻与开赛时间之差，加 AC 前 WA/PE/TLE/MLE/RE 每次 20 分钟；CE、部分通过、系统失败不罚时，AC 后的提交不追加罚时。OI 排序：已交卷客观题分数与编程得分相加降序，同分并列。尚未交卷的客观题不计分；判题中或评测异常明确标记为未结算。创建者和 root 不参与排名；遵守原封榜截止时刻。首版榜单位于比赛内，不使用原外部滚榜。
+
+```text
+POST /api/contests/{cid}/mixed/run  # 登录+submit；开始/继续同一答卷，赛后只返回已有答卷
+GET  /api/contests/{cid}/mixed/rank # 登录与比赛访问权限，返回 ACM 或 OI 榜单
+```
+
+答卷读写、判题和交卷继续使用上述 `/api/papers/runs/{id}...`，返回 contestId、contestType、serverNow、endTime；前端路径 `/contest/:contestID/mixed/run/:runID`，显示比赛返回按钮、倒计时和常驻切题栏。旧编程提交接口拒绝混合比赛 cid。当前 AI 仍是禁发占位 UI，并无服务端 AI 能力；未来接入 AI 时须服务端基于可信比赛身份禁用，不能以路由遮蔽代替服务端策略。
+
+## 2026-10-16 站内 Rating
+
+计算规则及当前验收状态见 [任务记录](TODO.md)。`problem.rating` 为可空整数 0–5000，`difficulty` 只保留旧业务兼容；不自动换算。客观题 Rating 存在版本内容 JSON，公开列表/作答只返回数值，不附标准答案。题面快照保留开卷时的 Rating，平时榜按当前校准 Rating 重放已有有效独立通过。`contest.rated` 默认 false，管理接口校验主站公开赛、开赛后锁定 Rating 开关及赛制/计分/时间。
+
+`site_rating_profile` 保存两种榜单的当前值、最高值、最近变化和计分次数；`site_rating_history` 按用户/类型/来源唯一，保存前后值、变化、事件时间与比赛平均名次。`site_rating_lock` 的行锁串行化多副本结算。后台每分钟在事务中重放有效题目通过和按时间排序的已完成计分赛，再整体发布，异常时保留上一版快照；重判、删除及重新校准会修正历史和后续分数。适用于当前小规模集训队，扩大用户量后需改为增量重放。未参加计分的用户 Rating 返回 null，不虚构定级或排名。
+
+```text
+GET /api/rating/rank?type=practice|contest&currentPage=1&limit=30&searchUser=...
+    # 匿名可读，最高每页100；搜索保留全局名次。records/total/current/size/updatedAt。
+GET /api/rating/users/{uid}
+    # 匿名可读，practiceRating/contestRating/Count/Peak及最近100条history。
+GET /api/get-problem-list?...&ratingMin=1200&ratingMax=1800
+    # 服务端区间筛选，不包含未评级题。原有题库/标签/分页条件保留。
+```
+
+个人主页接口同时返回 `practiceRating`、`contestRating`。前端榜单 `/rank/practice`、`/rank/contest`；旧 `/acm-rank`、`/oi-rank` 仅作地址兼容跳转，不改变单场比赛的 ACM/OI 成绩规则。

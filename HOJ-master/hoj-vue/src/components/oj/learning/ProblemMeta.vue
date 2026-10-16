@@ -3,20 +3,20 @@
     <a v-if="url" :href="url" target="_blank" rel="noopener noreferrer" @click.stop>{{ source }} <i class="el-icon-top-right" /></a>
     <span v-else>{{ source }}</span>
     <span v-if="detail && problem.source">{{ problem.source }}</span>
-    <span :title="ratingTitle" class="rating-chip">CF 标尺 {{ score === null ? '待定' : score }}</span>
+    <span :title="ratingTitle" class="rating-chip">Rating {{ score === null ? '未评级' : score }}</span>
     <small v-if="detail && original !== null">来源原始分数 {{ original }}</small>
   </div>
 </template>
 <script>
-import { problemSource, cfRating, finiteRating, safeSourceUrl } from '@/common/learning';
+import { problemSource, taskRating, finiteRating, safeSourceUrl } from '@/common/learning';
 export default {
   props: { problem: { type: Object, default: () => ({}) }, detail: Boolean },
   computed: {
     source() { return problemSource(this.problem); },
-    score() { return cfRating(this.problem); },
+    score() { return taskRating(this.problem); },
     original() { return finiteRating(this.problem.sourceRating); },
     url() { return safeSourceUrl(this.problem.sourceUrl || this.problem.link); },
-    ratingTitle() { return this.problem.ratingProvenance === 'estimated' ? '按 CF 标尺估算，非 Codeforces 官方评分' : '保留来源分数；未标定题目不按原有难度自动换算'; },
+    ratingTitle() { return this.problem.rating != null ? '站内题目评级' : '保留来源评级；未评级题目不按原有难度换算'; },
   },
 };
 </script>

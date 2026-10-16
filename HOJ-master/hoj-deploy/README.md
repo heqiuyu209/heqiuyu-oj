@@ -61,7 +61,7 @@ powershell -ExecutionPolicy Bypass -File .\HOJ-master\hoj-deploy\dev.ps1 up
 | MySQL | `127.0.0.1:13306`，沿用原本地配置 |
 | Redis / 判题 / 沙箱 | Docker 内部访问，不增加宿主机端口 |
 
-这里显示的是原数据库中的真实本地数据；训练、比赛、团队为空时显示空态，不灌入 UI 截图里的样例。没有创建账号、重置密码或改动历史提交。AI 与 rating 计算仍待实现；客观题已有独立业务后端，已有数据库需先执行 [增量迁移](../sqlAndsetting/README.md)，再更新后端镜像。当前验证与剩余验收见 [客观题任务记录](../docs/docs/ai/TODO.md)。
+这里显示的是原数据库中的真实本地数据，空列表保留空态。按用户要求保留的蓝桥杯风格演示题、套卷与混合比赛，以及客观题、混合卷和站内 Rating 的实现与验证状态，统一见 [任务记录](../docs/docs/ai/TODO.md)。真实集成检查会创建随机临时账号并清理自己的数据，不重置原账号密码；AI 服务仍待实现。已有数据库需先执行相应 [增量迁移](../sqlAndsetting/README.md)，再更新后端镜像。
 
 ## 修改 Java 后更新单个服务
 
@@ -89,7 +89,7 @@ docker compose -p hoj-master -f .\HOJ-master\compose.yaml up -d --no-deps --no-b
 
 ## 验证与接续
 
-2026-10-16：客观题增量迁移与 Java 8 后端镜像更新已完成，前端保留开发模式。权限修复、镜像版本、匿名 HTTP 与页面检查结果，以及待完成的真实账号业务验收，统一记录在 [客观题任务记录](../docs/docs/ai/TODO.md)。以下表格保留 2026-10-14 的环境检查点。
+2026-10-16：客观题及混合卷增量迁移、Java 8 后端和判题镜像更新已完成，前端保留开发模式。当前测试、真实账号联调、匿名 HTTP 与页面检查结果，以及待完成的用户验收，统一记录在 [任务记录](../docs/docs/ai/TODO.md)。以下表格保留 2026-10-14 的环境检查点。
 
 2026-10-14：开发环境已启动，待用户实际登录验收。前端、后端、MySQL、Redis、Nacos、判题六个服务均运行；有健康探测的五个服务均为 healthy，后端以真实 API 响应核验。一键启动脚本退出码为 0。Git 提交由用户自行完成。
 
@@ -116,4 +116,8 @@ npm run test:dev -- --hmr
 
 此检查需要 Node 22 与 Chrome；默认访问 `http://127.0.0.1:8080`，可通过 `UI_REVIEW_URL` 修改。默认报告和首页截图输出到系统临时目录 `hoj-dev-review`，可通过 `DEV_REVIEW_OUTPUT` 修改。此命令不拦截 API、不创建测试用户、不提交题目；它和 `npm run test:browser` 的模拟接口 UI 回归用途不同。
 
-本轮启动与页面验证不代替真实登录、管理端写入及 AC/WA/TLE 判题回归。原判题环境、原数据卷和权限规则继续沿用；没有升级 Java 或前端依赖版本，也没有开放到公网。
+混合试卷浏览器回归：`npm run test:paper` 拦截全部 API，验证混排、草稿、两种判题方式、组卷和手机布局；`PAPER_REVIEW_OUTPUT` 可指定报告/截图目录。真实本地集成另用 `$env:HOJ_LOCAL_PAPER_TEST='1'; npm run test:paper:local`，仅访问 `127.0.0.1:6688` 与本地 Compose 项目 `hoj-master`。它会创建两个随机临时账号，调用实际录题/组卷/练习/判题接口，验证普通编程 AC/WA/TLE，并在 finally 中清理自己的测试数据；不调整原有账号、题目或站点开关。运行前须已迁移混合卷结构并同时重建后端与 JudgeServer。报告区分通过与清理失败；失败时先查报告，不要反复执行。
+
+页面验证、真实账号联调、用户验收和正式发布分别记录；当前结果见上述任务记录。原判题环境、原数据卷和权限规则继续沿用；没有升级 Java 或前端依赖版本，也没有开放到公网。
+
+站内 Rating 浏览器回归：设置 `$env:PAPER_REVIEW_CASE='rating'` 后运行 `node tests/paper-browser.cjs`，使用隔离接口样例验证两种榜单、历史、搜索分页、数值区间和管理字段。真实 Rating 联调另用 `$env:HOJ_LOCAL_RATING_TEST='1'; node tests/rating-local-integration.cjs`；须先完成 `site-rating.sql` 迁移并更新 Java 服务。该脚本仅连接上述本地服务，创建三个随机临时账号和各自的题目、试卷、计分赛，等待后台交卷与 Rating 结算，验证重复通过仅计一次、升降分、题库筛选和个人主页，最后清理自己的数据；预计需要一至两分钟。`PAPER_REVIEW_OUTPUT` 指定报告目录，默认输出到系统临时目录 `hoj-rating-review`；报告中的 `validated` 和 `cleaned` 分别表示业务验证与清理结果。真实混合比赛回归使用 `$env:HOJ_LOCAL_MIXED_CONTEST_TEST='1'; node tests/mixed-contest-local-integration.cjs`，需要已有演示试卷 3；不设置 `HOJ_SEED_MIXED_DEMO` 时仅清理自身临时数据，不新增保留样例。

@@ -1,4 +1,6 @@
 export const m = {
+  Paper_Practice: 'Paper Practice',
+  Paper_Admin: 'Mixed Papers',
   Objective_Practice: 'Objective Practice',
   Objective_Admin: 'Objective Questions and Papers',
 
@@ -20,8 +22,8 @@ export const m = {
   NavBar_Contest: 'Contest',
   NavBar_Status: 'Status',
   NavBar_Rank: 'Rank',
-  NavBar_ACM_Rank: 'ACM Rank',
-  NavBar_OI_Rank: 'OI Rank',
+  NavBar_ACM_Rank: 'Practice rating',
+  NavBar_OI_Rank: 'Contest rating',
   NavBar_Discussion: 'Discussion',
   NavBar_Group: 'Group',
   NavBar_About: 'About',

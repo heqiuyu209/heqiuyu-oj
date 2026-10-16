@@ -24,6 +24,9 @@ public interface ProblemEntityService extends IService<Problem> {
     Page<ProblemVO> getProblemList(int limit, int currentPage, Long pid, String title,
                                    Integer difficulty, List<Long> tid, String oj);
 
+    Page<ProblemVO> getProblemList(int limit, int currentPage, Long pid, String title,
+                                   Integer difficulty, List<Long> tid, String oj, Integer ratingMin, Integer ratingMax);
+
     boolean adminUpdateProblem(ProblemDTO problemDto);
 
     boolean adminAddProblem(ProblemDTO problemDto);

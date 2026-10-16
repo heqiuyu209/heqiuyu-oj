@@ -6,6 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import top.hcode.hoj.mapper.PaperProgramSnapshotMapper;
+import top.hcode.hoj.pojo.dto.PaperProgramSnapshotDTO;
+import top.hcode.hoj.pojo.entity.problem.PaperProgramSnapshot;
 import top.hcode.hoj.common.exception.SystemError;
 import top.hcode.hoj.dao.JudgeEntityService;
 import top.hcode.hoj.dao.ProblemEntityService;
@@ -47,6 +51,9 @@ public class JudgeServiceImpl implements JudgeService {
     @Autowired
     private RemoteJudgeContext remoteJudgeContext;
 
+    @Autowired private PaperProgramSnapshotMapper paperSnapshotMapper;
+    @Autowired private ObjectMapper objectMapper;
+
     @Override
     public void judge(Judge judge) {
         // 标志该判题过程进入编译阶段
@@ -60,7 +67,7 @@ public class JudgeServiceImpl implements JudgeService {
 
         // 没更新成功，则可能表示该评测被取消 或者 judge记录被删除了，则结束评测
         if (!isUpdatedOk){
-            judgeContext.updateOtherTable(judge.getSubmitId(),
+            if (judge.getPaperRunId() == null) judgeContext.updateOtherTable(judge.getSubmitId(),
                     Constants.Judge.STATUS_CANCELLED.getStatus(),
                     judge.getCid(),
                     judge.getUid(),
@@ -93,13 +100,27 @@ public class JudgeServiceImpl implements JudgeService {
                         "io_read_file_name",
                         "io_write_file_name")
                 .eq("id", judge.getPid());
-        Problem problem = problemEntityService.getOne(problemQueryWrapper);
+        Problem problem;
+        if (judge.getPaperRunId() != null) {
+            try {
+                PaperProgramSnapshot snapshot = paperSnapshotMapper.selectById(judge.getPaperSnapshotId());
+                if (snapshot == null || !Objects.equals(snapshot.getRunId(), judge.getPaperRunId())
+                        || !Objects.equals(snapshot.getUid(), judge.getUid())) throw new IllegalStateException("Invalid paper snapshot");
+                PaperProgramSnapshotDTO frozen = objectMapper.readValue(snapshot.getContentJson(), PaperProgramSnapshotDTO.class);
+                if (!Objects.equals(frozen.getProblem().getId(), judge.getPid())) throw new IllegalStateException("Invalid paper problem");
+                judge.setPaperSnapshot(frozen); problem = frozen.getProblem();
+            } catch (Exception e) {
+                judge.setStatus(Constants.Judge.STATUS_SYSTEM_ERROR.getStatus());
+                judge.setErrorMessage("Unable to load frozen paper question. Please contact the administrator.");
+                judgeEntityService.updateById(judge); return;
+            }
+        } else problem = problemEntityService.getOne(problemQueryWrapper);
         Judge finalJudgeRes = judgeContext.Judge(problem, judge);
 
         // 更新该次提交
         judgeEntityService.updateById(finalJudgeRes);
 
-        if (!Objects.equals(finalJudgeRes.getStatus(), Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus())) {
+        if (judge.getPaperRunId() == null && !Objects.equals(finalJudgeRes.getStatus(), Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus())) {
             // 更新其它表
             judgeContext.updateOtherTable(finalJudgeRes.getSubmitId(),
                     finalJudgeRes.getStatus(),

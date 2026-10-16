@@ -485,6 +485,38 @@ class ObjectiveManagerTest {
         hidden(manager.run(id));
     }
 
+    private ObjectiveDTO.Question blanks() {
+        ObjectiveDTO.Question q = new ObjectiveDTO.Question(); q.setTitle("结果填空"); q.setStem("计算两个结果"); q.setQuestionType("FILL_BLANK"); q.setPublished(true);
+        ObjectiveDTO.Blank a = new ObjectiveDTO.Blank(); a.setId("a"); a.setScore(3); a.setAnswers(Arrays.asList("42", "0x2a")); a.setCaseSensitive(false);
+        ObjectiveDTO.Blank b = new ObjectiveDTO.Blank(); b.setId("b"); b.setScore(7); b.setAnswers(Collections.singletonList("OK")); b.setTrim(false);
+        q.setBlanks(Arrays.asList(a, b)); return manager.saveQuestion(q);
+    }
+
+    @Test void fillBlanksGradeEquivalentAnswersPerBlankAndKeepOrder() {
+        ObjectiveDTO.Question q = blanks(); Long id = (Long) single(q.getId(), "blank_partial").get("id");
+        Map<String, Object> result = answer(id, q.getId(), " 0X2A ", " OK ");
+        assertEquals(3, result.get("score")); assertEquals(10, result.get("maxScore")); assertEquals(false, questions(result).get(0).get("correct"));
+        Long full = (Long) single(q.getId(), "blank_full").get("id"); assertEquals(10, answer(full, q.getId(), "42", "OK").get("score"));
+        assertEquals(Arrays.asList("42", "42"), manager.normalize(q, Arrays.asList("42", "42"), false));
+    }
+
+    @Test void fillBlankStandardsAreHiddenAndInvalidAnswerCountsAreRejected() {
+        ObjectiveDTO.Question q = blanks(); Map<String, Object> run = single(q.getId(), "blank_hidden");
+        @SuppressWarnings("unchecked") List<Map<String, Object>> publicBlanks = (List<Map<String, Object>>) questions(run).get(0).get("blanks");
+        assertEquals(new HashSet<>(Arrays.asList("id", "label", "score")), publicBlanks.get(0).keySet());
+        assertFalse(questions(run).get(0).containsKey("correctAnswers"));
+        assertThrows(ObjectiveException.class, () -> answer((Long) run.get("id"), q.getId(), "42"));
+        assertThrows(ObjectiveException.class, () -> answer((Long) run.get("id"), q.getId(), "", ""));
+        q.getBlanks().get(0).setScore(0); assertThrows(ObjectiveException.class, () -> manager.saveQuestion(q));
+    }
+
+    @Test void fillBlankPaperCanSaveEmptyDraftAndOldAnswersKeepOldPoints() {
+        ObjectiveDTO.Question q = blanks(); Long set = save(problemSet("PAPER", q)); Long id = (Long) start(set, "blank_paper").get("id");
+        answer(id, q.getId(), "", ""); assertFalse(manager.run(id).containsKey("score"));
+        answer(id, q.getId(), "42", "OK"); q.getBlanks().get(0).setScore(30); manager.saveQuestion(q);
+        assertEquals(10, manager.finish(id).get("score")); assertEquals(10, manager.run(id).get("maxScore"));
+    }
+
     @Test void standaloneAutoFinishIsIdempotentAndRejectsChangesAfterSubmission() {
         ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
         Long id = (Long) single(item.getId(), "single_finished").get("id");

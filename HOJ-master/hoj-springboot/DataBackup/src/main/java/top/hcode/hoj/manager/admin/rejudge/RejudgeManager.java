@@ -64,6 +64,7 @@ public class RejudgeManager {
 
     public Judge rejudge(Long submitId) throws StatusFailException {
         Judge judge = judgeEntityService.getById(submitId);
+        if (judge != null && judge.getPaperRunId() != null) throw new StatusFailException("套卷提交不参与题库重判");
 
         boolean isContestSubmission = judge.getCid() != 0;
 
@@ -85,6 +86,7 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public void rejudgeContestProblem(Long cid, Long pid) throws StatusFailException {
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.isNull("paper_run_id");
         queryWrapper.eq("cid", cid).eq("pid", pid);
         List<Judge> rejudgeList = judgeEntityService.list(queryWrapper);
 
@@ -209,6 +211,7 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public Judge manualJudge(Long submitId, Integer status, Integer score) throws StatusFailException {
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper
                 .select("submit_id", "status", "judger", "cid", "pid", "uid")
                 .eq("submit_id", submitId);
@@ -299,6 +302,7 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public Judge cancelJudge(Long submitId) throws StatusFailException {
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper
                 .select("submit_id", "status", "judger", "cid")
                 .eq("submit_id", submitId)
