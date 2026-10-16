@@ -13,6 +13,7 @@ public class ObjectiveQuestion {
     private String questionType;
     private Integer version;
     private Boolean published;
+    private Boolean practiceEnabled;
     private String createdBy;
     private String contentJson;
     private Date gmtCreate;

@@ -3,6 +3,8 @@ import axios from 'axios';
 const base = '/api/objective';
 const admin = '/api/admin/objective';
 export default {
+  objectiveQuestions: params => axios.get(base + '/questions', { params }),
+  objectiveNeighbors: (id, params) => axios.get(base + '/questions/' + id + '/neighbors', { params }),
   objectiveSets: params => axios.get(base + '/sets', { params }),
   objectiveSet: id => axios.get(base + '/sets/' + id),
   objectiveStart: data => axios.post(base + '/runs', data),

@@ -1,12 +1,12 @@
 <template>
   <el-row :gutter="18">
+    <el-col :span="24"><ProblemNavigation /></el-col>
     <el-col :sm="24" :md="18" :lg="18">
       <el-card shadow>
         <div slot="header">
           <el-row :gutter="20" style="margin-bottom: 0.5em;">
             <el-col :xs="24" :sm="6">
               <span class="problem-list-title">{{ $t('m.Problem_List') }}</span>
-              <el-button type="text" class="objective-entry" @click="$router.push('/objective')">客观题练习</el-button>
             </el-col>
             <el-col :xs="24" :sm="6">
               <vxe-input
@@ -336,6 +336,7 @@
 
 <script>
 import ProblemMeta from '@/components/oj/learning/ProblemMeta';
+import ProblemNavigation from '@/components/oj/problem/ProblemNavigation';
 import { mapGetters } from 'vuex';
 import api from '@/common/api';
 import {
@@ -351,6 +352,7 @@ import Pagination from '@/components/oj/common/Pagination';
 export default {
   name: 'ProblemList',
   components: {
+    ProblemNavigation,
     ProblemMeta,
     Pagination,
   },

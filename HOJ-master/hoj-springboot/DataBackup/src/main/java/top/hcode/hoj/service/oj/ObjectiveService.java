@@ -24,7 +24,13 @@ public class ObjectiveService {
     public CommonResult<Map<String, Object>> questions(Integer page, Integer limit, String keyword, String type) {
         return execute(() -> manager.questions(page, limit, keyword, type));
     }
+    public CommonResult<Map<String, Object>> practiceQuestions(Integer page, Integer limit, String keyword, String type) {
+        return execute(() -> manager.practiceQuestions(page, limit, keyword, type));
+    }
     public CommonResult<ObjectiveDTO.Question> question(Long id) { return execute(() -> manager.question(id)); }
+    public CommonResult<Map<String, Object>> neighbors(Long id, String keyword, String type) {
+        return execute(() -> manager.neighbors(id, keyword, type));
+    }
     public CommonResult<ObjectiveDTO.Question> saveQuestion(ObjectiveDTO.Question dto) {
         return execute(() -> manager.saveQuestion(dto));
     }

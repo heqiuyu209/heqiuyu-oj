@@ -146,6 +146,12 @@ class ObjectiveManagerTest {
         return manager.start(dto);
     }
 
+    private Map<String, Object> single(Long questionId, String key) {
+        ObjectiveDTO.StartRun dto = new ObjectiveDTO.StartRun();
+        dto.setQuestionId(questionId); dto.setRequestId(key);
+        return manager.start(dto);
+    }
+
     private Map<String, Object> answer(Long runId, Long questionId, String... selected) {
         ObjectiveDTO.Answer dto = new ObjectiveDTO.Answer();
         dto.setQuestionId(questionId); dto.setSelectedAnswers(Arrays.asList(selected));
@@ -346,5 +352,147 @@ class ObjectiveManagerTest {
             assertEquals(1, successes);
             assertEquals(1, manager.run(id).get("answeredCount"));
         } finally { executor.shutdownNow(); }
+    }
+
+    @Test void publishedQuestionsCanBePracticedWithoutCreatingAnySet() {
+        List<ObjectiveDTO.Question> items = Arrays.asList(question("SINGLE_CHOICE", "A"),
+                question("MULTIPLE_CHOICE", "A", "C"), question("TRUE_FALSE", "TRUE"));
+        UID.set("student"); manageAll = false;
+        assertEquals(0L, manager.questions(1, 20, "", "").get("total"));
+        assertEquals(3L, manager.practiceQuestions(1, 20, "", "").get("total"));
+        assertEquals(1L, manager.practiceQuestions(1, 20, "", "TRUE_FALSE").get("total"));
+        assertEquals(0L, manager.practiceQuestions(1, 20, "missing", "").get("total"));
+        String listing = manager.practiceQuestions(1, 20, "", "").toString();
+        assertFalse(listing.contains("correctAnswers")); assertFalse(listing.contains("explanation"));
+        for (ObjectiveDTO.Question item : items) {
+            Map<String, Object> run = single(item.getId(), "single_" + item.getId());
+            hidden(run);
+            assertNull(run.get("setId")); assertEquals(item.getId(), run.get("questionId"));
+            assertEquals(1, questions(run).size());
+            Map<String, Object> result = answer((Long) run.get("id"), item.getId(), item.getCorrectAnswers().toArray(new String[0]));
+            assertEquals("FINISHED", result.get("state")); assertEquals(1, result.get("score"));
+        }
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM objective_set", Integer.class));
+        assertTrue(manager.runs(1, 20).toString().contains("questionId="));
+    }
+
+    @Test void standaloneVisibilityDoesNotGrantAccessToPaperOnlyOrUnpublishedQuestions() {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        Long runId = (Long) single(item.getId(), "single_visibility").get("id");
+        item.setPracticeEnabled(false); manager.saveQuestion(item);
+        assertEquals(0L, manager.practiceQuestions(1, 20, "", "").get("total"));
+        assertEquals(403, assertThrows(ObjectiveException.class, () -> single(item.getId(), "single_blocked")).getStatus());
+        assertEquals(403, assertThrows(ObjectiveException.class, () -> manager.run(runId)).getStatus());
+        Long paper = save(problemSet("PAPER", item));
+        Long paperRun = (Long) start(paper, "paper_only_1").get("id");
+        hidden(answer(paperRun, item.getId(), "A"));
+        assertEquals(1, manager.finish(paperRun).get("score"));
+        item.setPracticeEnabled(true); item.setPublished(false); manager.saveQuestion(item);
+        assertEquals(0L, manager.practiceQuestions(1, 20, "", "").get("total"));
+        assertThrows(ObjectiveException.class, () -> single(item.getId(), "single_unpublished"));
+    }
+
+    @Test void standalonePoliciesAreLiveAndIndependentFromTheFrozenQuestionVersion() {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        item.setAnswerPolicy("NEVER"); item.setExplanationPolicy("NEVER"); manager.saveQuestion(item);
+        Long id = (Long) single(item.getId(), "single_policy").get("id");
+        hidden(answer(id, item.getId(), "A"));
+        item.setAnswerPolicy("AT_TIME"); item.setAnswerReleaseAt(time + 1);
+        item.setExplanationPolicy("NEVER"); item.setCorrectAnswers(Collections.singletonList("B")); manager.saveQuestion(item);
+        hidden(manager.run(id)); time++;
+        Map<String, Object> result = manager.run(id);
+        assertEquals(1, result.get("score"));
+        assertEquals(Collections.singletonList("A"), questions(result).get(0).get("correctAnswers"));
+        assertFalse(questions(result).get(0).containsKey("explanation"));
+        item.setExplanationPolicy("AFTER_ANSWER"); manager.saveQuestion(item);
+        assertEquals("标准解析", questions(manager.run(id)).get(0).get("explanation"));
+        Long next = (Long) single(item.getId(), "single_new_version").get("id");
+        assertEquals(1, answer(next, item.getId(), "B").get("score"));
+    }
+
+    @Test void standaloneNonceCannotBeReusedAcrossSourcesAndBothSourcesCannotBeSubmitted() {
+        ObjectiveDTO.Question first = question("SINGLE_CHOICE", "A");
+        ObjectiveDTO.Question second = question("SINGLE_CHOICE", "B");
+        Long set = save(problemSet("PAPER", first));
+        Long runId = (Long) single(first.getId(), "single_nonce").get("id");
+        assertEquals(runId, single(first.getId(), "single_nonce").get("id"));
+        assertEquals(409, assertThrows(ObjectiveException.class, () -> single(second.getId(), "single_nonce")).getStatus());
+        assertEquals(409, assertThrows(ObjectiveException.class, () -> start(set, "single_nonce")).getStatus());
+        ObjectiveDTO.StartRun invalid = new ObjectiveDTO.StartRun();
+        invalid.setQuestionId(first.getId()); invalid.setSetId(set); invalid.setRequestId("single_both");
+        assertThrows(ObjectiveException.class, () -> manager.start(invalid));
+        invalid.setQuestionId(null); invalid.setSetId(null);
+        assertThrows(ObjectiveException.class, () -> manager.start(invalid));
+        answer(runId, first.getId(), "A");
+        UID.set("bob"); manageAll = false;
+        assertEquals(404, assertThrows(ObjectiveException.class, () -> manager.run(runId)).getStatus());
+        assertThrows(ObjectiveException.class, () -> answer(runId, first.getId(), "A"));
+        assertThrows(ObjectiveException.class, () -> manager.finish(runId));
+    }
+
+    @Test void standalonePoliciesNeverOverridePaperReleaseRules() {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        ObjectiveDTO.ProblemSet paper = problemSet("PAPER", item);
+        paper.setAnswerPolicy("NEVER"); paper.setExplanationPolicy("NEVER");
+        Long id = (Long) start(save(paper), "paper_isolation").get("id");
+        hidden(answer(id, item.getId(), "A")); hidden(manager.finish(id));
+        Long direct = (Long) single(item.getId(), "single_isolation").get("id");
+        assertEquals(1, answer(direct, item.getId(), "A").get("score"));
+        hidden(manager.run(id));
+    }
+
+    @Test void legacyQuestionJsonUsesDefaultStandalonePolicies() throws Exception {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        String payload = jdbc.queryForObject("SELECT content_json FROM objective_question WHERE id = ?", String.class, item.getId());
+        Map<?, ?> legacy = new ObjectMapper().readValue(payload, Map.class);
+        for (String key : Arrays.asList("practiceEnabled", "answerPolicy", "explanationPolicy", "answerReleaseAt", "explanationReleaseAt")) legacy.remove(key);
+        jdbc.update("UPDATE objective_question SET content_json = ? WHERE id = ?", new ObjectMapper().writeValueAsString(legacy), item.getId());
+        assertEquals("AFTER_ANSWER", manager.question(item.getId()).getAnswerPolicy());
+        Long id = (Long) single(item.getId(), "single_legacy").get("id");
+        assertEquals(1, answer(id, item.getId(), "A").get("score"));
+    }
+
+    @Test void neighborsMatchListOrderAndFiltersWithoutExposingHiddenQuestionsOrAnswers() {
+        ObjectiveDTO.Question oldest = question("SINGLE_CHOICE", "A");
+        ObjectiveDTO.Question hidden = question("SINGLE_CHOICE", "B");
+        hidden.setPublished(false); manager.saveQuestion(hidden);
+        ObjectiveDTO.Question middle = question("TRUE_FALSE", "TRUE");
+        ObjectiveDTO.Question paperOnly = question("SINGLE_CHOICE", "A");
+        paperOnly.setPracticeEnabled(false); manager.saveQuestion(paperOnly);
+        ObjectiveDTO.Question newest = question("SINGLE_CHOICE", "A");
+        Map<String, Object> adjacent = manager.neighbors(middle.getId(), "算法", "");
+        assertEquals(newest.getId(), ((Map<?, ?>) adjacent.get("previous")).get("id"));
+        assertEquals(oldest.getId(), ((Map<?, ?>) adjacent.get("next")).get("id"));
+        assertEquals(new HashSet<>(Arrays.asList("id", "title", "questionType")),
+                ((Map<?, ?>) adjacent.get("next")).keySet());
+        assertNull(manager.neighbors(newest.getId(), "", "").get("previous"));
+        assertNull(manager.neighbors(oldest.getId(), "", "").get("next"));
+        assertNull(manager.neighbors(newest.getId(), "不存在", "").get("next"));
+        assertEquals(middle.getId(), ((Map<?, ?>) manager.neighbors(newest.getId(), "", "TRUE_FALSE").get("next")).get("id"));
+        assertThrows(ObjectiveException.class, () -> manager.neighbors(hidden.getId(), "", ""));
+        assertThrows(ObjectiveException.class, () -> manager.neighbors(paperOnly.getId(), "", ""));
+    }
+
+    @Test void sourceIsValidatedAndFrozenWithTheQuestionSnapshot() {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        item.setSource("  计算机基础 · 2025 年真题  "); manager.saveQuestion(item);
+        Long id = (Long) single(item.getId(), "source_snapshot").get("id");
+        assertEquals("计算机基础 · 2025 年真题", questions(manager.run(id)).get(0).get("source"));
+        item.setSource("新来源"); manager.saveQuestion(item);
+        assertEquals("计算机基础 · 2025 年真题", questions(manager.run(id)).get(0).get("source"));
+        item.setSource(String.join("", Collections.nCopies(201, "x")));
+        assertThrows(ObjectiveException.class, () -> manager.saveQuestion(item));
+        hidden(manager.run(id));
+    }
+
+    @Test void standaloneAutoFinishIsIdempotentAndRejectsChangesAfterSubmission() {
+        ObjectiveDTO.Question item = question("SINGLE_CHOICE", "A");
+        Long id = (Long) single(item.getId(), "single_finished").get("id");
+        assertEquals("FINISHED", answer(id, item.getId(), "A").get("state"));
+        assertEquals(1, answer(id, item.getId(), "A").get("score"));
+        assertEquals(1, manager.finish(id).get("score"));
+        assertEquals(409, assertThrows(ObjectiveException.class, () -> answer(id, item.getId(), "B")).getStatus());
+        assertEquals(id, single(item.getId(), "single_finished").get("id"));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM objective_run", Integer.class));
     }
 }

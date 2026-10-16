@@ -4,7 +4,7 @@
       <div><strong>解题工作台</strong><span class="muted">拖动卡片标题调整顺序，拖动分隔线调整宽度</span></div>
       <div class="workspace-actions">
         <el-button size="mini" :type="!learning ? 'primary' : 'default'" @click="preset(false)">简洁双栏</el-button>
-        <el-button size="mini" :type="learning ? 'primary' : 'default'" @click="preset(true)">学习模式</el-button>
+        <el-button v-if="allowLearning" size="mini" :type="learning ? 'primary' : 'default'" @click="preset(true)">学习模式</el-button>
         <el-button size="mini" @click="swap">左右互换</el-button>
         <el-button size="mini" @click="reset">重置布局</el-button>
       </div>
@@ -36,12 +36,17 @@
 import { readPreference, savePreference } from '@/common/appearance';
 const defaults = () => ({ order: ['statement', 'editor', 'learning'], learning: false, weights: { statement: 50, editor: 50, learning: 28 }, heights: {} });
 export default {
-  props: { editorTitle: { type: String, default: '编程与自测' } },
+  props: {
+    editorTitle: { type: String, default: '编程与自测' },
+    statementTitle: { type: String, default: '题目与提交记录' },
+    allowLearning: { type: Boolean, default: true },
+    preferenceKey: { type: String, default: 'workspace-v1' },
+  },
   data() {
     const state = defaults();
-    const stored = readPreference('workspace-v1', {});
+    const stored = readPreference(this.preferenceKey, {});
     if (Array.isArray(stored.order) && stored.order.length === 3 && new Set(stored.order).size === 3 && stored.order.every(id => state.order.includes(id))) state.order = stored.order;
-    state.learning = stored.learning === true;
+    state.learning = this.allowLearning && stored.learning === true;
     Object.keys(state.weights).forEach(id => {
       const width = stored.weights && stored.weights[id];
       if (typeof width === 'number' && width >= 16 && width <= 80) state.weights[id] = width;
@@ -51,13 +56,13 @@ export default {
     return { ...state, dragging: '', expanded: '', saved: true };
   },
   computed: {
-    titles() { return { statement: '题目与提交记录', editor: this.editorTitle, learning: '学习记录' }; },
-    visiblePanels() { return this.order.filter(id => id !== 'learning' || this.learning); },
+    titles() { return { statement: this.statementTitle, editor: this.editorTitle, learning: '学习记录' }; },
+    visiblePanels() { return this.order.filter(id => id !== 'learning' || this.allowLearning && this.learning); },
   },
   mounted() { this.observe(); window.addEventListener('keydown', this.escape); },
   beforeDestroy() { if (this.observer) this.observer.disconnect(); this.stopResize(); window.removeEventListener('keydown', this.escape); clearTimeout(this.saveTimer); },
   methods: {
-    persist() { this.saved = savePreference('workspace-v1', { order: this.order, learning: this.learning, weights: this.weights, heights: this.heights }); this.$nextTick(() => this.$emit('resize')); },
+    persist() { this.saved = savePreference(this.preferenceKey, { order: this.order, learning: this.learning, weights: this.weights, heights: this.heights }); this.$nextTick(() => this.$emit('resize')); },
     preset(learning) { this.learning = learning; this.expanded = ''; this.order = defaults().order; this.weights = learning ? { statement: 36, editor: 40, learning: 24 } : defaults().weights; this.persist(); this.$nextTick(this.observe); },
     reset() { Object.assign(this, defaults()); this.expanded = ''; this.persist(); this.$nextTick(this.observe); },
     swap() { const a = this.order.indexOf('statement'); const b = this.order.indexOf('editor'); const next = [...this.order]; next[a] = 'editor'; next[b] = 'statement'; this.order = next; this.persist(); },

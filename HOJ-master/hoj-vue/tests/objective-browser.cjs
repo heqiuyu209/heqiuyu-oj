@@ -12,7 +12,7 @@ fs.mkdirSync(output, { recursive: true });
 const report = { checks: [], screenshots: [], errors: [], requests: [] };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const questions = [
-  { id: 1, version: 1, title: '二分查找的复杂度', questionType: 'SINGLE_CHOICE', stem: '对有序数组进行二分查找，最坏时间复杂度是多少？', options: [{ id: 'A', text: 'O(log n)' }, { id: 'B', text: 'O(n)' }], correctAnswers: ['A'], explanation: '每次比较将候选区间缩小约一半。', tagIds: [] },
+  { id: 1, version: 1, title: '二分查找的复杂度', source: '算法基础 · 课堂练习', questionType: 'SINGLE_CHOICE', stem: '对有序数组进行二分查找，最坏时间复杂度是多少？', options: [{ id: 'A', text: 'O(log n)' }, { id: 'B', text: 'O(n)' }], correctAnswers: ['A'], explanation: '每次比较将候选区间缩小约一半。', tagIds: [] },
   { id: 2, version: 1, title: '稳定排序', questionType: 'MULTIPLE_CHOICE', stem: '选择以下稳定的排序算法。', options: [{ id: 'A', text: '归并排序' }, { id: 'B', text: '堆排序' }, { id: 'C', text: '插入排序' }], correctAnswers: ['A', 'C'], explanation: '标准归并排序与插入排序可以保持相等元素的原始顺序。', tagIds: [] },
   { id: 3, version: 1, title: '广度优先搜索', questionType: 'TRUE_FALSE', stem: '无权图的广度优先搜索可以求单源最短路。', options: [{ id: 'TRUE', text: '正确' }, { id: 'FALSE', text: '错误' }], correctAnswers: ['TRUE'], explanation: 'BFS 按距离逐层扩展。', tagIds: [] },
 ];
@@ -25,9 +25,9 @@ const runs = new Map(), starts = new Map();
 const user = () => ({ uid, username: uid, roleList: [role], avatar: '', solvedList: [], scoreList: [] });
 const clone = value => JSON.parse(JSON.stringify(value));
 function view(run) {
-  const set = sets.find(set => set.id === run.setId);
+  const set = sets.find(set => set.id === run.setId) || { answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER' };
   const finished = run.state === 'FINISHED';
-  const rows = questions.map(question => {
+  const rows = questions.filter(question => !run.questionId || question.id === run.questionId).map(question => {
     const selected = run.answers[question.id] || [];
     const submitted = finished || run.mode === 'PRACTICE' && selected.length > 0;
     const visible = submitted && (run.mode === 'PRACTICE' || finished);
@@ -35,7 +35,7 @@ function view(run) {
     return { ...publicQuestion, selectedAnswers: selected, submitted, answerVisible: visible, explanationVisible: visible,
       ...(visible ? { correctAnswers, explanation, correct: JSON.stringify(selected) === JSON.stringify(correctAnswers), score: JSON.stringify(selected) === JSON.stringify(correctAnswers) ? 1 : 0 } : {}) };
   });
-  const result = { id: run.id, setId: run.setId, setVersion: 1, mode: run.mode, title: run.title, state: run.state, questions: rows, answeredCount: Object.keys(run.answers).length, createdAt: run.createdAt, answerPolicy: set.answerPolicy, explanationPolicy: set.explanationPolicy };
+  const result = { id: run.id, setId: run.setId, questionId: run.questionId, setVersion: 1, mode: run.mode, title: run.title, state: run.state, questions: rows, answeredCount: Object.keys(run.answers).length, createdAt: run.createdAt, answerPolicy: set.answerPolicy, explanationPolicy: set.explanationPolicy };
   if (finished) Object.assign(result, { score: rows.filter(q => q.correct).length, maxScore: rows.length });
   return result;
 }
@@ -49,18 +49,37 @@ function fixture(request) {
   if (p === '/api/get-user-home-info') return ok(user());
   if (p === '/api/msg/unread') return ok({ comment: 0, reply: 0, like: 0, sys: 0, mine: 0 });
   if (p === '/api/get-all-problem-tags') return ok([]);
+  if (p === '/api/get-problem-list') return ok({ records: [], total: 0 });
+  const neighborMatch = p.match(/^\/api\/objective\/questions\/(\d+)\/neighbors$/);
+  if (neighborMatch) {
+    const id = Number(neighborMatch[1]);
+    const items = questions.filter(q => q.published !== false && q.practiceEnabled !== false
+      && (!url.searchParams.get('questionType') || q.questionType === url.searchParams.get('questionType'))
+      && (!url.searchParams.get('keyword') || q.title.includes(url.searchParams.get('keyword'))));
+    const metadata = q => q ? { id: q.id, title: q.title, questionType: q.questionType } : null;
+    return ok({ previous: metadata(items.filter(q => q.id > id).sort((a, b) => a.id - b.id)[0]), next: metadata(items.filter(q => q.id < id).sort((a, b) => b.id - a.id)[0]) });
+  }
+  if (p === '/api/objective/questions') {
+    const items = questions.filter(q => q.practiceEnabled !== false && q.published !== false
+      && (!url.searchParams.get('questionType') || q.questionType === url.searchParams.get('questionType'))
+      && (!url.searchParams.get('keyword') || q.title.includes(url.searchParams.get('keyword'))))
+      .sort((a, b) => b.id - a.id).map(({ id, title, questionType, version }) => ({ id, title, questionType, version }));
+    return ok({ records: clone(items), total: items.length });
+  }
   if (p === '/api/objective/sets') return ok({ records: clone(sets), total: sets.length });
   if (p === '/api/objective/runs' && method === 'POST') {
     let run = starts.get(uid + ':' + data.requestId);
     if (!run) {
       const set = sets.find(set => set.id === data.setId);
-      run = { id: ++nextRun, uid, setId: set.id, title: set.title, mode: set.mode, state: 'IN_PROGRESS', createdAt: Date.now(), answers: {} };
+      const question = questions.find(q => q.id === data.questionId);
+      assert.notEqual(!!set, !!question);
+      run = { id: ++nextRun, uid, setId: set ? set.id : null, questionId: question ? question.id : null, title: question ? question.title : set.title, mode: question ? 'PRACTICE' : set.mode, state: 'IN_PROGRESS', createdAt: Date.now(), answers: {} };
       runs.set(run.id, run); starts.set(uid + ':' + data.requestId, run);
     }
     return ok(view(run));
   }
   if (p === '/api/objective/runs') {
-    const own = [...runs.values()].filter(run => run.uid === uid).map(({ id, setId, title, mode, state, createdAt }) => ({ id, setId, title, mode, state, createdAt }));
+    const own = [...runs.values()].filter(run => run.uid === uid).map(({ id, setId, questionId, title, mode, state, createdAt }) => ({ id, setId, questionId, title, mode, state, createdAt }));
     return ok({ records: own, total: own.length });
   }
   const match = p.match(/^\/api\/objective\/runs\/(\d+)(\/answers|\/finish)?$/);
@@ -70,11 +89,12 @@ function fixture(request) {
     if (match[2] === '/answers') {
       assert.deepEqual(Object.keys(data).sort(), ['questionId', 'selectedAnswers']);
       run.answers[data.questionId] = data.selectedAnswers.slice().sort();
+      if (run.questionId) run.state = 'FINISHED';
     }
     if (match[2] === '/finish') run.state = 'FINISHED';
     return ok(view(run));
   }
-  if (p === '/api/admin/objective/questions' && method === 'GET') return ok({ records: questions.map(({ id, title, questionType, version }) => ({ id, title, questionType, version, published: true })), total: questions.length });
+  if (p === '/api/admin/objective/questions' && method === 'GET') return ok({ records: questions.map(({ id, title, questionType, version, practiceEnabled }) => ({ id, title, questionType, version, practiceEnabled: practiceEnabled !== false, published: true })), total: questions.length });
   if (p === '/api/admin/objective/questions') {
     const question = { ...data, id: data.id || ++nextQuestion, version: (data.version || 0) + 1 };
     const index = questions.findIndex(q => q.id === question.id);
@@ -141,6 +161,85 @@ async function until(check, label, timeout = 30000) {
   await cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: "localStorage.setItem('token','objective-fixture-token');localStorage.setItem('Web_Language','\"zh-CN\"');localStorage.setItem('userInfo'," + JSON.stringify(JSON.stringify(user())) + ");" });
   await cdp('Page.navigate', { url: base + '/objective' });
+  await until(() => ev("document.querySelectorAll('.objective-list .el-table__body tr').length===3"), 'standalone questions');
+  assert.equal(await ev("document.querySelector('.problem-navigation a[aria-current=\"page\"]')?.getAttribute('href')"), '/objective');
+  await shot('objective-single-desktop');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert.equal(await ev("document.documentElement.scrollWidth>innerWidth"), false);
+  assert.equal(await ev("document.querySelector('.problem-navigation a[href=\"/objective\"]')?.getBoundingClientRect().height>=44"), true);
+  assert.equal(await ev("document.querySelector('.single-question-list button')?.getBoundingClientRect().height>=32&&document.querySelector('.single-question-list button')?.getBoundingClientRect().right<innerWidth"), true);
+  await shot('objective-single-mobile');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+  await ev(find('ObjectiveList') + '.start(' + find('ObjectiveList') + '.rows.find(q=>q.id===1));true');
+  await until(() => ev(find('ObjectiveRun') + '?.run?.questionId===1'), 'standalone run');
+  assert.equal(await ev(find('ObjectiveRun') + '.run.setId'), null);
+  await until(() => ev(find('ObjectiveRun') + '.previousQuestion?.id===2'), 'standalone neighbors');
+  assert.equal(await ev("document.querySelectorAll('.workspace-card').length"), 2);
+  assert.equal(await ev("[...document.querySelectorAll('.workspace-card-heading strong')].map(n=>n.textContent.trim()).join(',')"), '题目内容,选项与作答');
+  assert.equal(await ev("document.querySelector('.question-origin').textContent.includes('算法基础 · 课堂练习')"), true);
+  assert.equal(await ev("document.querySelector('.next-question').disabled"), true);
+  assert.equal(await ev("document.querySelector('[data-panel=\"editor\"]').getBoundingClientRect().left>document.querySelector('[data-panel=\"statement\"]').getBoundingClientRect().left"), true);
+  await shot('objective-cards-desktop');
+  await ev("document.documentElement.dataset.theme='dark';true");
+  await shot('objective-cards-dark');
+  await ev("document.documentElement.dataset.theme='light';true");
+  assert.equal(await ev("!!document.querySelector('.objective-feedback')"), false);
+  await ev("document.querySelector('.objective-answer .el-radio').click()");
+  await until(() => ev("!document.querySelector('.answer-footer button').disabled"), 'single answer selected');
+  await ev("document.querySelector('.answer-footer button').click()");
+  await until(() => ev(find('ObjectiveRun') + ".run.state==='FINISHED'"), 'standalone automatically finished');
+  assert.equal(await ev("document.querySelector('.objective-feedback')?.innerText.includes('回答正确')"), true);
+  const firstSingle = await ev(find('ObjectiveRun') + '.run.id');
+  await ev(find('ObjectiveRun') + '.restart();true');
+  await until(() => ev(find('ObjectiveRun') + '.run?.id!==' + firstSingle + '&&' + find('ObjectiveRun') + '.run?.questionId===1'), 'standalone restart');
+  const singleRequest = report.requests.filter(r => r.path === '/api/objective/runs' && r.method === 'POST').pop().data;
+  assert.equal(singleRequest.questionId, 1); assert.equal(singleRequest.setId, undefined);
+  await until(() => ev(find('ObjectiveRun') + '.previousQuestion?.id===2&&!'+find('ObjectiveRun')+'.neighborsLoading'), 'restarted neighbors');
+  const restartedId = await ev(find('ObjectiveRun') + '.run.id');
+  const startsBeforeNavigation = report.requests.filter(r => r.path === '/api/objective/runs' && r.method === 'POST').length;
+  await ev("document.querySelector('.objective-answer .el-radio').click()");
+  await until(() => ev(find('ObjectiveAnswer') + '.dirty'), 'unsaved single selection');
+  await ev("document.querySelector('.previous-question').click()");
+  await until(() => ev("!!document.querySelector('.el-message-box__btns .el-button--primary')"), 'unsaved switch confirmation');
+  await ev("document.querySelector('.el-message-box__btns .el-button:not(.el-button--primary)').click()");
+  await until(() => ev('!'+find('ObjectiveRun')+'.navigating'), 'cancel switching');
+  assert.equal(await ev(find('ObjectiveRun')+'.run.id'), restartedId);
+  assert.equal(await ev(find('ObjectiveAnswer')+'.single'), 'A');
+  assert.equal(report.requests.filter(r => r.path === '/api/objective/runs' && r.method === 'POST').length, startsBeforeNavigation);
+  await ev("document.querySelector('.previous-question').click()");
+  await until(() => ev("!!document.querySelector('.el-message-box__btns .el-button--primary')"), 'confirm switch');
+  await ev("document.querySelector('.el-message-box__btns .el-button--primary').click()");
+  await until(() => ev(find('ObjectiveRun')+'.run?.questionId===2&&!'+find('ObjectiveRun')+'.neighborsLoading'), 'previous standalone question');
+  assert.equal(await ev("document.querySelector('.question-origin').textContent.includes('本校题库')"), true);
+  await ev("document.querySelector('.next-question').click()");
+  await until(() => ev(find('ObjectiveRun')+'.run?.id==='+restartedId), 'resume visited question');
+  assert.equal(report.requests.filter(r => r.path === '/api/objective/runs' && r.method === 'POST').length, startsBeforeNavigation + 1);
+  assert.equal(await ev(find('ObjectiveAnswer')+'.single'), '');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert.equal(await ev('document.documentElement.scrollWidth>innerWidth'), false);
+  assert.equal(await ev("document.querySelector('[data-panel=\"editor\"]').getBoundingClientRect().top>document.querySelector('[data-panel=\"statement\"]').getBoundingClientRect().top"), true);
+  await shot('objective-cards-mobile');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
+  await ev("document.querySelector('.run-back').click()");
+  await until(() => ev("!!document.querySelector('.objective-list')"), 'back to question list');
+  report.checks.push('Objective solving reuses two workspace cards, displays frozen source labels, switches adjacent standalone questions, preserves unsaved selections on cancel, and reuses visited runs; mobile stacks cards without overflow.');
+  await ev(find('ObjectiveList') + ".type='TRUE_FALSE';" + find('ObjectiveList') + '.reset();true');
+  await until(() => ev(find('ObjectiveList') + '.rows.length===1'), 'single type filter');
+  assert.equal(await ev(find('ObjectiveList') + '.rows[0].questionType'), 'TRUE_FALSE');
+  await ev(find('ObjectiveList')+'.start('+find('ObjectiveList')+'.rows[0]);true');
+  await until(() => ev(find('ObjectiveRun')+'?.run?.questionId===3&&!'+find('ObjectiveRun')+'.neighborsLoading'), 'filtered standalone');
+  assert.equal(await ev("document.querySelector('.previous-question').disabled&&document.querySelector('.next-question').disabled"), true);
+  await ev("document.querySelector('.run-back').click()");
+  await until(() => ev(find('ObjectiveList')+'?.rows.length===1'), 'restore list filter');
+  assert.equal(await ev(find('ObjectiveList')+'.type'), 'TRUE_FALSE');
+  report.checks.push('Adjacent questions respect the original question-type filter and returning restores the filtered list.');
+  await route('/problem');
+  await until(() => ev("!!document.querySelector('.problem-navigation a[href=\"/objective\"]')"), 'programming navigation');
+  assert.equal(await ev("document.querySelector('.problem-navigation a[aria-current=\"page\"]')?.getAttribute('href')"), '/problem');
+  await ev("document.querySelector('.problem-navigation a[href=\"/objective\"]').click()");
+  await until(() => ev("document.querySelectorAll('.objective-list .el-table__body tr').length===3"), 'navigate to standalone practice');
+  report.checks.push('Standalone questions are the default, support type filtering, submit and finish without a set, restart from questionId, and have visible desktop/mobile navigation.');
+  await ev(find('ObjectiveList') + ".tab='sets';" + find('ObjectiveList') + '.reset();true');
   await until(() => ev("!!document.querySelector('.objective-list .el-table__body tr')"), 'objective sets');
   await shot('objective-sets-desktop');
   await ev("document.querySelector('.objective-list .el-table__body tr button').click()");
@@ -173,15 +272,35 @@ async function until(check, label, timeout = 30000) {
   report.checks.push('Multiple choice and true/false use the same server-backed answer workflow.');
 
   await route('/objective');
+  await ev(find('ObjectiveList') + ".tab='sets';" + find('ObjectiveList') + '.reset();true');
   await until(() => ev("document.querySelectorAll('.objective-list .el-table__body tr').length===2"), 'return to sets');
   await ev("document.querySelectorAll('.objective-list .el-table__body tr')[1].querySelector('button').click()");
-  await until(() => ev("document.querySelector('.run-summary')?.innerText.includes('整卷答题')"), 'paper');
-  await ev("document.querySelector('.objective-answer .el-radio').click();document.querySelector('.answer-footer button').click()");
+  await until(() => ev(find('ObjectiveRun') + "?.run?.mode==='PAPER'"), 'paper');
+  const paperId = await ev(find('ObjectiveRun')+'.run.id');
+  await ev("document.querySelector('.objective-answer .el-radio').click()");
+  await until(() => ev("!document.querySelector('.answer-footer button').disabled"), 'paper selected');
+  await ev("document.querySelector('.answer-footer button').click()");
   await until(() => ev(find('ObjectiveRun') + ".run.answeredCount===1"), 'paper save');
   assert.equal(await ev("!!document.querySelector('.objective-feedback')"), false);
   assert.equal(await ev("document.querySelector('.answer-footer button').disabled"), false);
-  await ev("document.querySelectorAll('.objective-answer .el-radio')[1].click();document.querySelector('.answer-footer button').click()");
+  await ev("document.querySelectorAll('.objective-answer .el-radio')[1].click()");
+  await until(() => ev(find('ObjectiveAnswer')+'.dirty'), 'unsaved paper edit');
+  await ev("document.querySelector('.next-question').click()");
+  await until(() => ev("!!document.querySelector('.el-message-box__btns .el-button--primary')"), 'paper switch confirmation');
+  await ev("document.querySelector('.el-message-box__btns .el-button:not(.el-button--primary)').click()");
+  await sleep(200);
+  assert.equal(await ev(find('ObjectiveRun')+'.selectedId'), 1);
+  assert.equal(await ev(find('ObjectiveAnswer')+'.single'), 'B');
+  await ev("document.querySelector('.answer-footer button').click()");
   await until(() => ev("JSON.stringify(" + find('ObjectiveRun') + ".run.questions[0].selectedAnswers)==='[\"B\"]'"), 'paper edit');
+  await ev("document.querySelector('.next-question').click()");
+  await until(() => ev(find('ObjectiveRun')+'.selectedId===2'), 'next paper question');
+  assert.equal(await ev(find('ObjectiveRun')+'.run.id'), paperId);
+  assert.equal(await ev("document.querySelector('.question-set').textContent.includes('计算机基础整卷自测')"), true);
+  await ev("document.querySelector('.previous-question').click()");
+  await until(() => ev(find('ObjectiveRun')+'.selectedId===1'), 'previous paper question');
+  assert.equal(await ev(find('ObjectiveAnswer')+'.single'), 'B');
+  report.checks.push('Paper previous/next stays within the same run, marks its set source, and protects unsaved edits.');
   await shot('objective-paper-before-finish');
   await ev(find('ObjectiveRun') + ".finish();true");
   await until(() => ev("!!document.querySelector('.el-message-box__btns .el-button--primary')"), 'finish confirmation');
@@ -234,9 +353,10 @@ async function until(check, label, timeout = 30000) {
   await until(() => ev("!!document.querySelector('.objective-admin .el-table__body tr')"), 'admin');
   await ev(find('ObjectiveAdmin') + ".newQuestion()");
   await until(() => ev("!!document.querySelector('.el-dialog__body textarea')"), 'question editor');
-  await ev("Object.assign(" + find('ObjectiveAdmin') + ".question,{title:'新判断题',stem:'二分查找需要有序性。',questionType:'TRUE_FALSE',correctAnswers:['TRUE'],explanation:'本题考查前提条件。',published:true});" + find('ObjectiveAdmin') + ".saveQuestion()");
+  await ev("Object.assign(" + find('ObjectiveAdmin') + ".question,{title:'新判断题',source:'课堂练习',stem:'二分查找需要有序性。',questionType:'TRUE_FALSE',correctAnswers:['TRUE'],explanation:'本题考查前提条件。',published:true});" + find('ObjectiveAdmin') + ".saveQuestion()");
   await until(() => ev("!" + find('ObjectiveAdmin') + ".questionDialog"), 'save question');
   assert(report.requests.some(r => r.path === '/api/admin/objective/questions' && r.method === 'POST' && r.data.questionType === 'TRUE_FALSE'));
+  assert.equal(report.requests.filter(r => r.path === '/api/admin/objective/questions' && r.method === 'POST').pop().data.source, '课堂练习');
   await ev(find('ObjectiveAdmin') + ".tab='sets';" + find('ObjectiveAdmin') + ".reset();");
   await until(() => ev("!!document.querySelector('.objective-admin .el-table__body tr')"), 'admin sets');
   await ev(find('ObjectiveAdmin') + ".newSet();");

@@ -1234,6 +1234,7 @@ CREATE TABLE IF NOT EXISTS objective_question (
     question_type VARCHAR(24) NOT NULL,
     version INT NOT NULL,
     published TINYINT(1) NOT NULL DEFAULT 0,
+    practice_enabled TINYINT(1) NOT NULL DEFAULT 1,
     created_by VARCHAR(32) NOT NULL,
     content_json LONGTEXT NOT NULL,
     gmt_create DATETIME(3) NOT NULL,
@@ -1271,8 +1272,9 @@ CREATE TABLE IF NOT EXISTS objective_set (
 
 CREATE TABLE IF NOT EXISTS objective_run (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    set_id BIGINT NOT NULL,
-    set_version INT NOT NULL,
+    set_id BIGINT NULL,
+    set_version INT NULL,
+    question_id BIGINT NULL,
     uid VARCHAR(32) NOT NULL,
     request_id VARCHAR(64) NOT NULL,
     mode VARCHAR(16) NOT NULL,
@@ -1284,5 +1286,6 @@ CREATE TABLE IF NOT EXISTS objective_run (
     gmt_modified DATETIME(3) NOT NULL,
     UNIQUE KEY uk_objective_run_request (uid, request_id),
     KEY idx_objective_run_user (uid, id),
-    KEY idx_objective_run_set (set_id)
+    KEY idx_objective_run_set (set_id),
+    KEY idx_objective_run_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

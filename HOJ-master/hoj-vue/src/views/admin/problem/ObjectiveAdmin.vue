@@ -1,6 +1,6 @@
 <template>
   <section class="objective-admin">
-    <header class="admin-objective-heading"><div><h1>客观题与组卷</h1><p>先维护题目，再按练习或整卷组织；答案与解析分别控制开放时间。</p></div>
+    <header class="admin-objective-heading"><div><h1>客观题与组卷</h1><p>题目可单独练习，也可加入题集或试卷；答案与解析分别控制开放时间。</p></div>
       <el-button type="primary" :disabled="saving" @click="tab === 'questions' ? newQuestion() : newSet()">{{ tab === 'questions' ? '新增客观题' : '新建题集 / 试卷' }}</el-button>
     </header>
     <el-tabs v-model="tab" @tab-click="reset"><el-tab-pane label="客观题库" name="questions" /><el-tab-pane label="题集与试卷" name="sets" /></el-tabs>
@@ -15,12 +15,14 @@
       <el-table-column label="类型" width="120"><template slot-scope="{ row }">{{ tab === 'questions' ? questionTypes[row.questionType] : modes[row.mode] }}</template></el-table-column>
       <el-table-column v-if="tab === 'sets'" prop="questionCount" label="题数" width="80" />
       <el-table-column label="发布状态" width="100"><template slot-scope="{ row }"><el-tag :type="row.published ? 'success' : 'info'">{{ row.published ? '已发布' : '未发布' }}</el-tag></template></el-table-column>
+      <el-table-column v-if="tab === 'questions'" label="单题练习" width="110"><template slot-scope="{ row }">{{ row.practiceEnabled === false ? '未开放' : '允许' }}</template></el-table-column>
       <el-table-column label="操作" width="130"><template slot-scope="{ row }"><el-button type="text" @click="edit(row)">{{ tab === 'questions' ? '编辑题目' : '编辑与开放设置' }}</el-button></template></el-table-column>
     </el-table>
     <el-pagination layout="prev, pager, next, total" :total="total" :current-page="page" :page-size="20" @current-change="changePage" />
     <el-dialog title="客观题编辑" :visible.sync="questionDialog" width="min(900px, 94vw)" top="5vh" custom-class="objective-editor-dialog" append-to-body :close-on-click-modal="false" :before-close="closeQuestion">
       <el-form v-if="question" label-position="top" @submit.native.prevent>
         <el-form-item label="标题"><el-input v-model="question.title" maxlength="200" show-word-limit /></el-form-item>
+        <el-form-item label="题目来源"><el-input v-model="question.source" maxlength="200" show-word-limit placeholder="例如：计算机二级 2025 年真题；留空显示本校题库" /></el-form-item>
         <el-form-item label="题型"><el-select v-model="question.questionType" @change="changeQuestionType"><el-option v-for="(label, value) in questionTypes" :key="value" :value="value" :label="label" /></el-select></el-form-item>
         <el-form-item label="题干"><el-input v-model="question.stem" type="textarea" :rows="6" maxlength="30000" /></el-form-item>
         <el-form-item v-if="question.questionType !== 'TRUE_FALSE'" label="选项（2 至 10 个）">
@@ -34,7 +36,15 @@
         </el-form-item>
         <el-form-item label="解析"><el-input v-model="question.explanation" type="textarea" :rows="5" maxlength="30000" /></el-form-item>
         <el-form-item label="知识点"><el-select v-model="question.tagIds" multiple filterable placeholder="选择已有公共题目标签"><el-option v-for="tag in tags" :key="tag.id" :value="tag.id" :label="tag.name" /></el-select></el-form-item>
-        <el-form-item label="发布"><el-switch v-model="question.published" /><small class="form-help">发布后才能加入已发布题集。每次保存创建新版本，已有作答保留原题。</small></el-form-item>
+        <el-form-item label="发布"><el-switch v-model="question.published" /><small class="form-help">发布后，题目可按单题练习设置开放，也可加入已发布题集。每次保存创建新版本，已有作答保留原题。</small></el-form-item>
+        <el-form-item label="允许单题练习"><el-switch v-model="question.practiceEnabled" /><small class="form-help">开启并发布后，学生可在客观题页直接练习本题。仅用于试卷的题目请关闭，避免学生通过单题练习提前查看答案。</small></el-form-item>
+        <template v-if="question.practiceEnabled">
+          <div class="release-fields">
+            <el-form-item label="单题练习答案与判分反馈开放条件"><el-select v-model="question.answerPolicy"><el-option v-for="(label, value) in releasePolicies" :key="value" :value="value" :label="label" /></el-select><el-date-picker v-if="question.answerPolicy === 'AT_TIME'" v-model="question.answerReleaseAt" type="datetime" value-format="timestamp" placeholder="选择答案开放时间" /></el-form-item>
+            <el-form-item label="单题练习解析开放条件"><el-select v-model="question.explanationPolicy"><el-option v-for="(label, value) in releasePolicies" :key="value" :value="value" :label="label" /></el-select><el-date-picker v-if="question.explanationPolicy === 'AT_TIME'" v-model="question.explanationReleaseAt" type="datetime" value-format="timestamp" placeholder="选择解析开放时间" /></el-form-item>
+          </div>
+          <p class="form-help">单题提交即完成本次练习；提交后和交卷后两种条件在此场景下同时满足。加入题集或试卷时，以题集或试卷的开放设置为准。</p>
+        </template>
         <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
       </el-form>
       <span slot="footer"><el-button :disabled="saving" @click="closeQuestion()">取消</el-button><el-button type="primary" :loading="saving" @click="saveQuestion">保存题目</el-button></span>
@@ -96,7 +106,7 @@ export default {
     newQuestion() {
       if (this.saving) return;
       this.formRequest++; this.formError = '';
-      this.question = { title: '', questionType: 'SINGLE_CHOICE', stem: '', options: options(), correctAnswers: [], explanation: '', tagIds: [], published: false };
+      this.question = { title: '', source: '', questionType: 'SINGLE_CHOICE', stem: '', options: options(), correctAnswers: [], explanation: '', tagIds: [], published: false, practiceEnabled: true, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null };
       this.questionDialog = true;
     },
     newSet() {
@@ -112,7 +122,7 @@ export default {
         if (this.tab === 'questions') {
           const question = responseData(await api.adminObjectiveQuestion(row.id));
           if (request !== this.formRequest) return;
-          this.question = question; this.questionDialog = true;
+          this.question = { practiceEnabled: true, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null, ...question }; this.questionDialog = true;
         } else {
           const set = responseData(await api.adminObjectiveSet(row.id));
           const selected = await Promise.all(set.questionIds.map(id => api.adminObjectiveQuestion(id).then(responseData)));
@@ -148,7 +158,8 @@ export default {
       if (!this.question.title.trim() || !this.question.stem.trim() || !this.question.correctAnswers.length) { this.formError = '请填写标题、题干和标准答案。'; return; }
       this.saving = true; this.formError = ''; const request = this.formRequest;
       try {
-        await api.adminSaveObjectiveQuestion(this.question);
+        const payload = { ...this.question, answerReleaseAt: this.question.answerReleaseAt ? Number(this.question.answerReleaseAt) : null, explanationReleaseAt: this.question.explanationReleaseAt ? Number(this.question.explanationReleaseAt) : null };
+        await api.adminSaveObjectiveQuestion(payload);
         if (request !== this.formRequest) return;
         this.questionDialog = false; this.$message.success('题目已保存'); this.load();
       } catch (error) { if (request === this.formRequest) this.formError = errorMessage(error); }

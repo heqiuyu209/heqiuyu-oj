@@ -10,6 +10,7 @@ public class ObjectiveRun {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long setId;
+    private Long questionId;
     private Integer setVersion;
     private String uid;
     private String requestId;

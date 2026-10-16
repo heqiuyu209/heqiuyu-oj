@@ -20,11 +20,17 @@ public final class ObjectiveDTO {
         private String title;
         private String questionType;
         private String stem;
+        private String source;
         private List<Option> options;
         private List<String> correctAnswers;
         private String explanation;
         private List<Long> tagIds;
         private Boolean published;
+        private Boolean practiceEnabled;
+        private String answerPolicy;
+        private String explanationPolicy;
+        private Long answerReleaseAt;
+        private Long explanationReleaseAt;
     }
 
     @Data
@@ -45,6 +51,7 @@ public final class ObjectiveDTO {
     @Data
     public static class StartRun {
         private Long setId;
+        private Long questionId;
         private String requestId;
     }
 

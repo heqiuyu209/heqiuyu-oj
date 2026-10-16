@@ -1,78 +1,100 @@
 <template>
   <section class="objective-run" v-loading="loading">
     <header class="run-heading">
-      <div><router-link to="/objective">返回客观题练习</router-link><h1>{{ run ? run.title : '客观题作答' }}</h1></div>
-      <el-button :disabled="saving" @click="refresh">刷新结果</el-button>
+      <div class="run-breadcrumb"><el-button class="run-back" icon="el-icon-back" :disabled="saving || navigating" @click="$router.push(backLocation)">返回{{ backLabel }}</el-button><span>客观题练习</span></div>
+      <el-button class="run-refresh" icon="el-icon-refresh" :disabled="saving || navigating" @click="refresh">刷新结果</el-button>
     </header>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <template v-if="run">
+      <div class="run-title"><div><p>{{ run.questionId ? '单题练习' : modes[run.mode] }}</p><h1>{{ run.title }}</h1></div>
       <div class="run-summary">
-        <el-tag>{{ modes[run.mode] }}</el-tag><span>{{ finished ? '已交卷' : '进行中' }} · 已作答 {{ run.answeredCount }} / {{ run.questions.length }}</span>
+        <el-tag :type="finished ? 'success' : 'info'">{{ finished ? run.mode === 'PAPER' ? '已交卷' : '已完成' : '进行中' }}</el-tag><span>已作答 {{ run.answeredCount }} / {{ run.questions.length }}</span>
         <strong v-if="run.score !== undefined">得分 {{ run.score }} / {{ run.maxScore }}</strong>
         <span v-else-if="finished">判分反馈尚未开放</span>
       </div>
-      <p class="run-notice">{{ run.mode === 'PAPER' ? '可以逐题保存和修改，交卷后统一判分。每题 1 分，多选须全部选对。' : '逐题提交后本次答案不能修改；需要重答时可重新练习。每题 1 分，多选须全部选对。' }}</p>
-      <p class="run-notice">答案：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}；解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}。</p>
-      <div class="run-filters">
-        <el-select :value="type" clearable placeholder="全部题型" @change="changeType">
+      </div>
+      <div class="question-switcher" aria-label="上一题和下一题">
+        <el-button class="previous-question" icon="el-icon-arrow-left" :disabled="saving || navigating || neighborsLoading || !previousQuestion" :title="previousQuestion ? previousQuestion.title : '已是第一题'" @click="navigateQuestion(-1)">上一题</el-button>
+        <span>{{ run.questionId ? '按题库列表顺序练习' : selectedQuestion ? '第 ' + (run.questions.findIndex(q => q.id === selectedId) + 1) + ' / ' + run.questions.length + ' 题' : '暂无匹配题目' }}</span>
+        <el-button class="next-question" :disabled="saving || navigating || neighborsLoading || !nextQuestion" :title="nextQuestion ? nextQuestion.title : '已是最后一题'" @click="navigateQuestion(1)">下一题 <i class="el-icon-arrow-right" /></el-button>
+      </div>
+      <p v-if="neighborsError" class="navigation-error" role="alert">{{ neighborsError }} <el-button type="text" @click="loadNeighbors">重试加载相邻题目</el-button></p>
+      <div v-if="!run.questionId" class="run-filters">
+        <el-select :value="type" :disabled="saving || navigating" clearable placeholder="全部题型" @change="changeType">
           <el-option v-for="(label, value) in questionTypes" :key="value" :label="label" :value="value" />
         </el-select>
         <el-checkbox v-if="finished" v-model="onlyWrong" @change="selectFirst">只看已开放的错题</el-checkbox>
       </div>
-      <div class="run-workspace">
-        <nav class="question-nav" aria-label="题目导航">
-          <el-button v-for="(question, index) in visibleQuestions" :key="question.id" :type="selectedId === question.id ? 'primary' : 'default'" :plain="selectedId !== question.id" :disabled="saving" @click="selectQuestion(question.id)">
-            {{ index + 1 }}. {{ question.title }} <span v-if="question.submitted">✓</span>
-          </el-button>
-          <p v-if="!visibleQuestions.length" class="run-notice">当前筛选下没有题目。尚未开放的判分结果不会用于错题筛选。</p>
-        </nav>
-        <article v-if="selectedQuestion" class="question-content">
-          <header><h2>{{ selectedQuestion.title }}</h2><small class="run-notice">题目版本 {{ selectedQuestion.version }}</small></header>
-          <p class="question-stem">{{ selectedQuestion.stem }}</p>
-          <ObjectiveAnswer ref="answer" :key="selectedQuestion.id" :problem="selectedQuestion" enabled :mode="run.mode" :run-id="run.id" :finished="finished" :loading="saving" @submit="saveAnswer" />
-        </article>
-      </div>
-      <footer class="run-actions">
-        <el-button v-if="!finished" type="primary" :loading="saving" :disabled="saving" @click="finish">{{ run.mode === 'PAPER' ? '交卷并结束作答' : '结束本次练习' }}</el-button>
+      <nav v-if="!run.questionId" class="question-nav" aria-label="题目导航">
+        <el-button v-for="question in visibleQuestions" :key="question.id" :type="selectedId === question.id ? 'primary' : 'default'" :plain="selectedId !== question.id" :disabled="saving || navigating" :aria-label="question.title" :title="question.title" @click="selectQuestion(question.id)">
+          {{ run.questions.findIndex(q => q.id === question.id) + 1 }} <i v-if="question.submitted" class="el-icon-check" />
+        </el-button>
+      </nav>
+      <WorkspaceLayout v-if="selectedQuestion" editor-title="选项与作答" statement-title="题目内容" :allow-learning="false" preference-key="objective-workspace-v1">
+        <template #statement>
+          <article class="question-content">
+            <header><el-tag size="small" effect="plain">{{ questionTypes[selectedQuestion.questionType] }}</el-tag><h2>{{ selectedQuestion.title }}</h2>
+              <div class="question-origin"><span><i class="el-icon-collection-tag" /> 来源：{{ selectedQuestion.source || '本校题库' }}</span><span>题号 {{ selectedQuestion.id }}</span><span>版本 {{ selectedQuestion.version }}</span></div>
+              <p v-if="!run.questionId" class="question-set"><i class="el-icon-folder-opened" /> 所属{{ run.mode === 'PAPER' ? '试卷' : '题集' }}：{{ run.title }}</p>
+            </header>
+            <h3>题目描述</h3><p class="question-stem">{{ selectedQuestion.stem }}</p>
+            <div class="practice-rules"><h3>作答说明</h3>
+              <p>{{ run.questionId ? '提交即完成本次练习，需要重答时可重新练习。' : run.mode === 'PAPER' ? '可以逐题保存和修改，交卷后统一判分。每题 1 分，多选须全部选对。' : '逐题提交后本次答案不能修改；需要重答时可重新练习。每题 1 分，多选须全部选对。' }}</p>
+              <p>答案：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}<br>解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}</p>
+            </div>
+          </article>
+        </template>
+        <template #editor><ObjectiveAnswer ref="answer" :key="run.id + ':' + selectedQuestion.id" :problem="selectedQuestion" enabled :mode="run.mode" :run-id="run.id" :finished="finished" :loading="saving || navigating" @submit="saveAnswer" /></template>
+      </WorkspaceLayout>
+      <p v-else class="run-notice">当前筛选下没有题目。尚未开放的判分结果不会用于错题筛选。</p>
+      <div v-if="finished || !run.questionId" class="run-actions">
+        <el-button v-if="!finished && !run.questionId" type="primary" :loading="saving" :disabled="saving" @click="finish">{{ run.mode === 'PAPER' ? '交卷并结束作答' : '结束本次练习' }}</el-button>
         <el-button v-if="finished" type="primary" :loading="saving" @click="restart">重新{{ run.mode === 'PAPER' ? '答卷' : '练习' }}</el-button>
-      </footer>
+      </div>
     </template>
   </section>
 </template>
 <script>
 import api from '@/common/api';
 import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
+import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
 import { modes, questionTypes, releaseLabel, requestId, responseData, errorMessage } from '@/common/objective';
 export default {
   name: 'ObjectiveRun',
-  components: { ObjectiveAnswer },
-  data: () => ({ run: null, selectedId: null, type: '', onlyWrong: false, loading: false, saving: false, error: '', request: 0, restartId: '', modes, questionTypes }),
+  components: { ObjectiveAnswer, WorkspaceLayout },
+  data: () => ({ run: null, selectedId: null, type: '', onlyWrong: false, loading: false, saving: false, error: '', request: 0, restartId: '',
+    neighbors: { previous: null, next: null }, neighborsLoading: false, neighborsError: '', navigating: false, approvedRunId: '', navigationIds: {}, visitedRuns: {}, modes, questionTypes }),
   computed: {
     uid() { return this.$store.getters.userInfo.uid; },
     finished() { return this.run && this.run.state === 'FINISHED'; },
     visibleQuestions() { return this.run ? this.run.questions.filter(q => (!this.type || q.questionType === this.type) && (!this.onlyWrong || q.answerVisible && q.correct === false)) : []; },
     selectedQuestion() { return this.visibleQuestions.find(q => q.id === this.selectedId) || null; },
+    previousQuestion() { return this.run && this.run.questionId ? this.neighbors.previous : this.visibleQuestions[this.visibleQuestions.findIndex(q => q.id === this.selectedId) - 1]; },
+    nextQuestion() { const index = this.visibleQuestions.findIndex(q => q.id === this.selectedId); return this.run && this.run.questionId ? this.neighbors.next : index < 0 ? null : this.visibleQuestions[index + 1]; },
+    backLabel() { return this.$route.query.listTab === 'history' ? '作答记录' : this.$route.query.listTab === 'sets' || this.run && !this.run.questionId ? '题集与试卷' : '客观题库'; },
+    backLocation() { return { path: '/objective', query: { ...this.$route.query, listTab: this.$route.query.listTab || (this.run && !this.run.questionId ? 'sets' : 'questions') } }; },
   },
   watch: {
-    '$route.params.runID'() { this.run = null; this.selectedId = null; this.type = ''; this.onlyWrong = false; this.load(); },
-    uid() { this.request++; this.run = null; this.selectedId = null; this.restartId = ''; this.saving = false; this.load(); },
+    '$route.params.runID'() { this.run = null; this.selectedId = null; this.type = ''; this.onlyWrong = false; this.restartId = ''; this.navigating = false; this.approvedRunId = ''; this.load(); },
+    uid() { this.request++; this.run = null; this.selectedId = null; this.restartId = ''; this.saving = false; this.navigating = false; this.approvedRunId = ''; this.visitedRuns = {}; this.navigationIds = {}; this.load(); },
   },
   created() { this.load(); },
   mounted() { window.addEventListener('beforeunload', this.beforeUnload); },
   beforeDestroy() { this.request++; window.removeEventListener('beforeunload', this.beforeUnload); },
-  beforeRouteLeave(to, from, next) {
-    this.confirmLeave(next);
-  },
-  beforeRouteUpdate(to, from, next) { this.confirmLeave(next); },
+  beforeRouteLeave(to, from, next) { this.confirmLeave(next, to); },
+  beforeRouteUpdate(to, from, next) { this.confirmLeave(next, to); },
   methods: {
     releaseLabel,
-    hasUnsaved() { return !!(this.$refs.answer && this.$refs.answer.dirty && !this.finished && !this.$refs.answer.locked); },
-    confirmLeave(next) {
-      if (this.saving) { this.$message.warning('正在保存，请稍候'); return next(false); }
+    hasUnsaved() { return !!(this.run && this.selectedQuestion && this.$refs.answer && this.$refs.answer.dirty && !this.finished && !(this.run.mode === 'PRACTICE' && this.selectedQuestion.submitted)); },
+    context() { const request = this.request, uid = this.uid, id = this.run && this.run.id, selectedId = this.selectedId; return () => request === this.request && uid === this.uid && id === (this.run && this.run.id) && selectedId === this.selectedId; },
+    confirmLeave(next, to) {
+      if (to.params.runID && String(to.params.runID) === this.approvedRunId) return next();
+      if (this.saving || this.navigating) { this.$message.warning('正在处理，请稍候'); return next(false); }
       if (!this.hasUnsaved()) return next();
-      this.$confirm('当前答案尚未保存，离开将丢失这次修改。', '离开作答', { type: 'warning' }).then(() => next()).catch(() => next(false));
+      const current = this.context();
+      this.$confirm('当前答案尚未保存，离开将丢失这次修改。', '离开作答', { type: 'warning' }).then(() => next(current() ? undefined : false)).catch(() => next(false));
     },
-    beforeUnload(event) { if (this.hasUnsaved() || this.saving) { event.preventDefault(); event.returnValue = ''; } },
+    beforeUnload(event) { if (this.hasUnsaved() || this.saving || this.navigating) { event.preventDefault(); event.returnValue = ''; } },
     accept(run) {
       this.run = run;
       if (!this.visibleQuestions.some(q => q.id === this.selectedId)) this.selectFirst();
@@ -80,31 +102,73 @@ export default {
     async load() {
       const request = ++this.request;
       this.loading = true; this.error = '';
+      this.neighbors = { previous: null, next: null }; this.neighborsError = ''; this.neighborsLoading = false;
       try {
         const run = responseData(await api.objectiveRun(this.$route.params.runID));
-        if (request === this.request) this.accept(run);
+        if (request === this.request) { this.accept(run); if (run.questionId) { this.$set(this.visitedRuns, run.questionId, run.id); this.loadNeighbors(); } }
       } catch (error) { if (request === this.request) this.error = errorMessage(error); }
       finally { if (request === this.request) this.loading = false; }
     },
     async refresh() {
-      if (this.saving) return;
+      if (this.saving || this.navigating) return;
+      const current = this.context();
       if (this.hasUnsaved()) {
         try { await this.$confirm('刷新将丢失当前未保存的修改。', '刷新结果', { type: 'warning' }); } catch (_) { return; }
       }
-      this.load();
+      if (current()) this.load();
     },
     selectFirst() { this.selectedId = this.visibleQuestions.length ? this.visibleQuestions[0].id : null; },
     async changeType(type) {
+      if (this.saving || this.navigating) return;
+      const current = this.context();
       if (this.hasUnsaved()) {
         try { await this.$confirm('筛选将丢失当前未保存的修改。', '筛选题目', { type: 'warning' }); } catch (_) { return; }
       }
-      this.type = type; this.selectFirst();
+      if (current()) { this.type = type; this.selectFirst(); }
     },
     async selectQuestion(id) {
+      if (this.saving || this.navigating || !this.visibleQuestions.some(q => q.id === id)) return;
+      const current = this.context();
       if (this.hasUnsaved() && id !== this.selectedId) {
         try { await this.$confirm('当前答案尚未保存，切换将丢失修改。', '切换题目', { type: 'warning' }); } catch (_) { return; }
       }
-      this.selectedId = id;
+      if (current()) this.selectedId = id;
+    },
+    async loadNeighbors() {
+      if (!this.run || !this.run.questionId) return;
+      const current = this.context();
+      const query = this.$route.query;
+      this.neighborsLoading = true; this.neighborsError = '';
+      try {
+        const params = query.listTab === 'questions' ? { keyword: query.keyword || '', questionType: query.questionType || '' } : {};
+        const neighbors = responseData(await api.objectiveNeighbors(this.run.questionId, params));
+        if (current()) this.neighbors = neighbors;
+      } catch (error) { if (current()) this.neighborsError = errorMessage(error); }
+      finally { if (current()) this.neighborsLoading = false; }
+    },
+    async navigateQuestion(direction) {
+      if (this.saving || this.navigating || this.neighborsLoading || !this.run) return;
+      const target = direction < 0 ? this.previousQuestion : this.nextQuestion;
+      if (!target) return;
+      if (!this.run.questionId) return this.selectQuestion(target.id);
+      const current = this.context();
+      this.navigating = true;
+      try {
+        if (this.hasUnsaved()) {
+          try { await this.$confirm('当前答案尚未提交，切换将丢失这次选择。', '切换题目', { type: 'warning', confirmButtonText: '切换题目', cancelButtonText: '继续作答' }); } catch (_) { return; }
+        }
+        if (!current()) return;
+        let id = this.visitedRuns[target.id];
+        if (!id) {
+          if (!this.navigationIds[target.id]) this.$set(this.navigationIds, target.id, requestId());
+          const run = responseData(await api.objectiveStart({ questionId: target.id, requestId: this.navigationIds[target.id] }));
+          if (!current()) return;
+          id = run.id; this.$set(this.visitedRuns, target.id, id); this.$delete(this.navigationIds, target.id);
+        }
+        this.approvedRunId = String(id);
+        await this.$router.push({ path: '/objective/run/' + id, query: this.$route.query });
+      } catch (error) { if (current()) this.error = errorMessage(error); }
+      finally { if (current()) { this.navigating = false; this.approvedRunId = ''; } }
     },
     async saveAnswer(selected) {
       if (this.saving || !this.selectedQuestion) return false;
@@ -146,10 +210,11 @@ export default {
       this.saving = true; this.error = '';
       const request = this.request;
       try {
-        const run = responseData(await api.objectiveStart({ setId: this.run.setId, requestId: this.restartId }));
+        const source = this.run.questionId ? { questionId: this.run.questionId } : { setId: this.run.setId };
+        const run = responseData(await api.objectiveStart({ ...source, requestId: this.restartId }));
         if (request !== this.request) return;
         this.restartId = ''; this.saving = false;
-        this.$router.push('/objective/run/' + run.id);
+        this.$router.push({ path: '/objective/run/' + run.id, query: this.$route.query });
       } catch (error) { if (request === this.request) this.error = errorMessage(error); }
       finally { if (request === this.request) this.saving = false; }
     },
@@ -157,18 +222,43 @@ export default {
 };
 </script>
 <style scoped>
-.objective-run { max-width: 1320px; margin: 24px auto; padding: 24px; color: var(--text); background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 8px; }
+.objective-run { max-width: 1440px; margin: 24px auto; color: var(--text); }
 .run-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.run-heading h1 { margin: 16px 0; font-size: 26px; }
-.run-summary, .run-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+.run-breadcrumb { display: flex; align-items: center; gap: 20px; color: var(--muted); font-size: 14px; }
+.run-back, .run-refresh { border-radius: 9px; min-height: 42px; }
+.run-back { color: var(--accent); border-color: var(--line); }
+.run-title { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 28px 0 24px; }
+.run-title h1 { margin: 6px 0 0; font-size: 28px; line-height: 1.4; overflow-wrap: anywhere; }
+.run-title p { margin: 0; font-size: 13px; color: var(--muted); }
+.run-summary, .run-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.run-summary { color: var(--muted); font-size: 13px; }
+.run-summary strong { color: var(--accent); }
+.run-filters { margin: 16px 0; }
+.question-switcher { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 22px; }
+.question-switcher > span { font-size: 13px; color: var(--muted); text-align: center; }
+.question-switcher .el-button { border-radius: 8px; min-height: 42px; margin: 0; }
+.next-question:not(.is-disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.navigation-error { color: var(--muted); font-size: 13px; }
 .run-notice { color: var(--muted); line-height: 1.7; }
-.run-workspace { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
-.question-nav { display: flex; flex-direction: column; gap: 10px; }
-.question-nav .el-button { margin: 0; white-space: normal; text-align: left; line-height: 1.6; }
-.question-content { border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
-.question-content > header { padding: 20px 24px 0; }
-.question-content h2 { font-size: 22px; line-height: 1.6; margin: 0 0 8px; }
-.question-stem { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; padding: 0 24px; }
+.question-nav { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 18px; }
+.question-nav .el-button { margin: 0; min-width: 44px; border-radius: 8px; }
+.question-content { padding: 24px; min-width: 0; }
+.question-content h2 { font-size: 23px; line-height: 1.6; margin: 14px 0 8px; overflow-wrap: anywhere; }
+.question-origin { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.question-set { color: var(--accent); font-size: 12px; line-height: 1.7; }
+.question-content h3 { font-size: 15px; margin: 28px 0 12px; }
+.question-stem { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; margin: 0; }
+.practice-rules { margin-top: 32px; padding-top: 4px; border-top: 1px solid var(--line); }
+.practice-rules p { font-size: 13px; color: var(--muted); line-height: 1.8; }
 .run-actions { display: flex; justify-content: flex-end; padding-top: 24px; }
-@media (max-width: 700px) { .objective-run { margin: 12px 0; padding: 16px; } .run-workspace { grid-template-columns: 1fr; } .question-nav { flex-direction: row; overflow-x: auto; padding-bottom: 8px; } .question-nav .el-button { min-width: 140px; } }
+@media (max-width: 767px) {
+  .objective-run { margin: 12px 0; }
+  .run-breadcrumb > span { display: none; }
+  .run-title { align-items: flex-start; flex-direction: column; margin: 22px 0; gap: 14px; }
+  .run-title h1 { font-size: 24px; }
+  .question-switcher { gap: 8px; padding: 12px; }
+  .question-switcher > span { font-size: 12px; max-width: 84px; }
+  .question-switcher .el-button { padding: 12px; }
+  .question-content { padding: 20px 16px; }
+}
 </style>

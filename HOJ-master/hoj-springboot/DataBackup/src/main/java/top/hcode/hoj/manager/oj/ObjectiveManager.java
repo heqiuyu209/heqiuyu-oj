@@ -89,7 +89,10 @@ public class ObjectiveManager {
 
     private ObjectiveDTO.Question content(ObjectiveQuestion question) {
         try {
-            return json.readValue(question.getContentJson(), ObjectiveDTO.Question.class);
+            ObjectiveDTO.Question dto = json.readValue(question.getContentJson(), ObjectiveDTO.Question.class);
+            dto.setPracticeEnabled(question.getPracticeEnabled());
+            defaultPracticeRules(dto);
+            return dto;
         } catch (Exception e) {
             throw new IllegalStateException("客观题版本读取失败", e);
         }
@@ -117,10 +120,45 @@ public class ObjectiveManager {
     }
 
     public Map<String, Object> questions(Integer currentPage, Integer limit, String keyword, String type) {
+        return questionList(currentPage, limit, keyword, type, true);
+    }
+
+    public Map<String, Object> practiceQuestions(Integer currentPage, Integer limit, String keyword, String type) {
+        return questionList(currentPage, limit, keyword, type, false);
+    }
+
+    /** Adjacent published practice questions in the same descending-ID order as the list. */
+    public Map<String, Object> neighbors(Long id, String keyword, String type) {
+        ObjectiveQuestion current = questionMapper.selectById(id);
+        if (current == null || !Boolean.TRUE.equals(current.getPublished())
+                || !Boolean.TRUE.equals(current.getPracticeEnabled())) throw fail(404, "客观题未开放单题练习");
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (boolean previous : Arrays.asList(true, false)) {
+            QueryWrapper<ObjectiveQuestion> query = new QueryWrapper<>();
+            query.select("id", "title", "question_type").eq("published", true).eq("practice_enabled", true)
+                    .like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
+                    .eq(type != null && !type.isEmpty(), "question_type", type);
+            if (previous) query.gt("id", id).orderByAsc("id");
+            else query.lt("id", id).orderByDesc("id");
+            ObjectiveQuestion adjacent = questionMapper.selectOne(query.last("LIMIT 1"));
+            Map<String, Object> row = null;
+            if (adjacent != null) {
+                row = new LinkedHashMap<>();
+                row.put("id", adjacent.getId());
+                row.put("title", adjacent.getTitle());
+                row.put("questionType", adjacent.getQuestionType());
+            }
+            result.put(previous ? "previous" : "next", row);
+        }
+        return result;
+    }
+
+    private Map<String, Object> questionList(Integer currentPage, Integer limit, String keyword, String type, boolean admin) {
         QueryWrapper<ObjectiveQuestion> query = new QueryWrapper<>();
-        query.select("id", "title", "question_type", "version", "published");
-        query.eq(!canManageAll(), "created_by", currentUid())
-                .like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
+        query.select("id", "title", "question_type", "version", "published", "practice_enabled");
+        if (admin) query.eq(!canManageAll(), "created_by", currentUid());
+        else query.eq("published", true).eq("practice_enabled", true);
+        query.like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
                 .eq(type != null && !type.isEmpty(), "question_type", type)
                 .orderByDesc("id");
         IPage<ObjectiveQuestion> result = questionMapper.selectPage(
@@ -132,6 +170,7 @@ public class ObjectiveManager {
             row.put("questionType", q.getQuestionType());
             row.put("version", q.getVersion());
             row.put("published", q.getPublished());
+            row.put("practiceEnabled", q.getPracticeEnabled());
             return row;
         }).collect(Collectors.toList());
         return page(rows, result.getTotal());
@@ -146,8 +185,14 @@ public class ObjectiveManager {
 
     void validateQuestion(ObjectiveDTO.Question dto) {
         require(dto != null, "题目不能为空");
+        defaultPracticeRules(dto);
+        validatePolicy(dto.getAnswerPolicy(), dto.getAnswerReleaseAt());
+        validatePolicy(dto.getExplanationPolicy(), dto.getExplanationReleaseAt());
+        if (!"AT_TIME".equals(dto.getAnswerPolicy())) dto.setAnswerReleaseAt(null);
+        if (!"AT_TIME".equals(dto.getExplanationPolicy())) dto.setExplanationReleaseAt(null);
         dto.setTitle(text(dto.getTitle(), 200, "标题", true));
         dto.setStem(text(dto.getStem(), 30000, "题干", true));
+        dto.setSource(text(dto.getSource(), 200, "来源", false));
         dto.setExplanation(text(dto.getExplanation(), 30000, "解析", false));
         require(TYPES.contains(dto.getQuestionType()), "仅支持单选、多选和判断题");
         if ("TRUE_FALSE".equals(dto.getQuestionType())) {
@@ -180,6 +225,12 @@ public class ObjectiveManager {
             require(tags.size() == dto.getTagIds().size()
                     && tags.stream().allMatch(tag -> tag.getGid() == null), "只能选择现有公共知识点");
         }
+    }
+
+    private void defaultPracticeRules(ObjectiveDTO.Question dto) {
+        if (dto.getPracticeEnabled() == null) dto.setPracticeEnabled(true);
+        if (dto.getAnswerPolicy() == null) dto.setAnswerPolicy("AFTER_ANSWER");
+        if (dto.getExplanationPolicy() == null) dto.setExplanationPolicy("AFTER_ANSWER");
     }
 
     List<String> normalize(ObjectiveDTO.Question question, List<String> selected, boolean allowEmpty) {
@@ -217,6 +268,7 @@ public class ObjectiveManager {
         question.setTitle(dto.getTitle());
         question.setQuestionType(dto.getQuestionType());
         question.setPublished(dto.getPublished());
+        question.setPracticeEnabled(dto.getPracticeEnabled());
         question.setGmtModified(new Date(now()));
         // Insert first to obtain the authoritative ID; the same transaction appends its immutable revision.
         if (question.getId() == null) {
@@ -335,35 +387,51 @@ public class ObjectiveManager {
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> start(ObjectiveDTO.StartRun dto) {
-        require(dto != null && dto.getSetId() != null, "请选择题集");
+        require(dto != null && (dto.getSetId() != null ^ dto.getQuestionId() != null), "请选择一份题集或一道客观题");
         require(dto.getRequestId() != null && dto.getRequestId().matches("[A-Za-z0-9_-]{8,64}"),
                 "开卷请求标识无效");
         String uid = currentUid();
-        // Serialize starts with changes to set mode/publishing and make retries idempotent.
-        ObjectiveSet set = setMapper.selectLocked(dto.getSetId());
-        if (set == null) throw fail(404, "题集不存在");
-        requirePublished(set);
+        ObjectiveRun run = new ObjectiveRun();
+        List<ObjectiveDTO.Question> snapshot = new ArrayList<>();
+        List<Long> setQuestionIds = null;
+        ReleaseRules rules;
+        // Lock the source against publication/policy changes; never create a synthetic set.
+        if (dto.getQuestionId() != null) {
+            ObjectiveQuestion question = questionMapper.selectLocked(dto.getQuestionId());
+            requirePracticeQuestion(question);
+            ObjectiveDTO.Question current = content(question);
+            snapshot.add(current);
+            run.setQuestionId(question.getId());
+            run.setMode("PRACTICE");
+            run.setTitle(question.getTitle());
+            rules = practiceRules(current);
+        } else {
+            ObjectiveSet set = setMapper.selectLocked(dto.getSetId());
+            if (set == null) throw fail(404, "题集不存在");
+            requirePublished(set);
+            setQuestionIds = read(set.getQuestionIdsJson(), IDS);
+            run.setSetId(set.getId());
+            run.setSetVersion(set.getVersion());
+            run.setMode(set.getMode());
+            run.setTitle(set.getTitle());
+            rules = setRules(set);
+        }
         QueryWrapper<ObjectiveRun> duplicate = new QueryWrapper<ObjectiveRun>()
                 .eq("uid", uid).eq("request_id", dto.getRequestId());
         ObjectiveRun existing = runMapper.selectOne(duplicate);
         if (existing != null) {
-            if (!existing.getSetId().equals(dto.getSetId())) throw fail(409, "请求标识已用于其他题集");
-            return runView(existing, set);
+            requireSameSource(existing, dto);
+            return runView(existing, rules);
         }
-        List<Long> ids = read(set.getQuestionIdsJson(), IDS);
-        List<ObjectiveDTO.Question> snapshot = new ArrayList<>();
-        for (Long id : ids) {
-            ObjectiveQuestion question = questionMapper.selectById(id);
-            require(question != null && Boolean.TRUE.equals(question.getPublished()), "题集中有题目暂未开放");
-            snapshot.add(content(question));
+        if (setQuestionIds != null) {
+            for (Long id : setQuestionIds) {
+                ObjectiveQuestion question = questionMapper.selectById(id);
+                require(question != null && Boolean.TRUE.equals(question.getPublished()), "题集中有题目暂未开放");
+                snapshot.add(content(question));
+            }
         }
-        ObjectiveRun run = new ObjectiveRun();
-        run.setSetId(set.getId());
-        run.setSetVersion(set.getVersion());
         run.setUid(uid);
         run.setRequestId(dto.getRequestId());
-        run.setMode(set.getMode());
-        run.setTitle(set.getTitle());
         run.setState("IN_PROGRESS");
         run.setSnapshotJson(write(snapshot));
         run.setAnswersJson("{}");
@@ -373,10 +441,24 @@ public class ObjectiveManager {
             runMapper.insert(run);
         } catch (DuplicateKeyException e) {
             ObjectiveRun retry = runMapper.selectOne(duplicate);
-            if (retry == null || !retry.getSetId().equals(dto.getSetId())) throw fail(409, "请求标识已使用");
-            return runView(retry, set);
+            if (retry == null) throw fail(409, "请求标识已使用");
+            requireSameSource(retry, dto);
+            return runView(retry, rules);
         }
-        return runView(run, set);
+        return runView(run, rules);
+    }
+
+    private void requireSameSource(ObjectiveRun run, ObjectiveDTO.StartRun dto) {
+        if (!Objects.equals(run.getSetId(), dto.getSetId()) || !Objects.equals(run.getQuestionId(), dto.getQuestionId())) {
+            throw fail(409, "请求标识已用于其他题目或题集");
+        }
+    }
+
+    private void requirePracticeQuestion(ObjectiveQuestion question) {
+        if (question == null) throw fail(404, "客观题不存在");
+        if (!Boolean.TRUE.equals(question.getPublished()) || !Boolean.TRUE.equals(question.getPracticeEnabled())) {
+            throw fail(403, "该题暂不开放单题练习");
+        }
     }
 
     private ObjectiveRun ownedRun(Long id, boolean locked) {
@@ -385,22 +467,49 @@ public class ObjectiveManager {
         return run;
     }
 
-    private ObjectiveSet publishedSet(ObjectiveRun run) {
+    private ReleaseRules publishedRules(ObjectiveRun run) {
+        if (run.getQuestionId() != null) {
+            ObjectiveQuestion question = questionMapper.selectById(run.getQuestionId());
+            requirePracticeQuestion(question);
+            return practiceRules(content(question));
+        }
         ObjectiveSet set = setMapper.selectById(run.getSetId());
         if (set == null) throw fail(404, "题集不存在");
         requirePublished(set);
-        return set;
+        return setRules(set);
+    }
+
+    private static class ReleaseRules {
+        final String answerPolicy;
+        final String explanationPolicy;
+        final Long answerReleaseAt;
+        final Long explanationReleaseAt;
+
+        ReleaseRules(String answerPolicy, String explanationPolicy, Long answerReleaseAt, Long explanationReleaseAt) {
+            this.answerPolicy = answerPolicy;
+            this.explanationPolicy = explanationPolicy;
+            this.answerReleaseAt = answerReleaseAt;
+            this.explanationReleaseAt = explanationReleaseAt;
+        }
+    }
+
+    private ReleaseRules setRules(ObjectiveSet set) {
+        return new ReleaseRules(set.getAnswerPolicy(), set.getExplanationPolicy(), set.getAnswerReleaseAt(), set.getExplanationReleaseAt());
+    }
+
+    private ReleaseRules practiceRules(ObjectiveDTO.Question question) {
+        return new ReleaseRules(question.getAnswerPolicy(), question.getExplanationPolicy(), question.getAnswerReleaseAt(), question.getExplanationReleaseAt());
     }
 
     public Map<String, Object> run(Long id) {
         ObjectiveRun run = ownedRun(id, false);
-        return runView(run, publishedSet(run));
+        return runView(run, publishedRules(run));
     }
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> answer(Long id, ObjectiveDTO.Answer dto) {
         ObjectiveRun run = ownedRun(id, true);
-        ObjectiveSet set = publishedSet(run);
+        ReleaseRules rules = publishedRules(run);
         require(dto != null && dto.getQuestionId() != null, "请选择题目");
         List<ObjectiveDTO.Question> questions = read(run.getSnapshotJson(), QUESTIONS);
         ObjectiveDTO.Question question = questions.stream().filter(q -> q.getId().equals(dto.getQuestionId()))
@@ -411,38 +520,40 @@ public class ObjectiveManager {
         String key = question.getId().toString();
         if (!paper && answers.containsKey(key)) {
             if (!answers.get(key).equals(selected)) throw fail(409, "本题已提交，请新建练习后重答");
-            return runView(run, set);
+            return runView(run, rules);
         }
         if (!"IN_PROGRESS".equals(run.getState())) throw fail(409, "已交卷，不能修改答案");
         if (selected.isEmpty()) answers.remove(key);
         else answers.put(key, selected);
         run.setAnswersJson(write(answers));
+        if (run.getQuestionId() != null) run.setState("FINISHED");
         run.setGmtModified(new Date(now()));
         runMapper.updateById(run);
-        return runView(run, set);
+        return runView(run, rules);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> finish(Long id) {
         ObjectiveRun run = ownedRun(id, true);
-        ObjectiveSet set = publishedSet(run);
+        ReleaseRules rules = publishedRules(run);
         if (!"FINISHED".equals(run.getState())) {
             run.setState("FINISHED");
             run.setGmtModified(new Date(now()));
             runMapper.updateById(run);
         }
-        return runView(run, set);
+        return runView(run, rules);
     }
 
     public Map<String, Object> runs(Integer currentPage, Integer limit) {
         IPage<ObjectiveRun> result = runMapper.selectPage(
                 new Page<>(pageNumber(currentPage), pageSize(limit)),
-                new QueryWrapper<ObjectiveRun>().select("id", "set_id", "title", "mode", "state", "gmt_create")
+                new QueryWrapper<ObjectiveRun>().select("id", "set_id", "question_id", "title", "mode", "state", "gmt_create")
                         .eq("uid", currentUid()).orderByDesc("id"));
         List<Map<String, Object>> records = result.getRecords().stream().map(run -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", run.getId());
             row.put("setId", run.getSetId());
+            row.put("questionId", run.getQuestionId());
             row.put("title", run.getTitle());
             row.put("mode", run.getMode());
             row.put("state", run.getState());
@@ -460,7 +571,7 @@ public class ObjectiveManager {
         return "AT_TIME".equals(policy) && at != null && time >= at;
     }
 
-    Map<String, Object> runView(ObjectiveRun run, ObjectiveSet set) {
+    private Map<String, Object> runView(ObjectiveRun run, ReleaseRules rules) {
         List<ObjectiveDTO.Question> questions = read(run.getSnapshotJson(), QUESTIONS);
         Map<String, List<String>> answers = read(run.getAnswersJson(), ANSWERS);
         boolean finished = "FINISHED".equals(run.getState());
@@ -471,8 +582,8 @@ public class ObjectiveManager {
         for (ObjectiveDTO.Question question : questions) {
             List<String> selected = answers.getOrDefault(question.getId().toString(), Collections.emptyList());
             boolean submitted = finished || "PRACTICE".equals(run.getMode()) && !selected.isEmpty();
-            boolean answerVisible = released(set.getAnswerPolicy(), set.getAnswerReleaseAt(), submitted, finished, time);
-            boolean explanationVisible = released(set.getExplanationPolicy(), set.getExplanationReleaseAt(),
+            boolean answerVisible = released(rules.answerPolicy, rules.answerReleaseAt, submitted, finished, time);
+            boolean explanationVisible = released(rules.explanationPolicy, rules.explanationReleaseAt,
                     submitted, finished, time);
             boolean correct = !selected.isEmpty() && selected.equals(question.getCorrectAnswers());
             if (correct) correctCount++;
@@ -483,6 +594,7 @@ public class ObjectiveManager {
             row.put("title", question.getTitle());
             row.put("questionType", question.getQuestionType());
             row.put("stem", question.getStem());
+            row.put("source", question.getSource());
             row.put("options", question.getOptions());
             row.put("tagIds", question.getTagIds());
             row.put("selectedAnswers", selected);
@@ -500,6 +612,7 @@ public class ObjectiveManager {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", run.getId());
         result.put("setId", run.getSetId());
+        result.put("questionId", run.getQuestionId());
         result.put("setVersion", run.getSetVersion());
         result.put("title", run.getTitle());
         result.put("mode", run.getMode());
@@ -507,10 +620,10 @@ public class ObjectiveManager {
         result.put("questions", rows);
         result.put("answeredCount", answers.size());
         result.put("createdAt", run.getGmtCreate().getTime());
-        result.put("answerPolicy", set.getAnswerPolicy());
-        result.put("explanationPolicy", set.getExplanationPolicy());
-        result.put("answerReleaseAt", set.getAnswerReleaseAt());
-        result.put("explanationReleaseAt", set.getExplanationReleaseAt());
+        result.put("answerPolicy", rules.answerPolicy);
+        result.put("explanationPolicy", rules.explanationPolicy);
+        result.put("answerReleaseAt", rules.answerReleaseAt);
+        result.put("explanationReleaseAt", rules.explanationReleaseAt);
         if (allResultsVisible) {
             result.put("correctCount", correctCount);
             result.put("score", correctCount);

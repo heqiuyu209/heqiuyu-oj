@@ -1,7 +1,7 @@
 <template>
   <section class="objective-answer">
     <el-tag size="small">{{ labels[problem.questionType] || '客观题' }}</el-tag>
-    <h3>写下你的答案</h3>
+    <h3>选择你的答案</h3>
     <p class="muted">{{ instructions[problem.questionType] }}</p>
     <el-radio-group v-if="isSingle" v-model="single" :disabled="locked" @change="save">
       <el-radio v-for="option in options" :key="option.id" :label="option.id" border>{{ option.id }}. {{ option.text }}</el-radio>
@@ -84,10 +84,15 @@ export default {
 .muted { color: var(--muted); line-height: 1.7; }
 .el-radio-group, .el-checkbox-group { display: grid; gap: 12px; margin: 24px 0; width: 100%; }
 .el-radio.is-bordered, .el-checkbox.is-bordered { display: flex; align-items: center; margin: 0; height: auto; min-height: 48px; padding: 14px; background: var(--soft); border-color: var(--line); }
+.el-radio.is-bordered:not(.is-disabled):hover, .el-checkbox.is-bordered:not(.is-disabled):hover { border-color: var(--accent); }
+.el-radio.is-bordered.is-checked, .el-checkbox.is-bordered.is-checked { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.objective-answer /deep/ .el-radio__input, .objective-answer /deep/ .el-checkbox__input { flex-shrink: 0; }
+.objective-answer /deep/ .el-radio__label, .objective-answer /deep/ .el-checkbox__label { min-width: 0; }
 .objective-answer /deep/ .el-radio__label, .objective-answer /deep/ .el-checkbox__label { white-space: pre-wrap; line-height: 1.7; overflow-wrap: anywhere; }
 .blank-answer { display: block; margin: 18px 0; }
 .blank-answer > span { display: block; color: var(--muted); margin-bottom: 8px; }
 .answer-footer { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-top: 20px; }
+.answer-footer .el-button { border-radius: 8px; min-height: 44px; }
 .objective-feedback { border-top: 1px solid var(--line); padding-top: 18px; }
 .correct-answer, .objective-explanation { color: var(--text); white-space: pre-wrap; line-height: 1.8; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .objective-answer { padding: 16px; } .answer-footer { align-items: flex-start; flex-direction: column; } }
