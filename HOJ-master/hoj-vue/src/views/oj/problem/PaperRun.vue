@@ -5,6 +5,7 @@
     <template v-if="run">
       <el-alert v-if="run.gradingFailed" title="部分代码因判题服务异常未完成评测，成绩尚未结算。请重试判题。" type="warning" :closable="false"><el-button type="text" :disabled="saving" @click="retry">重试失败的评测</el-button></el-alert>
       <el-alert v-if="run.contestId" :title="deadlineText" type="info" :closable="false" />
+      <el-alert v-if="run.virtual" title="虚拟参赛答卷：与原比赛答卷、平时练习分别记录。页面显示的是本轮个人截止时间；答案与解析同时受个人截止和管理员开放规则控制。提前交卷不会提前解除 AI 限制。" type="info" :closable="false" />
       <div class="run-title"><div><p>{{ run.contestId ? '混合比赛' : '整套试卷' }} · {{ run.programMode === 'LIVE' ? '编程即时判题' : '交卷后统一判题' }}</p><h1>{{ run.title }}</h1></div><div class="run-score"><el-tag :type="finished ? 'success' : 'info'">{{ finished ? '已交卷' : '作答中' }}</el-tag><span>已作答 {{ run.answeredCount }} / {{ run.items.length }}</span><strong v-if="run.score !== undefined">{{ run.score }} / {{ run.maxScore }} 分</strong><span v-else-if="finished">{{ run.gradingComplete ? '成绩尚未开放' : '正在判题' }}</span></div></div>
       <nav class="question-numbers" aria-label="试卷题目"><el-button v-for="(item, index) in run.items" :key="item.key" :type="item.key === selectedKey ? 'primary' : 'default'" :disabled="saving" :title="item.title" @click="select(item.key)">{{ index + 1 }} <i v-if="answered(item)" class="el-icon-check" /></el-button></nav>
       <WorkspaceLayout v-if="question" :key="run.id" statement-title="题目内容" :editor-title="question.kind === 'PROGRAMMING' ? '代码与判题' : '选项与作答'" :allow-learning="false" preference-key="paper-workspace-v1">
@@ -13,6 +14,7 @@
           <template v-if="question.kind === 'PROGRAMMING'"><p class="limits">时间 {{ question.timeLimit }} ms · 内存 {{ question.memoryLimit }} MB</p><h3>题目描述</h3><div class="statement-html" v-dompurify-html="safe(question.stem)" /><h3>输入</h3><div v-dompurify-html="safe(question.input)" /><h3>输出</h3><div v-dompurify-html="safe(question.output)" /><div v-for="(example, exampleIndex) in examples" :key="exampleIndex" class="examples"><h3>样例 {{ exampleIndex + 1 }}</h3><p>输入</p><pre>{{ example.input }}</pre><p>输出</p><pre>{{ example.output }}</pre></div></template>
           <template v-else><h3>题目描述</h3><p class="stem">{{ question.stem }}</p></template>
           <div class="rules"><h3>作答规则</h3><p>{{ run.programMode === 'LIVE' ? '编程题可多次提交判题；仅保存草稿不参与计分。' : '编程题先保存代码，交卷后统一评测。' }}{{ run.scoreRule === 'BEST' ? ' 编程题取最高分。' : ' 编程题取最后一次提交的分数。' }} 客观题交卷后统一判分。</p><p>{{ run.contestId ? '标准答案' : '答案与成绩' }}：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}<br>解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}</p><p>本次作答使用开卷时的题目版本；{{ run.contestId ? '比赛与练习记录独立。' : '套卷与单题记录独立。' }}</p></div>
+        <AiProblemHelp :reference="{ kind: 'PAPER_RUN', runId: run.id, questionKey: question.key }" :title="question.title" />
         </article></template>
         <template #editor><PaperProgramAnswer v-if="question.kind === 'PROGRAMMING'" ref="answer" :key="run.id + ':' + question.key" :problem="question" :live="run.programMode === 'LIVE'" :finished="finished" :loading="saving" @save="saveProgram" @submit="submitProgram" /><ObjectiveAnswer v-else ref="answer" :key="run.id + ':' + question.key" :problem="question" enabled mode="PAPER" :run-id="'paper:' + run.id" :finished="finished" :loading="saving" @submit="saveObjective" /></template>
       </WorkspaceLayout>
@@ -22,6 +24,7 @@
 </template>
 <script>
 import api from '@/common/api';
+import AiProblemHelp from '@/components/oj/ai/AiProblemHelp';
 import utils from '@/common/utils';
 import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
 import PaperProgramAnswer from '@/components/oj/problem/PaperProgramAnswer';
@@ -29,7 +32,7 @@ import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
 import QuestionNavigation from '@/components/oj/problem/QuestionNavigation';
 import { questionTypes, releaseLabel, requestId, responseData, errorMessage } from '@/common/objective';
 export default {
-  name: 'PaperRun', components: { ObjectiveAnswer, PaperProgramAnswer, WorkspaceLayout, QuestionNavigation },
+  name: 'PaperRun', components: { ObjectiveAnswer, PaperProgramAnswer, WorkspaceLayout, QuestionNavigation, AiProblemHelp },
   data: () => ({ run: null, selectedKey: '', loading: false, saving: false, error: '', request: 0, revision: 0, timer: null, clockTimer: null, clock: Date.now(), offset: 0, nonces: {}, questionTypes }),
   computed: { examples() { return this.question ? utils.stringToExamples(this.question.examples || '') : []; }, uid() { return this.$store.getters.userInfo.uid; }, finished() { return this.run && (this.run.state === 'FINISHED' || this.run.contestId && this.clock + this.offset >= this.run.endTime); }, deadlineText() { if (!this.run || !this.run.contestId) return ''; const seconds = Math.max(0, Math.ceil((this.run.endTime - this.clock - this.offset) / 1000)); return seconds ? '距比赛截止 ' + Math.floor(seconds / 3600) + ' 小时 ' + Math.floor(seconds % 3600 / 60) + ' 分 ' + seconds % 60 + ' 秒 · 请及时保存答案、提交代码判题；截止后自动交卷。' : '比赛已截止，已保存的答案已锁定，未提交判题的代码草稿不计分。'; }, question() { return this.run && this.run.items.find(item => item.key === this.selectedKey); }, index() { return this.run ? this.run.items.findIndex(item => item.key === this.selectedKey) : -1; } },
   watch: { '$route.params.runID'() { this.reset(); }, uid() { this.reset(); } },

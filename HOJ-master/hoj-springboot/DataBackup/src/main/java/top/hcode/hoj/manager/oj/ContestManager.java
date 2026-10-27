@@ -31,6 +31,7 @@ import top.hcode.hoj.utils.Constants;
 import top.hcode.hoj.utils.RedisUtils;
 import top.hcode.hoj.validator.ContestValidator;
 import top.hcode.hoj.validator.GroupValidator;
+import top.hcode.hoj.manager.oj.ai.AiAccessGuard;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,6 +43,9 @@ import java.util.stream.Collectors;
  */
 @Component
 public class ContestManager {
+
+    @Autowired
+    private AiAccessGuard aiAccessGuard;
 
     @Autowired
     private ContestEntityService contestEntityService;
@@ -384,6 +388,13 @@ public class ContestManager {
 
         if (problem.getAuth() == 2) {
             throw new StatusForbiddenException("该比赛题目当前不可访问！");
+        }
+
+        // Merely viewing a contest list/rank is spectating. Opening a public statement enters the contest.
+        // Coaches inspecting their own contest remain spectators unless registered or actually submitting.
+        if (!isRoot && !Objects.equals(contest.getUid(), userRolesVo.getUid())
+                && !(Boolean.TRUE.equals(contest.getIsGroup()) && groupValidator.isGroupRoot(userRolesVo.getUid(), contest.getGid()))) {
+            aiAccessGuard.recordPublicContestEntry(userRolesVo.getUid(), cid);
         }
 
         // 设置比赛题目的标题为设置展示标题

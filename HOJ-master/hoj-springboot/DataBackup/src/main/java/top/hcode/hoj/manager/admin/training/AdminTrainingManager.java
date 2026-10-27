@@ -152,16 +152,10 @@ public class AdminTrainingManager {
         Training training = trainingDto.getTraining();
         trainingValidator.validateTraining(training);
 
-        // 获取当前登录的用户
-        AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
-        // 是否为超级管理员
-        boolean isRoot = SecurityUtils.getSubject().hasRole("root");
-        // 只有超级管理员和训练拥有者才能操作
-        if (!isRoot && !userRolesVo.getUsername().equals(trainingDto.getTraining().getAuthor())) {
-            throw new StatusForbiddenException("对不起，你无权限操作！");
+        Training oldTraining = requireEditableTraining(training.getId());
+        if (!trainingEntityService.updateById(training)) {
+            throw new StatusFailException("修改失败");
         }
-        Training oldTraining = trainingEntityService.getById(training.getId());
-        trainingEntityService.updateById(training);
 
         // 私有训练 修改密码 需要清空之前注册训练的记录
         if (training.getAuth().equals(Constants.Training.AUTH_PRIVATE.getValue())) {
@@ -208,19 +202,31 @@ public class AdminTrainingManager {
     }
 
     public void changeTrainingStatus(Long tid, String author, Boolean status) throws StatusForbiddenException, StatusFailException {
+        // 保留 author 参数兼容现有客户端，授权仅依据数据库中已有的训练作者。
+        requireEditableTraining(tid);
+        boolean isOk = trainingEntityService.updateById(new Training().setId(tid).setStatus(status));
+        if (!isOk) {
+            throw new StatusFailException("修改失败");
+        }
+    }
+
+    private Training requireEditableTraining(Long tid) throws StatusForbiddenException, StatusFailException {
+        if (tid == null) {
+            throw new StatusFailException("训练ID不能为空！");
+        }
+        Training training = trainingEntityService.getById(tid);
+        if (training == null) {
+            throw new StatusFailException("该训练不存在！");
+        }
         // 获取当前登录的用户
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
         // 是否为超级管理员
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
         // 只有超级管理员和训练拥有者才能操作
-        if (!isRoot && !userRolesVo.getUsername().equals(author)) {
+        if (!isRoot && !Objects.equals(userRolesVo.getUsername(), training.getAuthor())) {
             throw new StatusForbiddenException("对不起，你无权限操作！");
         }
-
-        boolean isOk = trainingEntityService.saveOrUpdate(new Training().setId(tid).setStatus(status));
-        if (!isOk) {
-            throw new StatusFailException("修改失败");
-        }
+        return training;
     }
 
 

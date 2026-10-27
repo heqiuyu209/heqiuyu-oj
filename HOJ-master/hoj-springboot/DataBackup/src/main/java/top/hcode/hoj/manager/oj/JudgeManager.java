@@ -56,6 +56,8 @@ import java.util.stream.Collectors;
 @Component
 public class JudgeManager {
     @Autowired
+    private top.hcode.hoj.judge.remote.PersonalRemoteSubmissionGuard personalRemoteSubmissionGuard;
+    @Autowired
     private JudgeEntityService judgeEntityService;
 
     @Autowired
@@ -247,6 +249,7 @@ public class JudgeManager {
         }
 
         if (judge.getPaperRunId() != null) throw new StatusForbiddenException("请从套卷答卷查看和操作本次提交");
+        if (personalRemoteSubmissionGuard.managed(submitId)) throw new StatusForbiddenException("个人远程提交请使用结果核对入口，不会重新向源站提交代码");
 
         // 需要获取一下该token对应用户的数据
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();

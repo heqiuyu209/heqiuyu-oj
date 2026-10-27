@@ -1,4 +1,6 @@
 export const m = {
+  Knowledge: '지식 자료',
+  Knowledge_Admin: '지식 자료 관리',
   Objective_Practice: '객관식 연습',
   Objective_Admin: '객관식 문제와 문제집',
 
@@ -20,8 +22,6 @@ export const m = {
   NavBar_Contest: '대회',
   NavBar_Status: '제출 현황',
   NavBar_Rank: '랭킹',
-  NavBar_ACM_Rank: 'ACM 랭킹',
-  NavBar_OI_Rank: 'OI 랭킹',
   NavBar_Discussion: '토론',
   NavBar_Group: '그룹',
   NavBar_About: '정보',

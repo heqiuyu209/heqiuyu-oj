@@ -3,16 +3,19 @@
     <span class="eyebrow"><i class="el-icon-files" /> 混合题型比赛</span><h2>{{ contest.title }}</h2>
     <p>选择、判断、填空与编程题在同一份答卷中作答。编程题即时判题；客观题交卷后计分，答案与解析按管理员设置在赛后开放。</p>
     <p class="rank-rule">{{ contest.type === 0 ? '排名先看客观题得分，再看编程题 AC 数和罚时。' : '排名按客观题与编程题的总分排序。' }}</p>
-    <p>每场比赛一份答卷，离开后可继续。请及时保存答案并提交代码判题，截止后自动交卷。</p>
+    <p>{{ contest.status === 1 ? '原比赛已结束；有原答卷的参赛者仍可查看。开始虚拟练习会创建独立答卷，按本人的截止时间自动交卷，答案与解析不会提前开放。' : '每场比赛一份答卷，离开后可继续。请及时保存答案并提交代码判题，截止后自动交卷。' }}</p>
+    <VirtualPractice v-if="contest.status === 1" :contest-id="$route.params.contestID" :contest="contest" />
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
-    <el-button type="primary" icon="el-icon-edit-outline" :loading="loading" @click="enter">进入我的比赛答卷</el-button>
+    <el-button :type="contest.status === 1 ? 'default' : 'primary'" icon="el-icon-edit-outline" :loading="loading" @click="enter">{{ contest.status === 1 ? '查看原比赛答卷' : '进入我的比赛答卷' }}</el-button>
   </el-card>
 </template>
 <script>
 import api from '@/common/api';
 import { responseData, errorMessage } from '@/common/objective';
+import VirtualPractice from '@/components/oj/contest/VirtualPractice';
 export default {
   name: 'MixedContestEntry',
+  components: { VirtualPractice },
   data: () => ({ loading: false, error: '' }), computed: { contest() { return this.$store.state.contest.contest; } },
   methods: { async enter() { if (this.loading) return; const cid = this.$route.params.contestID; this.loading = true; this.error = ''; try { const run = responseData(await api.mixedContestRun(cid)); if (cid === this.$route.params.contestID) this.$router.push('/contest/' + cid + '/mixed/run/' + run.id); } catch (e) { this.error = errorMessage(e); } finally { this.loading = false; } } },
 };

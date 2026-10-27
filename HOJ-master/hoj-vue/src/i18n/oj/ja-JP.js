@@ -1,4 +1,6 @@
 export const m = {
+  Knowledge: 'ナレッジベース',
+  Knowledge_Admin: 'ナレッジ資料',
   Objective_Practice: '客観式問題の練習',
   Objective_Admin: '客観式問題と問題集',
 
@@ -20,8 +22,6 @@ export const m = {
   NavBar_Contest: 'コンテスト',
   NavBar_Status: 'ジャッジ状況',
   NavBar_Rank: 'ランキング',
-  NavBar_ACM_Rank: 'ACM ランキング',
-  NavBar_OI_Rank: 'OI ランキング',
   NavBar_Discussion: 'ディスカッション',
   NavBar_Group: 'チーム',
   NavBar_About: 'について',

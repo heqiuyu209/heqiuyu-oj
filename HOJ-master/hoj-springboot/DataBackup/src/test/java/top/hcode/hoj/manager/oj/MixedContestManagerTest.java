@@ -13,6 +13,7 @@ import top.hcode.hoj.dao.contest.*;
 import top.hcode.hoj.pojo.dto.*;
 import top.hcode.hoj.pojo.entity.contest.*;
 import top.hcode.hoj.pojo.entity.problem.Problem;
+import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.shiro.AccountProfile;
 import top.hcode.hoj.validator.*;
 import java.sql.Connection;
@@ -36,6 +37,8 @@ class MixedContestManagerTest {
         jdbc = new JdbcTemplate(ds); jdbc.execute("DROP ALL OBJECTS"); tx = new TransactionTemplate(new DataSourceTransactionManager(ds));
         try (Connection c = ds.getConnection()) { ScriptUtils.executeSqlScript(c, new ClassPathResource("paper.sql")); }
         jdbc.execute("CREATE TABLE contest(id BIGINT PRIMARY KEY)"); jdbc.update("INSERT INTO contest VALUES(1)");
+        String virtualSchema = org.springframework.util.StreamUtils.copyToString(new ClassPathResource("virtual-contests.sql").getInputStream(), java.nio.charset.StandardCharsets.UTF_8).replace(" COLLATE=utf8mb4_unicode_ci", "");
+        try (Connection c = ds.getConnection()) { ScriptUtils.executeSqlScript(c, new org.springframework.core.io.ByteArrayResource(virtualSchema.getBytes(java.nio.charset.StandardCharsets.UTF_8))); }
         jdbc.execute("CREATE TABLE contest_paper(contest_id BIGINT PRIMARY KEY,paper_id BIGINT,rules_json TEXT,template_json CLOB)");
         // H2's CLOB differs from MySQL LONGTEXT's String mapping.
         jdbc.execute("ALTER TABLE contest_paper ALTER COLUMN template_json LONGTEXT");
@@ -129,5 +132,44 @@ class MixedContestManagerTest {
         uid = "charlie"; long c = start(); transaction(() -> papers.answer(c, answer("A"))); judged(c, 270000, 0); transaction(() -> papers.finish(c));
         time = 300000; List<Map<String, Object>> rows = rows(); assertEquals("charlie", rows.get(0).get("uid")); assertEquals("alice", rows.get(1).get("uid")); assertEquals("bob", rows.get(2).get("uid")); assertEquals(1260L, rows.get(1).get("penalty"));
         contest.setType(1); assertEquals("alice", rows().get(0).get("uid")); assertEquals(1, rows().get(1).get("rank"));
+    }
+    long virtualWindow() {
+        time = Math.max(time, 500000);
+        jdbc.update("INSERT INTO contest_virtual_run(uid,cid,request_id,title,started_at,ends_at) VALUES(?,1,?,?,?,?)", uid, UUID.randomUUID().toString(), "virtual", new java.sql.Timestamp(time), new java.sql.Timestamp(time + 200000));
+        return jdbc.queryForObject("SELECT MAX(id) FROM contest_virtual_run", Long.class);
+    }
+    long virtualPaper(long window) { return ((Number) transaction(() -> papers.startVirtual(window)).get("id")).longValue(); }
+    @Test void virtualAnswersAndSnapshotsRemainSeparateFromFormalAndPracticeRecords() {
+        time=200000;long formal=start();transaction(()->papers.answer(formal,answer("B")));transaction(()->papers.finish(formal));
+        long window=virtualWindow(),virtual=virtualPaper(window);assertNotEquals(formal,virtual);assertEquals(virtual,virtualPaper(window));
+        assertNull(jdbc.queryForObject("SELECT contest_id FROM paper_run WHERE id=?",Long.class,virtual));assertEquals(window,jdbc.queryForObject("SELECT virtual_run_id FROM paper_run WHERE id=?",Long.class,virtual));
+        transaction(()->papers.answer(virtual,answer("A")));Map<String,Object> result=transaction(()->papers.finish(virtual));assertEquals(true,result.get("virtual"));assertEquals(10.0,result.get("score"));assertFalse(item(result).containsKey("correctAnswers"));
+        assertEquals(formal,start());assertEquals(Collections.singletonList("B"),item(papers.run(formal)).get("selectedAnswers"));assertEquals(1,rows().size());assertEquals(0.0,rows().get(0).get("objectiveScore"));assertEquals(0L,papers.histories(1).get("total"));
+        assertEquals(2,snapshots.size());uid="bob";assertEquals(404,assertThrows(ObjectiveException.class,()->papers.run(virtual)).getStatus());
+    }
+    @Test void virtualDeadlineLocksAllWritesAndSystemClosureDoesNotNeedAPrincipal() {
+        long window=virtualWindow(),id=virtualPaper(window);transaction(()->papers.answer(id,answer("A")));
+        time=699999;assertEquals("IN_PROGRESS",papers.run(id).get("state"));time=700000;
+        assertEquals(409,assertThrows(ObjectiveException.class,()->transaction(()->papers.answer(id,answer("B")))).getStatus());
+        PaperDTO.Answer code=new PaperDTO.Answer();code.setKey("PROGRAMMING:1");code.setRequestId("virtual_submit");code.setCode("int main(){}");code.setLanguage("C++");assertThrows(ObjectiveException.class,()->transaction(()->papers.submit(id,code)));
+        uid=null;transaction(()->{papers.finishExpired(id);return null;});assertEquals("FINISHED",jdbc.queryForObject("SELECT state FROM paper_run WHERE id=?",String.class,id));assertEquals(700000,jdbc.queryForObject("SELECT gmt_modified FROM paper_run WHERE id=?",java.sql.Timestamp.class,id).getTime());
+        uid="alice";assertEquals(Collections.singletonList("A"),item(papers.run(id)).get("selectedAnswers"));verify(programs,never()).submitAs(anyLong(),anyLong(),anyString(),anyString(),anyString(),anyString());
+    }
+    @Test void virtualFeedbackUsesPersonalEndAndCurrentAdministrativeEmbargoWithoutChangingFrozenQuestions() {
+        long id=virtualPaper(virtualWindow());transaction(()->papers.answer(id,answer("A")));transaction(()->papers.finish(id));
+        question.setTitle("原题已修改");question.setCorrectAnswers(Collections.singletonList("B"));jdbc.update("UPDATE paper SET published=0 WHERE id=1");
+        MixedContestDTO.Config config=mixed.config(1L);config.setAnswerPolicy("AT_TIME");config.setAnswerReleaseAt(900000L);transaction(()->{mixed.configure(contest,contest,config);return null;});
+        time=700000;Map<String,Object> result=papers.run(id);assertFalse(item(result).containsKey("correctAnswers"));assertEquals(true,item(result).get("explanationVisible"));assertEquals(900000L,result.get("answerReleaseAt"));assertEquals("冻结的选择题",item(result).get("title"));
+        time=900000;assertEquals(Collections.singletonList("A"),item(papers.run(id)).get("correctAnswers"));config.setAnswerPolicy("NEVER");transaction(()->{mixed.configure(contest,contest,config);return null;});assertFalse(item(papers.run(id)).containsKey("correctAnswers"));
+    }
+    @Test void virtualAccessReusesProtectedContestRegistrationOnStartAndEveryRead() {
+        contest.setAuth(2);long window=virtualWindow();assertEquals(403,assertThrows(ObjectiveException.class,()->virtualPaper(window)).getStatus());registered=true;long id=virtualPaper(window);
+        registered=false;assertEquals(403,assertThrows(ObjectiveException.class,()->papers.run(id)).getStatus());
+    }
+    @Test void oiVirtualResultsKeepTheirOwnFormatAndLastSubmissionScoreRule() {
+        contest.setType(1);MixedContestDTO.Config config=mixed.config(1L);config.setScoreRule("LAST");root=true;transaction(()->{mixed.configure(contest,contest,config);return null;});root=false;
+        long id=virtualPaper(virtualWindow());
+        when(programs.submissions(eq(id),anyLong(),eq("alice"))).thenReturn(Arrays.asList(new Judge().setSubmitId(1L).setStatus(0).setScore(100),new Judge().setSubmitId(2L).setStatus(-1).setScore(0)));
+        Map<String,Object> result=transaction(()->papers.finish(id));assertEquals(1,result.get("contestType"));assertEquals("LAST",result.get("scoreRule"));assertEquals(0.0,result.get("score"));assertFalse(item(result).containsKey("correctAnswers"));
     }
 }

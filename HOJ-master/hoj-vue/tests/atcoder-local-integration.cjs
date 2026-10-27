@@ -1,0 +1,49 @@
+// Opt-in local HTTP/MySQL checks. Ownership/result fixtures are synthetic; remote platforms stay read-only.
+const assert=require('assert').strict,crypto=require('crypto'),fs=require('fs'),path=require('path');
+const {execFileSync}=require('child_process');
+if(process.env.HOJ_LOCAL_ATCODER_TEST!=='1')throw Error('Set HOJ_LOCAL_ATCODER_TEST=1.');
+const output=process.env.PAPER_REVIEW_OUTPUT||path.join(require('os').tmpdir(),'hoj-atcoder-review');fs.mkdirSync(output,{recursive:true});
+const users=Array.from({length:2},()=>({uid:crypto.randomBytes(16).toString('hex'),username:'at_it_'+crypto.randomBytes(4).toString('hex'),password:crypto.randomBytes(8).toString('hex')}));
+const [alice,bob]=users,report={checks:[],cleaned:false},task='Fixture_'+crypto.randomBytes(6).toString('hex'),sourceKey='atcoder:task:'+task;
+const quote=v=>"'"+String(v).replace(/'/g,"''")+"'",uids=users.map(u=>quote(u.uid)).join(',');let problem,metadataCreated=false;
+function sql(input){return execFileSync('docker',['compose','-p','hoj-master','-f',path.resolve(__dirname,'../../compose.yaml'),'exec','-T','hoj-mysql','sh','-c','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --database=hoj --batch --skip-column-names --default-character-set=utf8mb4'],{input,encoding:'utf8',windowsHide:true,timeout:30000}).trim();}
+async function request(user,url,method='GET',data,status=200){
+  const response=await fetch('http://127.0.0.1:6688'+url,{method,headers:{'Content-Type':'application/json',...(user?.token?{Authorization:user.token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)}),signal:AbortSignal.timeout(30000)});
+  const body=await response.json();if(user&&response.headers.get('Authorization'))user.token=response.headers.get('Authorization');assert.equal(body.status,status,url+': '+body.msg);return body.data;
+}
+(async()=>{
+  for(const user of users){sql(`INSERT INTO user_info(uuid,username,password) VALUES(${quote(user.uid)},${quote(user.username)},${quote(crypto.createHash('md5').update(user.password).digest('hex'))});INSERT INTO user_record(uid) VALUES(${quote(user.uid)});INSERT INTO user_role(uid,role_id) SELECT ${quote(user.uid)},id FROM role WHERE role='default_user';`);await request(user,'/api/login','POST',{username:user.username,password:user.password});assert(user.token);}
+  const handle='fixture_'+crypto.randomBytes(5).toString('hex');let own=await request(alice,'/api/learning/accounts','POST',{platform:'ATCODER',handle});const id=own.accounts[0].id;
+  sql(`UPDATE external_sync_job SET next_run_at=NULL,lease_token=NULL,lease_until=NULL WHERE account_id=${Number(id)};`);
+  own=await request(alice,`/api/learning/accounts/${id}/proof`,'POST',{});assert(own.accounts[0].proofCode.startsWith('HOJ-'));
+  const endpoint='/api/learning/users/'+alice.uid+'/external';assert.deepEqual((await request(null,endpoint)).accounts,[]);
+  await request(bob,`/api/learning/accounts/${id}/proof`,'POST',{},404);await request(bob,`/api/learning/accounts/${id}`,'DELETE',undefined,404);
+  await request(alice,'/api/learning/accounts','POST',{platform:'ATCODER',handle:handle.toUpperCase()},409);await request(alice,`/api/learning/accounts/${id}/sync`,'POST',{},429);
+  own=await request(alice,'/api/learning/accounts','POST',{platform:'CODEFORCES',handle});assert.equal(own.accounts.length,2);sql(`UPDATE external_sync_job SET next_run_at=NULL WHERE account_id IN(SELECT id FROM external_account WHERE uid=${quote(alice.uid)});`);
+  report.checks.push('Real HTTP/MySQL verifies AtCoder association, private proof, owner-only mutation, case-insensitive per-platform duplicates, cooldown and CF/AtCoder coexistence.');
+  problem=Number(sql(`INSERT INTO problem(problem_id,title,author,auth,is_remote) VALUES(${quote('AC-'+task.toLowerCase())},'synthetic AtCoder evidence',${quote(bob.username)},1,1);SELECT LAST_INSERT_ID();`));metadataCreated=true;
+  sql(`INSERT INTO external_atcoder_problem(problem_key,task_id,contest_id,problem_index,title,content_hash,seen_token,last_seen_at,changed_at,raw_difficulty,estimated_difficulty) VALUES(${quote(sourceKey)},${quote(task)},'fixture','A','synthetic AtCoder task',REPEAT('f',64),'synthetic',NOW(3),NOW(3),1500,1500);INSERT INTO external_problem(problem_key,platform,title,rating,tags_json,synced_at) VALUES(${quote(sourceKey)},'ATCODER','synthetic AtCoder task',1500,'[]',NOW(3));UPDATE external_account SET verified_identity=handle_key,verified_at=NOW(3),history_complete=1,last_success_at=NOW(3),rating=2100 WHERE id=${Number(id)};UPDATE external_sync_job SET stage='DONE',next_run_at=NULL WHERE account_id=${Number(id)};INSERT INTO external_submission(account_id,external_id,problem_key,verdict,submitted_at,individual,seen_scan) VALUES(${Number(id)},987654321,${quote(sourceKey)},'OK',1000,0,'synthetic');INSERT INTO external_atcoder_rating(account_id,contest_id,title,contest_rank,old_rating,new_rating,occurred_at) VALUES(${Number(id)},'abc350','synthetic history',25,2000,2100,1000);INSERT INTO judge(pid,display_pid,uid,username,submit_time,status,code) VALUES(${problem},${quote('AC-'+task.toLowerCase())},${quote(alice.uid)},${quote(alice.username)},NOW(),0,'synthetic fixture');`);
+  let view=await request(null,endpoint),account=view.accounts[0];assert.equal(view.accounts.length,1);assert.equal(account.platform,'ATCODER');assert.equal(account.proofCode,undefined);assert.equal(account.solved,1);assert.equal(account.individualSolved,null);assert.equal(account.individualStatusVerified,false);assert.equal(account.coverageAvailable,false);assert.deepEqual(account.coverage,[]);assert.equal(account.representativeScope,'ACCOUNT_ACCEPTED');assert.equal(account.representativeRating,1500);assert.equal(account.difficultySource,'ATCODER_PROBLEMS_ESTIMATE');assert.equal(account.ratingHistory[0].contestUrl,'https://atcoder.jp/contests/abc350');assert.equal(view.summary.localSolved,1);assert.equal(view.summary.uniqueSolved,1);assert.equal(view.summary.duplicatesRemoved,1);
+  report.checks.push('Explicit synthetic fixtures verify canonical AtCoder source-ID dedup, official contest URLs, account-scoped P75, missing team/classification disclosure and verified-only public totals.');
+  sql(`UPDATE external_sync_job SET failures=1,last_error='synthetic source failure' WHERE account_id=${Number(id)};`);account=(await request(null,endpoint)).accounts[0];assert.equal(account.solved,1);assert.equal(account.stale,true);assert.equal(account.lastError,undefined);
+  await request(alice,`/api/learning/accounts/${id}`,'DELETE');for(const table of ['external_atcoder_cursor','external_atcoder_rating','external_submission'])assert.equal(sql(`SELECT COUNT(*) FROM ${table} WHERE account_id=${Number(id)};`),'0');assert.equal(sql(`SELECT COUNT(*) FROM judge WHERE uid=${quote(alice.uid)};`),'1');assert.deepEqual((await request(null,endpoint)).accounts,[]);
+  report.checks.push('Source failure preserves cached totals and unlink cascades only the selected account evidence, leaving HOJ results and the separate CF association intact.');
+  if(process.env.HOJ_ATCODER_LIVE_TEST==='1'){
+    own=await request(alice,'/api/learning/accounts','POST',{platform:'ATCODER',handle:'chokudai'});const live=own.accounts.find(a=>a.platform==='ATCODER').id;
+    let account,lastProgress='',end=Date.now()+300000;
+    do{await new Promise(r=>setTimeout(r,4000));account=(await request(alice,'/api/learning/accounts')).accounts.find(a=>a.id===live);const progress=JSON.stringify({state:account.syncState,attempted:account.attempted,solved:account.solved});if(progress!==lastProgress){console.log('AtCoder read-only sync: '+progress);lastProgress=progress;}if(account.historyComplete||account.syncState==='BACKOFF')break;}while(Date.now()<end);
+    report.live={handle:'chokudai',verified:account.verified,syncState:account.syncState,profileReceived:!!account.profileSyncedAt,historyComplete:account.historyComplete,attempted:account.attempted,solved:account.solved,ratedSolved:account.ratedSolved,representativeRating:account.representativeRating,rating:account.rating,lastError:account.lastError||null,metadata:account.metadata};
+    assert.equal(account.verified,false);assert.deepEqual((await request(null,endpoint)).accounts,[]);
+    assert.equal(account.historyComplete,true,'Live history must finish; transport failures are reported separately.');assert(account.rating>0);assert(account.solved>0);assert(account.ratedSolved>0);
+    report.checks.push('Running Java 8 worker read official AtCoder profile/history and all public AtCoder Problems submission pages; real unverified data remains private and is never presented as verified ownership.');
+  }
+  report.validated=true;
+})().catch(error=>{report.failure=error.stack;process.exitCode=1;}).finally(async()=>{
+  try{
+    sql(`DELETE FROM external_account WHERE uid IN (${uids});DELETE FROM site_rating_history WHERE uid IN (${uids});DELETE FROM site_rating_profile WHERE uid IN (${uids});DELETE FROM judge WHERE uid IN (${uids});${problem?`DELETE FROM problem WHERE id=${problem} AND author=${quote(bob.username)};`:''}`);
+    if(metadataCreated)sql(`DELETE FROM external_atcoder_problem WHERE problem_key=${quote(sourceKey)};DELETE FROM external_problem WHERE problem_key=${quote(sourceKey)} AND NOT EXISTS (SELECT 1 FROM external_submission WHERE problem_key=${quote(sourceKey)});`);
+    for(const user of users)if(user.token)await request(user,'/api/logout').catch(()=>{});
+    sql(`DELETE FROM session WHERE uid IN (${uids});DELETE FROM user_info WHERE uuid IN (${uids});`);assert.equal(sql(`SELECT COUNT(*) FROM user_info WHERE uuid IN (${uids});`),'0');report.cleaned=true;
+  }catch(error){report.cleanupFailure=error.stack;process.exitCode=1;}
+  fs.writeFileSync(path.join(output,'atcoder-local-integration.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+});

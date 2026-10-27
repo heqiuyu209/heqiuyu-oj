@@ -76,10 +76,18 @@ public class PaperManager {
     private Map<String, Object> ownedRun(Long id, boolean locked) {
         Map<String, Object> row = row("paper_run", id, locked);
         if (!uid().equals(row.get("uid"))) throw fail(404, "答卷不存在");
-        if (row.get("contest_id") != null) mixed.access(number(row.get("contest_id")), false);
+        if (row.get("virtual_run_id") != null) mixed.virtualAccess(number(virtualRow(row).get("cid")));
+        else if (row.get("contest_id") != null) mixed.access(number(row.get("contest_id")), false);
         else paper(number(row.get("paper_id")), false, false);
         return row;
     }
+    private Map<String, Object> virtualRow(Map<String, Object> run) {
+        if (run.get("virtual_run_id") == null) return null;
+        Map<String, Object> window = row("contest_virtual_run", number(run.get("virtual_run_id")), false);
+        if (!Objects.equals(run.get("uid"), window.get("uid"))) throw fail(404, "答卷不存在");
+        return window;
+    }
+    private boolean competition(Map<String, Object> run) { return run.get("contest_id") != null || run.get("virtual_run_id") != null; }
     private PaperDTO.Paper content(Map<String, Object> row) { return read(row.get("content_json"), PaperDTO.Paper.class); }
     private Map<String, Object> metadata(Map<String, Object> row) {
         PaperDTO.Paper paper = content(row);
@@ -202,7 +210,11 @@ public class PaperManager {
         return snapshot.getItems().stream().filter(item -> item.getKey().equals(key)).findFirst().orElseThrow(() -> fail(400, "题目不属于本次答卷"));
     }
     private void editable(Map<String, Object> run) {
-        if (run.get("contest_id") != null) mixed.access(number(run.get("contest_id")), true);
+        Map<String, Object> window = virtualRow(run);
+        if (window != null) {
+            mixed.virtualAccess(number(window.get("cid")));
+            if (now() >= ((java.util.Date) window.get("ends_at")).getTime()) throw fail(409, "虚拟计时已截止，答卷不能修改");
+        } else if (run.get("contest_id") != null) mixed.access(number(run.get("contest_id")), true);
         if (!"IN_PROGRESS".equals(run.get("state"))) throw fail(409, "答卷已交卷，不能修改");
     }
     private void storeAnswers(Long id, Map<String, PaperDTO.SavedAnswer> answers) {
@@ -233,12 +245,46 @@ public class PaperManager {
         return view(row("paper_run", id, false));
     }
 
+    /** Called inside the same transaction that creates the personal participation window. */
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> startVirtual(Long virtualId) {
+        Map<String, Object> window = row("contest_virtual_run", virtualId, true);
+        if (!uid().equals(window.get("uid"))) throw fail(404, "虚拟练习不存在");
+        Long cid = number(window.get("cid"));
+        top.hcode.hoj.pojo.entity.contest.Contest contest = mixed.virtualAccess(cid);
+        List<Map<String, Object>> previous = jdbc.queryForList("SELECT * FROM paper_run WHERE virtual_run_id=?", virtualId);
+        if (!previous.isEmpty()) { closeExpired(previous.get(0)); return view(previous.get(0)); }
+        require(now() < ((java.util.Date) window.get("ends_at")).getTime(), "虚拟练习已截止");
+        Map<String, Object> configuration = jdbc.queryForMap("SELECT * FROM contest_paper WHERE contest_id=? FOR UPDATE", cid);
+        MixedContestDTO.Template template = mixed.read(configuration.get("template_json"), MixedContestDTO.Template.class);
+        MixedContestDTO.Config config = mixed.read(configuration.get("rules_json"), MixedContestDTO.Config.class);
+        PaperDTO.Snapshot snapshot = template.getSnapshot(); PaperDTO.Paper paper = snapshot.getPaper();
+        paper.setTitle(contest.getTitle()); paper.setProgramMode("LIVE"); paper.setScoreRule(config.getScoreRule());
+        long end = ((java.util.Date) window.get("ends_at")).getTime();
+        applyVirtualRelease(paper, config, end);
+        snapshot.setVirtualContestType(contest.getType());
+        Timestamp time = new Timestamp(now()); String actor = uid();
+        long id = insert("INSERT INTO paper_run(paper_id,paper_version,virtual_run_id,uid,request_id,state,snapshot_json,answers_json,gmt_create,gmt_modified) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                paper.getId(), paper.getVersion(), virtualId, actor, "virtual_" + UUID.randomUUID().toString(), "IN_PROGRESS", "{}", "{}", time, time);
+        for (PaperDTO.SnapshotItem item : snapshot.getItems()) if ("PROGRAMMING".equals(item.getKind()))
+            item.setProgramSnapshotId(programs.copy(id, item.getKey(), actor, template.getPrograms().get(item.getKey())));
+        jdbc.update("UPDATE paper_run SET snapshot_json=? WHERE id=?", write(snapshot), id);
+        return view(row("paper_run", id, false));
+    }
+    private void applyVirtualRelease(PaperDTO.Paper paper, MixedContestDTO.Config config, long end) {
+        paper.setAnswerPolicy("NEVER".equals(config.getAnswerPolicy()) ? "NEVER" : "AT_TIME");
+        paper.setExplanationPolicy("NEVER".equals(config.getExplanationPolicy()) ? "NEVER" : "AT_TIME");
+        paper.setAnswerReleaseAt(Math.max(end, "AT_TIME".equals(config.getAnswerPolicy()) && config.getAnswerReleaseAt() != null ? config.getAnswerReleaseAt() : end));
+        paper.setExplanationReleaseAt(Math.max(end, "AT_TIME".equals(config.getExplanationPolicy()) && config.getExplanationReleaseAt() != null ? config.getExplanationReleaseAt() : end));
+    }
+
     private void closeExpired(Map<String, Object> run) {
-        if (run.get("contest_id") != null && "IN_PROGRESS".equals(run.get("state"))) {
-            top.hcode.hoj.pojo.entity.contest.Contest contest = mixed.contest(number(run.get("contest_id")), false);
-            if (now() >= contest.getEndTime().getTime()) {
-                jdbc.update("UPDATE paper_run SET state='FINISHED',gmt_modified=? WHERE id=?", new Timestamp(contest.getEndTime().getTime()), run.get("id"));
-                run.put("state", "FINISHED"); run.put("gmt_modified", new Timestamp(contest.getEndTime().getTime()));
+        if (competition(run) && "IN_PROGRESS".equals(run.get("state"))) {
+            Map<String, Object> window = virtualRow(run);
+            long end = window != null ? ((java.util.Date) window.get("ends_at")).getTime() : mixed.contest(number(run.get("contest_id")), false).getEndTime().getTime();
+            if (now() >= end) {
+                jdbc.update("UPDATE paper_run SET state='FINISHED',gmt_modified=? WHERE id=?", new Timestamp(end), run.get("id"));
+                run.put("state", "FINISHED"); run.put("gmt_modified", new Timestamp(end));
             }
         }
     }
@@ -273,7 +319,7 @@ public class PaperManager {
         require(answer.getRequests().size() < 100, "本题已达到 100 次提交上限");
         programs.rateLimit(uid());
         Long submission;
-        if (run.get("contest_id") == null) submission = programs.submit(id, item.getProgramSnapshotId(), uid(), dto.getLanguage(), dto.getCode());
+        if (!competition(run)) submission = programs.submit(id, item.getProgramSnapshotId(), uid(), dto.getLanguage(), dto.getCode());
         else {
             programs.contestAccess();
             submission = programs.submitAs(id, item.getProgramSnapshotId(), uid(), ShiroUtils.getProfile().getUsername(), dto.getLanguage(), dto.getCode());
@@ -306,19 +352,19 @@ public class PaperManager {
 
     public Map<String, Object> histories(Integer page) {
         String uid = uid(); int offset = (Math.max(1, Math.min(100000, page == null ? 1 : page)) - 1) * 20;
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT id,paper_id,paper_version,state,gmt_create,snapshot_json FROM paper_run WHERE uid=? AND contest_id IS NULL ORDER BY id DESC LIMIT 20 OFFSET ?", uid, offset);
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT id,paper_id,paper_version,state,gmt_create,snapshot_json FROM paper_run WHERE uid=? AND contest_id IS NULL AND virtual_run_id IS NULL ORDER BY id DESC LIMIT 20 OFFSET ?", uid, offset);
         List<Map<String, Object>> records = rows.stream().map(row -> {
             Map<String, Object> result = new LinkedHashMap<>(); result.put("id", row.get("id")); result.put("paperId", row.get("paper_id"));
             result.put("title", snapshot(row).getPaper().getTitle()); result.put("state", row.get("state")); result.put("createdAt", ((java.util.Date) row.get("gmt_create")).getTime()); return result;
         }).collect(Collectors.toList());
         Map<String, Object> result = new LinkedHashMap<>(); result.put("records", records);
-        result.put("total", jdbc.queryForObject("SELECT COUNT(*) FROM paper_run WHERE uid=? AND contest_id IS NULL", Long.class, uid)); return result;
+        result.put("total", jdbc.queryForObject("SELECT COUNT(*) FROM paper_run WHERE uid=? AND contest_id IS NULL AND virtual_run_id IS NULL", Long.class, uid)); return result;
     }
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> retry(Long id) {
         Map<String, Object> run = ownedRun(id, true);
-        if (run.get("contest_id") == null) programs.retry(id, uid()); else programs.retry(id, uid(), true);
+        if (!competition(run)) programs.retry(id, uid()); else programs.retry(id, uid(), true);
         return view(run);
     }
 
@@ -331,14 +377,17 @@ public class PaperManager {
     }
     private Map<String, Object> view(Map<String, Object> run) {
         PaperDTO.Snapshot snapshot = snapshot(run); PaperDTO.Paper frozen = snapshot.getPaper();
-        boolean competition = run.get("contest_id") != null;
-        top.hcode.hoj.pojo.entity.contest.Contest contest = competition ? mixed.contest(number(run.get("contest_id")), false) : null;
+        Map<String, Object> window = virtualRow(run);
+        boolean competition = competition(run);
+        top.hcode.hoj.pojo.entity.contest.Contest contest = competition ? mixed.contest(number(window != null ? window.get("cid") : run.get("contest_id")), false) : null;
         PaperDTO.Paper rules = competition ? frozen : content(paper(number(run.get("paper_id")), false, false));
+        MixedContestDTO.Config currentConfig = competition ? mixed.config(contest.getId()) : null;
+        if (window != null) applyVirtualRelease(rules, currentConfig, ((java.util.Date) window.get("ends_at")).getTime());
         boolean finished = "FINISHED".equals(run.get("state"));
         boolean answerVisible = released(rules.getAnswerPolicy(), rules.getAnswerReleaseAt(), finished);
         boolean explanationVisible = released(rules.getExplanationPolicy(), rules.getExplanationReleaseAt(), finished);
-        MixedContestDTO.Config contestRules = competition ? mixed.config(contest.getId()) : null;
-        if (competition) {
+        MixedContestDTO.Config contestRules = window == null ? currentConfig : null;
+        if (contestRules != null) {
             answerVisible = finished && mixed.released(contestRules.getAnswerPolicy(), contestRules.getAnswerReleaseAt(), contest);
             explanationVisible = finished && mixed.released(contestRules.getExplanationPolicy(), contestRules.getExplanationReleaseAt(), contest);
         }
@@ -410,9 +459,12 @@ public class PaperManager {
         if ((answerVisible || competition && finished) && complete) result.put("score", Math.round(totalScore * 100) / 100.0);
         if (competition) {
             result.put("contestId", contest.getId()); result.put("contestType", contest.getType());
-            result.put("endTime", contest.getEndTime().getTime()); result.put("serverNow", now());
-            result.put("answerPolicy", contestRules.getAnswerPolicy()); result.put("explanationPolicy", contestRules.getExplanationPolicy());
-            result.put("answerReleaseAt", contestRules.getAnswerReleaseAt()); result.put("explanationReleaseAt", contestRules.getExplanationReleaseAt());
+            result.put("endTime", window == null ? contest.getEndTime().getTime() : ((java.util.Date) window.get("ends_at")).getTime()); result.put("serverNow", now());
+            if (contestRules != null) {
+                result.put("answerPolicy", contestRules.getAnswerPolicy()); result.put("explanationPolicy", contestRules.getExplanationPolicy());
+                result.put("answerReleaseAt", contestRules.getAnswerReleaseAt()); result.put("explanationReleaseAt", contestRules.getExplanationReleaseAt());
+            }
+            if (window != null) { result.put("virtual", true); result.put("virtualRunId", window.get("id")); result.put("contestType", snapshot.getVirtualContestType()); }
         }
         return result;
     }

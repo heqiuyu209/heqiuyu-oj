@@ -92,6 +92,8 @@
               </el-col>
             </el-row>
           </div>
+          <el-alert v-if="contest.auth === 0 && contest.status === 0" title="公开赛进行期间，打开比赛题目即进入参赛，AI 助教暂停至比赛结束；仅查看首页和榜单不受影响。" type="info" :closable="false" show-icon />
+          <VirtualPractice v-if="!contest.mixedPaperId" :contest-id="$route.params.contestID" :contest="contest" />
           <div class="slider">
             <el-slider
               v-model="progressValue"
@@ -357,10 +359,11 @@ import {
 import myMessage from '@/common/message';
 import storage from '@/common/storage';
 import Markdown from "@/components/oj/common/Markdown";
+import VirtualPractice from '@/components/oj/contest/VirtualPractice';
 export default {
   name: 'ContestDetails',
   components: {
-    Markdown
+    Markdown, VirtualPractice
   },
   data() {
     return {

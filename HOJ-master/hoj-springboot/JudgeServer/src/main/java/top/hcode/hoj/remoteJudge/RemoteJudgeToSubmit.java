@@ -36,8 +36,8 @@ public class RemoteJudgeToSubmit {
         try {
             remoteJudgeStrategy.submit();
         } catch (Exception e) {
-            log.error("Submit Failed! Error:", e);
-            errLog = e.getMessage();
+            log.warn("Remote submission failed for judge task [{}]; type [{}]",
+                    remoteJudgeDTO.getJudgeId(), e.getClass().getSimpleName());
         }
 
         Long submitId = remoteJudgeDTO.getSubmitId();
@@ -83,7 +83,6 @@ public class RemoteJudgeToSubmit {
                 .setStatus(Constants.Judge.STATUS_PENDING.getStatus())
                 .setVjudgeSubmitId(submitId)
                 .setVjudgeUsername(remoteJudgeDTO.getUsername())
-                .setVjudgePassword(remoteJudgeDTO.getPassword())
         );
 
         log.info("[{}] Submit Successfully! The submit_id of remote judge is [{}]. Waiting the result of the task!",

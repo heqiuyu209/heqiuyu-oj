@@ -45,6 +45,8 @@ import GroupRank from '@/views/oj/group/children/GroupRank.vue'
 import NotFound from "@/views/404.vue"
 
 const ojRoutes = [
+  { path: '/knowledge', name: 'Knowledge', component: () => import('@/views/oj/knowledge/Knowledge'), meta: { title: 'Knowledge', requireAuth: true } },
+  { path: '/knowledge/:documentID', name: 'KnowledgeDocument', component: () => import('@/views/oj/knowledge/KnowledgeDocument'), meta: { title: 'Knowledge', requireAuth: true } },
   { path: '/papers', name: 'PaperList', component: () => import('@/views/oj/problem/PaperList'), meta: { title: 'Paper Practice', requireAuth: true } },
   { path: '/contest/:contestID/mixed/run/:runID', name: 'MixedContestRun', component: () => import('@/views/oj/problem/PaperRun'), meta: { title: 'Mixed Contest', requireAuth: true } },
   { path: '/papers/run/:runID', name: 'PaperRun', component: () => import('@/views/oj/problem/PaperRun'), meta: { title: 'Paper Practice', requireAuth: true } },
@@ -240,9 +242,10 @@ const ojRoutes = [
     component: SubmissionDetails,
     meta: {title: 'Submission Details' }
   },
-  { path: '/rank/:type(practice|contest)', name: 'SiteRank', component: SiteRank, meta: { title: '站内排名' } },
-  { path: '/rank', redirect: '/rank/practice' },
-  { path: '/acm-rank', redirect: '/rank/practice' },
+  { path: '/rank/contest', name: 'SiteRank', component: SiteRank, meta: { title: '比赛排名' } },
+  { path: '/rank/practice', redirect: '/rank/contest' },
+  { path: '/rank', redirect: '/rank/contest' },
+  { path: '/acm-rank', redirect: '/rank/contest' },
   { path: '/oi-rank', redirect: '/rank/contest' },
   {
     path: '/reset-password',

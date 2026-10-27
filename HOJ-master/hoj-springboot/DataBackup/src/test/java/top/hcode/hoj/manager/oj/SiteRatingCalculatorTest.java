@@ -5,15 +5,6 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SiteRatingCalculatorTest {
-    @Test void practiceRewardsHarderTasksAndTapersEasyTaskGains() {
-        assertEquals(816, SiteRatingCalculator.practice(800, 800));
-        assertTrue(SiteRatingCalculator.practice(800, 1600) > SiteRatingCalculator.practice(800, 800));
-        assertEquals(2000, SiteRatingCalculator.practice(2000, 800));
-        for (int r = 0; r <= 5000; r += 100) {
-            int next = SiteRatingCalculator.practice(800, r);
-            assertTrue(next >= 800 && next <= 832);
-        }
-    }
     @Test void equalOpponentsGainForWinningAndLoseForLosing() {
         Map<String, Integer> delta = SiteRatingCalculator.contest(Arrays.asList(player("a", 1400, 1), player("b", 1400, 2)));
         assertTrue(delta.get("a") > 0); assertTrue(delta.get("b") < 0);

@@ -1,4 +1,6 @@
 export const m = {
+  Knowledge: '知识库',
+  Knowledge_Admin: '知识库资料',
   Paper_Practice: '套卷练习',
   Paper_Admin: '题集与试卷',
   Objective_Practice: '客观题练习',
@@ -22,8 +24,6 @@ export const m = {
   NavBar_Contest: '比赛',
   NavBar_Status: '测评',
   NavBar_Rank: '排名',
-  NavBar_ACM_Rank: '平时排名',
-  NavBar_OI_Rank: '比赛排名',
   NavBar_Discussion: '讨论',
   NavBar_Group: '团队',
   NavBar_About: '关于',

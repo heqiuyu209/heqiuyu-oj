@@ -2,16 +2,10 @@ package top.hcode.hoj.manager.oj;
 
 import java.util.*;
 
-/** Station rules v1: practice Elo against a task; CF-style multiplayer contest Elo. */
+/** Station contest rating: CF-style multiplayer Elo. */
 public final class SiteRatingCalculator {
-    public static final int PRACTICE_INITIAL = 800;
     public static final int CONTEST_INITIAL = 1400;
     private SiteRatingCalculator() {}
-
-    public static int practice(int rating, int taskRating) {
-        double expected = 1.0 / (1 + Math.pow(10, (taskRating - rating) / 400.0));
-        return rating + (int) Math.round(32 * (1 - expected));
-    }
 
     public static final class Player {
         public final String uid;

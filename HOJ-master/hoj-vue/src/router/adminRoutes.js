@@ -32,6 +32,7 @@ const adminRoutes= [
       component: Home,
       meta: { requireAuth:true, requireAdmin: true },
       children: [
+        { path: 'knowledge', name: 'admin-knowledge', component: () => import('@/views/admin/knowledge/KnowledgeAdmin'), meta: { title: 'Knowledge Admin', requireKnowledgeAdmin: true } },
         { path: 'papers', name: 'admin-papers', component: () => import('@/views/admin/problem/CollectionAdmin'), meta: { title: 'Paper Admin' } },
         { path: 'objective', name: 'admin-objective', redirect: { path: '/admin/problems', query: { type: 'objective' } } },
         { path: 'questions/create', name: 'admin-create-question', component: () => import('@/views/admin/problem/QuestionCreate'), meta: { title: 'Create Problem' } },

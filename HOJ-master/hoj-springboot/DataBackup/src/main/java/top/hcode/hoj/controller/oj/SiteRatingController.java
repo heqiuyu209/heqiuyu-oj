@@ -13,15 +13,15 @@ import java.util.Map;
 public class SiteRatingController {
     @Autowired private SiteRatingManager ratings;
     @GetMapping("/rank")
-    public CommonResult<Map<String, Object>> rank(@RequestParam(defaultValue = "practice") String type,
+    public CommonResult<Map<String, Object>> rank(@RequestParam(defaultValue = "contest") String type,
             @RequestParam(required = false) Integer currentPage, @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String searchUser) {
-        if (!"practice".equals(type) && !"contest".equals(type)) return CommonResult.errorResponse("未知排名类型");
+        if (!"contest".equals(type)) return CommonResult.errorResponse("平时 Rating 已取消，仅支持比赛 Rating");
         return CommonResult.successResponse(ratings.rank(type, currentPage, limit, searchUser));
     }
     @GetMapping("/users/{uid}")
     public CommonResult<Map<String, Object>> profile(@PathVariable String uid, @RequestParam(required = false) String type) {
-        if (type != null && !"practice".equals(type) && !"contest".equals(type)) return CommonResult.errorResponse("未知排名类型");
+        if (type != null && !"contest".equals(type)) return CommonResult.errorResponse("平时 Rating 已取消，仅支持比赛 Rating");
         return CommonResult.successResponse(ratings.profile(uid, type));
     }
 }

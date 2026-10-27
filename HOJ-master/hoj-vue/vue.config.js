@@ -24,7 +24,7 @@ const cdn = {
     "moment": "moment",
     'vue-echarts': 'VueECharts',
     "echarts":"echarts",
-    katex:'katex',
+    // KaTeX stays bundled at the locked version, including in CDN builds.
     'muse-ui':'MuseUI',
     jquery:'$',
     // 'vxe-table':'VXETable',
@@ -44,7 +44,6 @@ const cdn = {
       // "https://cdn.jsdelivr.net/npm/vxe-table@2.9.26/lib/style.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.14.0/theme-chalk/index.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/4.0.0/github-markdown.min.css",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/katex.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/muse-ui/3.0.2/muse-ui.min.css"
   ],
   // cdn的js链接
@@ -74,9 +73,7 @@ const cdn = {
       // "https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/vuex/3.5.1/vuex.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/vuex/3.5.1/vuex.min.js",
       // "https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/KaTeX/0.12.0/katex.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/katex.min.js",
       // "https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/KaTeX/0.12.0/contrib/auto-render.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/contrib/auto-render.min.js",
       // 'https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/muse-ui/3.0.2/muse-ui.min.js',
       "https://cdnjs.cloudflare.com/ajax/libs/muse-ui/3.0.2/muse-ui.min.js",
       // 'https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.5.1/jquery.min.js',
@@ -92,6 +89,8 @@ const cdn = {
 module.exports={
   publicPath: '/',
   assetsDir: "assets",
+  // markdown-it uses entities' modern source; Webpack 4 needs Babel to parse it.
+  transpileDependencies: ['entities'],
   devServer: {
     open: false,
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)

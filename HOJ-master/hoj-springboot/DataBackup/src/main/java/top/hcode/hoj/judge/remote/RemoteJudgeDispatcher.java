@@ -28,10 +28,14 @@ public class RemoteJudgeDispatcher {
     @Autowired
     private RemoteJudgeReceiver remoteJudgeReceiver;
 
+    @Autowired
+    private PersonalRemoteSubmissionGuard personalRemoteSubmissionGuard;
+
     @Value("${hoj.judge.token:no_judge_token}")
     private String judgeToken;
 
     public void sendTask(Long judgeId, Long pid, String remoteJudgeProblem, Boolean isContest, Boolean isHasSubmitIdRemoteReJudge) {
+        if (personalRemoteSubmissionGuard.managed(judgeId)) throw new IllegalStateException("Personal remote submissions use result reconciliation only");
         JSONObject task = new JSONObject();
         task.set("judgeId", judgeId);
         task.set("remoteJudgeProblem", remoteJudgeProblem);

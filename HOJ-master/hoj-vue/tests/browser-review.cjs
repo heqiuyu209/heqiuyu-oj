@@ -674,7 +674,7 @@ function fixture(req) {
   await route("/contest/1/problem/P1000/full-screen");
   await ev(`${component("AiAssistant")}.show()`);
   report.checks.contestAi = await ev(
-    `({disabled:document.querySelector('.ai-popup textarea').disabled,text:document.querySelector('.ai-popup').innerText})`
+    `({disabled:${component("AiAssistant")}.blocked,text:document.querySelector('.ai-popup').innerText})`
   );
   await ev(`${component("AiAssistant")}.close()`);
   report.checks.objective = {};

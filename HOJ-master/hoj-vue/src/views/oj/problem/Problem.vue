@@ -33,6 +33,7 @@
                 >
                   <span>{{ problemData.problem.title }}</span><br />
                   <ProblemMeta :problem="problemData.problem" detail />
+                  <AiProblemHelp v-if="!loading && problemData.problem.id" :reference="{ kind: 'PROGRAMMING', problemId: String(problemID), ...(groupID ? { groupId: Number(groupID) } : {}), ...(contestID ? { contestId: Number(contestID) } : {}) }" :title="problemData.problem.title" />
                   <div class="problem-tag">
                     <span v-if="problemData.problem.isFileIO"
                       style="padding-right: 10px">
@@ -185,6 +186,9 @@
                   </div>
                 </div>
 
+                <RemoteLanguageSwitch
+                  v-if="!contestID && !groupID && problemData.problem.isRemote && /^(CF|AC|NC)-/.test(problemData.problem.problemId || '') && problemData.problem.id"
+                  :key="problemData.problem.id" :pid="problemData.problem.id" @change="changeRemoteLanguage" />
                 <div id="problem-content">
                   <template v-if="problemData.problem.description">
                     <p class="title">{{ $t('m.Description') }}</p>
@@ -485,6 +489,15 @@
             shadow="always"
             class="submit-detail"
           >
+            <PersonalRemoteSubmit
+              v-if="supportsPersonalRemote"
+              :key="'remote:' + draftIdentity"
+              :scope="{ pid: problemID, cid: contestID, tid: trainingID, gid: groupID }"
+              :source-problem="problemData.problem.problemId || ''"
+              :code="code"
+              :disabled="problemSubmitDisabled || submitDisabled"
+              @active="personalRemoteActive = $event"
+            />
             <CodeMirror
               ref="codeEditor"
               :key="draftIdentity"
@@ -660,6 +673,7 @@
                     </div>
                   </template>
                   <el-button
+                    v-if="!supportsPersonalRemote || !personalRemoteActive"
                     type="primary"
                     icon="el-icon-edit-outline"
                     size="small"
@@ -772,6 +786,8 @@ import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
 import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
 import LearningPanel from '@/components/oj/learning/LearningPanel';
 import ProblemMeta from '@/components/oj/learning/ProblemMeta';
+import AiProblemHelp from '@/components/oj/ai/AiProblemHelp';
+import RemoteLanguageSwitch from '@/components/oj/problem/RemoteLanguageSwitch';
 import problemWorkspace from '@/common/problemWorkspace';
 import { readPreference } from '@/common/appearance';
 import { mapGetters, mapActions } from "vuex";
@@ -791,6 +807,7 @@ import api from "@/common/api";
 import myMessage from "@/common/message";
 import { addCodeBtn } from "@/common/codeblock";
 import CodeMirror from "@/components/oj/common/CodeMirror.vue";
+import PersonalRemoteSubmit from '@/components/oj/problem/PersonalRemoteSubmit.vue';
 import Pagination from "@/components/oj/common/Pagination";
 import ProblemHorizontalMenu from "@/components/oj/common/ProblemHorizontalMenu";
 import Markdown from "@/components/oj/common/Markdown";
@@ -805,7 +822,10 @@ export default {
     WorkspaceLayout,
     LearningPanel,
     ProblemMeta,
+    AiProblemHelp,
+    RemoteLanguageSwitch,
     CodeMirror,
+    PersonalRemoteSubmit,
     Pagination,
     ProblemHorizontalMenu,
     Markdown
@@ -823,9 +843,11 @@ export default {
       problemID: "",
       trainingID: null,
       submitting: false,
+      personalRemoteActive: true,
       code: "",
       language: "",
       isRemote: false,
+      remoteBaseProblem: null,
       theme: "solarized",
       fontSize: "14px",
       tabSize: 4,
@@ -900,6 +922,15 @@ export default {
     this.resizeWatchHeight();
   },
   methods: {
+    changeRemoteLanguage({ pid, language, content }) {
+      if (this.contestID || this.groupID || !this.remoteBaseProblem || this.remoteBaseProblem.id !== pid || this.problemData.problem.id !== pid) return;
+      const problem = { ...this.remoteBaseProblem };
+      if (language !== 'local' && content) {
+        ['title', 'description', 'input', 'output', 'hint', 'timeLimit', 'memoryLimit'].forEach(field => { problem[field] = content[field]; });
+        problem.examples = utils.stringToExamples(content.examples || '');
+      }
+      this.problemData.problem = problem;
+    },
     ...mapActions(["changeDomTitle"]),
     initProblemCodeAndSetting() {
       this.code = "";
@@ -1010,6 +1041,7 @@ export default {
     },
     init() {
       const request = this.problemRequest = (this.problemRequest || 0) + 1;
+      this.remoteBaseProblem = null;
       this.contestID = this.$route.params.contestID || 0;
       this.trainingID = this.$route.params.trainingID || null;
       this.groupID = this.$route.params.groupID || null;
@@ -1050,6 +1082,7 @@ export default {
             this.userExtraFile = JSON.parse(result.problem.userExtraFile);
           }
 
+          this.remoteBaseProblem = { ...result.problem };
           this.problemData = result;
 
           this.loading = false;
@@ -1510,6 +1543,7 @@ export default {
     }
   },
   computed: {
+    supportsPersonalRemote() { return !this.isObjective && this.problemData.problem.isRemote && /^(?:(CF|GYM|AC)-|NC-[1-9][0-9]{0,11}(?:-[A-Za-z][A-Za-z0-9]{0,15})?$)/.test(this.problemData.problem.problemId || ''); },
     isObjective() { return ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_BLANK'].includes(this.problemData.problem.questionType); },
     ...mapGetters([
       "problemSubmitDisabled",

@@ -8,6 +8,7 @@ import store from '@/store'
 import NProgress from 'nprogress' // nprogress插件
 import 'nprogress/nprogress.css' // nprogress样式
 import i18n from '@/i18n'
+import { confirmAuthoringDiscard } from '@/common/authoringGuard'
 
 // 配置NProgress进度条选项  —— 动画效果
 NProgress.configure({ ease: 'ease', speed: 1000,showSpinner: false })
@@ -36,6 +37,12 @@ const router = new VueRouter({
 })
 
 
+router.beforeEach(async (to, from, next) => {
+  if (to.path === from.path && to.query.type === from.query.type) return next()
+  if (await confirmAuthoringDiscard()) next()
+  else next(false)
+})
+
 // 路由判断登录 根据路由配置文件的参数(全局身份验证token)
 router.beforeEach((to, from, next) => {
   NProgress.start()
@@ -44,6 +51,11 @@ router.beforeEach((to, from, next) => {
     const isSuperAdmin = store.getters.isSuperAdmin
     const isAmdin = store.getters.isAdminRole
     if (token) { // 判断当前的token是否存在 ； 登录存入的token
+      if (to.matched.some(record => record.meta.requireKnowledgeAdmin) && !(store.getters.userInfo.roleList || []).some(role => role === 'root' || role === 'admin')) {
+        mMessage.error('仅站点管理员可维护知识库');
+        next({ path: '/admin/dashboard' });
+        return;
+      }
 
       if(to.matched.some(record => record.meta.requireSuperAdmin)){ // 判断是否需要超级管理权限
 

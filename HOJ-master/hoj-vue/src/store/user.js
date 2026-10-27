@@ -4,6 +4,7 @@ import api from '@/common/api'
 const state = {
   userInfo:  storage.get('userInfo'),
   token: localStorage.getItem('token'),
+  authEpoch: 0,
   loginFailNum:0,
   unreadMessage:{
     comment:0,
@@ -17,6 +18,7 @@ const state = {
 const getters = {
   userInfo: state => state.userInfo || {},
   token: state => state.token ||'',
+  authEpoch: state => state.authEpoch,
   unreadMessage:state => state.unreadMessage || {},
   loginFailNum:state=>state.loginFailNum || 0,
   isAuthenticated: (state, getters) => {
@@ -53,6 +55,11 @@ const mutations = {
     storage.set('userInfo',userInfo)
   },
   changeUserToken(state,token){
+    state.authEpoch += 1
+    state.token = token
+    localStorage.setItem("token",token)
+  },
+  refreshUserToken(state,token){
     state.token = token
     localStorage.setItem("token",token)
   },
@@ -65,6 +72,7 @@ const mutations = {
   },
   
   clearUserInfoAndToken(state){
+    state.authEpoch += 1
     state.token = ''
     state.userInfo = {}
     state.loginFailNum = 0

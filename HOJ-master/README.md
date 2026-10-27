@@ -2,7 +2,7 @@
 
 本项目基于 HOJ，面向成理工程算法学习与 XCPC 集训。当前仓库：[heqiuyu209/heqiuyu-oj](https://github.com/heqiuyu209/heqiuyu-oj)。
 
-2026-10-14：已将卡片 UI 与题目工作台集成到原 Vue 2 源码，待用户验收。详见 [UI 实施记录与接口预留](./hoj-vue/UI-IMPLEMENTATION.md) 和 [前端运行说明](./hoj-vue/README.md)。AI、Rating 计分、跨平台同步尚未实现，不应将界面预留视为服务已接入。
+2026-10-19：本分支已迭代卡片 UI、混合题与比赛、站内 Rating、用户 AI、来源同步及本地知识库；各阶段的实际实现、验证、部署与未完成项以 [任务记录](./docs/docs/ai/TODO.md) 为准。知识库已接通管理员维护、用户检索 / 原文和可选模型问答页面，Markdown / TXT 真实本地索引链路已验证；真实本人模型与远程 AC / WA 仍按用户选择延后。页面运行见 [前端说明](./hoj-vue/README.md)，原 UI 设计边界保留在 [UI 实施记录](./hoj-vue/UI-IMPLEMENTATION.md)。
 
 以下保留 HOJ 上游功能介绍、历史文档和贡献者信息；其中 Demo、交流群和捐赠入口属于上游项目。部署本分支以仓库内 Compose 和当前运行说明为准。
 
@@ -18,7 +18,8 @@
 [![Vue](https://img.shields.io/badge/Vue-2.6.11-success)](https://cn.vuejs.org/)
 [![Github Star](https://img.shields.io/github/stars/HimitZH/HOJ?style=social)](https://github.com/HimitZH/HOJ)
 [![Gitee Star](https://gitee.com/himitzh0730/hoj/badge/star.svg)](https://gitee.com/himitzh0730/hoj)
-[![QQ Group 598587305](https://img.shields.io/badge/QQ%20Group-598587305-blue)](https://qm.qq.com/cgi-bin/qm/qr?k=WWGBZ5gfDiBZOcpNvM8xnZTfUq7BT4Rs&jump_from=webapi)
+
+[//]: # ([![QQ Group 598587305]&#40;https://img.shields.io/badge/QQ%20Group-598587305-blue&#41;]&#40;https://qm.qq.com/cgi-bin/qm/qr?k=WWGBZ5gfDiBZOcpNvM8xnZTfUq7BT4Rs&jump_from=webapi&#41;)
 
 简体中文 | [English](./README-EN.md)
 
@@ -32,9 +33,12 @@
 - **完善的评测功能：普通测评、特殊测评、交互测评、在线自测、子任务分组评测、文件IO**
 - **完善的比赛功能：打星队伍、关注队伍、外榜、滚榜**
 
-|               在线Demo               |                   在线文档                   |             Github&Gitee仓库地址             |           QQ群           |
-| :--------------------------------: | :--------------------------------------: | :--------------------------------------: | :---------------------: |
-| [https://hdoi.cn](https://hdoi.cn) | [https://docs.hdoi.cn](https://docs.hdoi.cn) | [https://github.com/HimitZH/HOJ](https://github.com/HimitZH/HOJ)  [https://gitee.com/himitzh0730/hoj](https://gitee.com/himitzh0730/hoj) | 598587305（已满）、743568562 |
+[//]: # ()
+[//]: # (|               在线Demo               |                   在线文档                   |             Github&Gitee仓库地址             |           QQ群           |)
+
+[//]: # (| :--------------------------------: | :--------------------------------------: | :--------------------------------------: | :---------------------: |)
+
+[//]: # (| [https://hdoi.cn]&#40;https://hdoi.cn&#41; | [https://docs.hdoi.cn]&#40;https://docs.hdoi.cn&#41; | [https://github.com/HimitZH/HOJ]&#40;https://github.com/HimitZH/HOJ&#41;  [https://gitee.com/himitzh0730/hoj]&#40;https://gitee.com/himitzh0730/hoj&#41; | 598587305（已满）、743568562 |)
 
 **注意：**
 
@@ -256,3 +260,16 @@
 
 
 ![评论区](https://cdn.jsdelivr.net/gh/HimitZH/HOJ/docs/docs/.vuepress/public/20210509233845230.png)
+
+## 本地视频知识库
+
+管理员在“知识库资料 → 视频资料”上传 MP4 / WebM，等待本地转写后审阅字幕、保存入库，再选择版本发布。学生从前台知识库检索讲解并按引用时间回看。语音识别使用本地只读 Whisper small 权重，不需要聊天模型 Key；画面文字不参与检索。真实课堂字幕仍须核对。
+
+已有库先执行 sqlAndsetting/knowledge-video.sql。启用视频时，在本地 .env.rag.local 中配置 HOJ_VIDEO_MODEL_DIR 为完整 faster-whisper-small 权重目录，并在原有三个 Compose 文件后加入 compose.video.yaml。后续更新也须保留这四个文件，以持续挂载私有媒体卷与模型。
+
+```powershell
+docker compose --env-file .env.rag.local -p hoj-master `
+  -f compose.yaml -f compose.dev.yaml -f compose.rag.yaml -f compose.video.yaml up -d
+```
+
+接口、输入限制及授权播放见 [视频资料接口](docs/docs/ai/08-data-model-and-api.md#视频资料与授权播放2026-10-20)，实际实现、验证及待验收项以 [任务记录](docs/docs/ai/TODO.md) 为准。已有库只执行增量迁移，保留现有数据卷。

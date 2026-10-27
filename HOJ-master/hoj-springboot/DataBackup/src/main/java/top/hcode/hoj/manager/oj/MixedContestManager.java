@@ -53,6 +53,12 @@ public class MixedContestManager {
         return contest;
     }
     public Contest access(Long cid, boolean submitting) {
+        return access(cid, submitting, true);
+    }
+    public Contest virtualAccess(Long cid) {
+        return access(cid, true, false);
+    }
+    private Contest access(Long cid, boolean submitting, boolean originalDeadline) {
         Contest contest = contest(cid, false);
         AccountProfile user = actor();
         if (user == null) throw new ObjectiveException(401, "请先登录");
@@ -70,7 +76,7 @@ public class MixedContestManager {
         } catch (top.hcode.hoj.common.exception.StatusFailException | top.hcode.hoj.common.exception.StatusForbiddenException e) {
             throw new ObjectiveException(403, e.getMessage());
         }
-        if (submitting) require(now() < contest.getEndTime().getTime(), "比赛已截止，答卷不能修改");
+        if (submitting && originalDeadline) require(now() < contest.getEndTime().getTime(), "比赛已截止，答卷不能修改");
         return contest;
     }
     public void configure(Contest old, Contest next, MixedContestDTO.Config config) {

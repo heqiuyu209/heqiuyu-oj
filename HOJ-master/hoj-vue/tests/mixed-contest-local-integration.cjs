@@ -15,6 +15,14 @@ const [teacher, student] = accounts;
 const quote = s => "'" + String(s).replace(/'/g, "''") + "'", uids = accounts.map(a => quote(a.uid)).join(',');
 function sql(input) { return execFileSync('docker', ['compose', '-p', 'hoj-master', '-f', compose, 'exec', '-T', 'hoj-mysql', 'sh', '-c', 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --database=hoj --batch --skip-column-names --default-character-set=utf8mb4'], { input, encoding: 'utf8', windowsHide: true, timeout: 30000 }).trim(); }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function waitForFixtureSubmitSlot(account) {
+  // Observe only this generated user's existing limiter; never clear or shorten it.
+  for (;;) {
+    const raw=execFileSync('docker',['compose','-p','hoj-master','-f',compose,'exec','-T','hoj-redis','redis-cli','--raw','GET','submit_non_contest_lock:'+account.uid],{encoding:'utf8',windowsHide:true,timeout:10000}).trim();
+    if(!raw)return;const next=Number(JSON.parse(raw));assert(Number.isFinite(next),'Expected a numeric JSON fixture submit deadline');
+    const delay=next-Date.now()+250;if(delay<=0)return;await sleep(Math.min(delay,30000));
+  }
+}
 async function request(account, endpoint, method = 'GET', data, expected = 200) {
   const response = await fetch(base + endpoint, { method, headers: { 'Content-Type': 'application/json', ...(account && account.token ? { Authorization: account.token } : {}) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }), signal: AbortSignal.timeout(20000) });
   const body = await response.json(); if (account && response.headers.get('authorization')) account.token = response.headers.get('authorization');
@@ -68,6 +76,41 @@ async function create(type, seconds = 3600, auth = 0) {
   report.checks.push('Real protected OI: registration enforced, server deadline job locks and hands in without browser activity, later writes denied, solutions released after end and total-score ranking correct.');
   const practice = await request(student, '/api/papers/runs', 'POST', { paperId: 3, requestId: crypto.randomBytes(16).toString('hex') }); assert.notEqual(practice.id, run.id); assert(!practice.contestId);
   report.checks.push('The same paper remains available for independent daily practice.');
+  if (process.env.HOJ_LOCAL_MIXED_VIRTUAL_TEST === '1') {
+    // Move only this fixture's original clock into the past, preserving its original submissions.
+    sql(`UPDATE contest SET start_time=DATE_SUB(NOW(),INTERVAL 1 HOUR),end_time=DATE_SUB(NOW(),INTERVAL 1 SECOND),status=1 WHERE id=${acm} AND uid=${quote(teacher.uid)};`);
+    const original = await request(student,prefix), originalRank=(await request(student,'/api/contests/'+acm+'/mixed/rank')).records;
+    const key=crypto.randomBytes(16).toString('hex'),virtualUrl='/api/contests/'+acm+'/virtual-run';
+    const started=await Promise.all([request(student,virtualUrl,'POST',{requestId:key}),request(student,virtualUrl,'POST',{requestId:key})]);
+    const personal=started[0].run;assert.equal(personal.kind,'MIXED');assert.equal(personal.paperRunId,started[1].run.paperRunId);assert.notEqual(personal.paperRunId,run.id);assert.notEqual(personal.paperRunId,practice.id);
+    const virtualPrefix='/api/papers/runs/'+personal.paperRunId;let virtual=await request(student,virtualPrefix);assert.equal(virtual.virtual,true);assert.equal(virtual.endTime,personal.endsAt);assert.equal(virtual.items.length,7);
+    assert.equal(sql(`SELECT COUNT(*) FROM paper_run WHERE virtual_run_id=${personal.id} AND contest_id IS NULL;`),'1');await request(teacher,virtualPrefix,'GET',undefined,'denied');
+    report.checks.push('Real mixed virtual start atomically creates one independent frozen answer sheet despite parallel retries; formal and practice answer sheets and ownership remain separate.');
+    const virtualChoice=virtual.items.find(q=>q.key===choice.key),virtualProgram=virtual.items.find(q=>q.key===program.key);
+    await request(student,virtualPrefix+'/answers','PUT',{key:virtualChoice.key,selectedAnswers:['B']});
+    for(const [label,source,expected] of [['AC',code,0],['WA','#include <iostream>\nint main(){std::cout<<0;}',-1],['TLE','int main(){volatile long long n=0;while(true){n++;}}',1]]){
+      await waitForFixtureSubmitSlot(student);const requestId=crypto.randomBytes(16).toString('hex');await request(student,virtualPrefix+'/program-submissions','POST',{key:virtualProgram.key,language:'C++',code:source,requestId});
+      virtual=await until(async()=>{const r=await request(student,virtualPrefix);const q=r.items.find(i=>i.key===virtualProgram.key);return q.submissions.length&&q.submissions[q.submissions.length-1].status===expected?r:false;},'real virtual '+label);
+    }
+    assert.deepEqual(virtual.items.find(q=>q.key===virtualProgram.key).submissions.map(s=>s.status),[0,-1,1]);
+    const ended=await request(student,virtualPrefix+'/finish','POST');assert.equal(ended.score,35);assert(!ended.items.find(q=>q.key===virtualChoice.key).correctAnswers);assert.equal((await request(student,'/api/ai/settings')).contestBlocked,true);
+    await request(student,virtualPrefix+'/answers','PUT',{key:virtualChoice.key,selectedAnswers:['A']},'denied');
+    assert.deepEqual((await request(student,prefix)).items.find(q=>q.key===choice.key).selectedAnswers,original.items.find(q=>q.key===choice.key).selectedAnswers);
+    assert.deepEqual((await request(student,'/api/contests/'+acm+'/mixed/rank')).records,originalRank);assert.equal((await request(student,'/api/papers/runs?currentPage=1')).total,1);
+    report.checks.push('Real Java 8 virtual judging returns AC/WA/TLE, preserves BEST scoring, locks early hand-in and leaves formal standings and practice history unchanged; early hand-in does not release solutions or AI.');
+    sql(`UPDATE contest_virtual_run SET started_at=DATE_SUB(NOW(3),INTERVAL 2 HOUR),ends_at=DATE_SUB(NOW(3),INTERVAL 1 SECOND) WHERE id=${personal.id} AND uid=${quote(student.uid)};`);
+    assert((await request(student,virtualPrefix)).items.find(q=>q.key===virtualChoice.key).correctAnswers);assert.equal((await request(student,'/api/ai/settings')).contestBlocked,false);
+    const policy=await request(teacher,'/api/admin/contest?cid='+acm);policy.mixed={paperId:3,scoreRule:'BEST',answerPolicy:'NEVER',explanationPolicy:'NEVER'};await request(teacher,'/api/admin/contest','PUT',policy);assert(!(await request(student,virtualPrefix)).items.find(q=>q.key===virtualChoice.key).correctAnswers);
+    policy.mixed.answerPolicy='AFTER_END';policy.mixed.explanationPolicy='AFTER_END';await request(teacher,'/api/admin/contest','PUT',policy);
+    const next=(await request(student,virtualUrl,'POST',{requestId:crypto.randomBytes(16).toString('hex')})).run;assert.notEqual(next.paperRunId,personal.paperRunId);
+    await request(student,'/api/papers/runs/'+next.paperRunId+'/answers','PUT',{key:virtualChoice.key,selectedAnswers:['B']});
+    sql(`UPDATE contest_virtual_run SET started_at=DATE_SUB(NOW(3),INTERVAL 2 HOUR),ends_at=DATE_SUB(NOW(3),INTERVAL 1 SECOND) WHERE id=${next.id} AND uid=${quote(student.uid)};`);
+    await until(()=>sql(`SELECT state FROM paper_run WHERE id=${next.paperRunId}`)==='FINISHED','virtual deadline job without a browser',15000);
+    await request(student,'/api/papers/runs/'+next.paperRunId+'/answers','PUT',{key:virtualChoice.key,selectedAnswers:['A']},'denied');
+    assert((await request(student,'/api/papers/runs/'+next.paperRunId)).items.find(q=>q.key===virtualChoice.key).correctAnswers);
+    report.checks.push('Personal expiry restores feedback and AI; current administrative NEVER revokes feedback, an explicit new round gets new snapshots, and the deadline job finishes it without a browser.');
+    report.virtualExpiryFixtureSimulated=true;report.realRemoteSourceCodePosted=false;report.realModelCalled=false;
+  }
   report.validated = true;
   if (process.env.HOJ_SEED_MIXED_DEMO === '1' && !Number(sql("SELECT COUNT(*) FROM contest WHERE title='蓝桥杯风格 · 混合赛（演示）'"))) {
     const demo = await create(0, 7 * 86400);

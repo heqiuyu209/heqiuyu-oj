@@ -1,6 +1,9 @@
-import 'katex'
-import renderMathInElement from 'katex/contrib/auto-render/auto-render'
+import katex from 'katex'
+import renderMathInElement from 'katex/dist/contrib/auto-render.js'
 import 'katex/dist/katex.min.css'
+
+// mavon-editor's built-in math plugin reads this browser global.
+window.katex = katex
 
 function _ () {
 }

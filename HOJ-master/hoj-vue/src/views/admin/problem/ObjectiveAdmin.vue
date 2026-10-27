@@ -21,8 +21,10 @@
     <el-pagination layout="prev, pager, next, total" :total="total" :current-page="page" :page-size="20" @current-change="changePage" />
     </template>
     <el-dialog title="客观题编辑" :visible.sync="questionDialog" width="min(900px, 94vw)" top="5vh" custom-class="objective-editor-dialog" append-to-body :close-on-click-modal="false" :before-close="closeQuestion">
+      <authoring-steps v-show="!preview" :value="questionStep" :steps="['题目内容', '答案与解析', '练习开放']" :disabled="saving" @input="goQuestionStep" />
       <div v-if="question && preview" class="question-preview"><el-tag>{{ questionTypes[question.questionType] }}</el-tag><h2>{{ question.title || '未填写标题' }}</h2><p class="form-help">来源：{{ question.source || '本校题库' }}</p><p class="preview-text">{{ question.stem }}</p><div v-for="option in answerOptions" :key="option.id" class="preview-option">{{ option.id }}　{{ option.text }}</div><div v-for="(blank, index) in question.questionType === 'FILL_BLANK' ? question.blanks : []" :key="blank.id" class="preview-option">第 {{ index + 1 }} 空 · {{ blank.label || '填写答案' }}　________</div><p class="form-help">这是题面预览；保存后可在题库继续编辑。</p></div>
       <el-form v-if="question" v-show="!preview" label-position="top" @submit.native.prevent>
+        <div v-show="questionStep === 0">
         <el-form-item label="标题"><el-input v-model="question.title" maxlength="200" show-word-limit /></el-form-item>
         <el-form-item label="题目 Rating"><el-input-number v-model="question.rating" :min="0" :max="5000" :step="100" :precision="0" placeholder="未评级" /><span class="form-help">留空为未评级</span></el-form-item>
         <el-form-item label="题目来源"><el-input v-model="question.source" maxlength="200" show-word-limit placeholder="例如：计算机二级 2025 年真题；留空显示本校题库" /></el-form-item>
@@ -32,6 +34,10 @@
           <div v-for="(option, index) in question.options" :key="option.id" class="option-editor"><strong>{{ option.id }}</strong><el-input v-model="option.text" type="textarea" :rows="2" maxlength="4000" /><el-button :disabled="question.options.length <= 2" @click="removeOption(index)">移除</el-button></div>
           <el-button :disabled="question.options.length >= 10" @click="addOption">添加选项</el-button>
         </el-form-item>
+        <el-form-item label="知识点"><el-select v-model="question.tagIds" multiple filterable placeholder="选择已有公共题目标签"><el-option v-for="tag in tags" :key="tag.id" :value="tag.id" :label="tag.name" /></el-select></el-form-item>
+        </div>
+        <div v-show="questionStep === 1">
+        <div class="answer-context"><strong>{{ question.title }}</strong><p class="preview-text">{{ question.stem }}</p></div>
         <el-form-item v-if="question.questionType === 'FILL_BLANK'" label="填空与标准答案（按顺序，每空独立计分）">
           <div v-for="(blank, index) in question.blanks" :key="blank.id" class="blank-editor">
             <strong>第 {{ index + 1 }} 空</strong>
@@ -43,12 +49,14 @@
           <small class="form-help">支持单空与多空，题目总分为各空分值之和。等价答案由你逐项设置，系统不推断数学表达式等价。</small>
         </el-form-item>
         <el-form-item v-else label="标准答案">
-          <el-checkbox-group v-if="question.questionType === 'MULTIPLE_CHOICE'" v-model="question.correctAnswers"><el-checkbox v-for="option in question.options" :key="option.id" :label="option.id">{{ option.id }}</el-checkbox></el-checkbox-group>
-          <el-radio-group v-else :value="question.correctAnswers[0] || ''" @input="$set(question, 'correctAnswers', [$event])"><el-radio v-for="option in answerOptions" :key="option.id" :label="option.id">{{ option.id }}{{ question.questionType === 'TRUE_FALSE' ? '（' + option.text + '）' : '' }}</el-radio></el-radio-group>
+          <el-checkbox-group class="answer-choices" v-if="question.questionType === 'MULTIPLE_CHOICE'" v-model="question.correctAnswers"><el-checkbox v-for="option in question.options" :key="option.id" :label="option.id">{{ option.id }}　{{ option.text }}</el-checkbox></el-checkbox-group>
+          <el-radio-group class="answer-choices" v-else :value="question.correctAnswers[0] || ''" @input="$set(question, 'correctAnswers', [$event])"><el-radio v-for="option in answerOptions" :key="option.id" :label="option.id">{{ question.questionType === 'TRUE_FALSE' ? option.text : option.id + '　' + option.text }}</el-radio></el-radio-group>
           <small v-if="question.questionType === 'MULTIPLE_CHOICE'" class="form-help">多选全部选对得 1 分，少选、多选、错选均为 0 分。</small>
         </el-form-item>
         <el-form-item label="解析"><el-input v-model="question.explanation" type="textarea" :rows="5" maxlength="30000" /></el-form-item>
-        <el-form-item label="知识点"><el-select v-model="question.tagIds" multiple filterable placeholder="选择已有公共题目标签"><el-option v-for="tag in tags" :key="tag.id" :value="tag.id" :label="tag.name" /></el-select></el-form-item>
+        </div>
+        <div v-show="questionStep === 2">
+        <div class="publication-summary"><strong>{{ question.title }}</strong><p>{{ questionTypes[question.questionType] }} · 来源：{{ question.source || '本校题库' }}</p><p>题集、试卷和比赛各自控制开放规则，在这里单独决定是否开放日常单题练习。</p></div>
         <el-form-item label="开放单题练习"><el-switch v-model="standalone" /><small class="form-help">关闭时仅保存在题库，仍可加入题集、试卷和比赛。开启后学生可从题目列表独立练习；组卷不会自动开启此项。</small></el-form-item>
         <template v-if="standalone">
           <div class="release-fields">
@@ -57,15 +65,20 @@
           </div>
           <p class="form-help">单题提交即完成本次练习；提交后和交卷后两种条件在此场景下同时满足。加入题集或试卷时，以题集或试卷的开放设置为准。</p>
         </template>
+        </div>
         <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
       </el-form>
-      <span slot="footer"><el-button :disabled="saving" @click="closeQuestion()">取消</el-button><el-button :disabled="saving" @click="preview = !preview">{{ preview ? '继续编辑' : '预览题面' }}</el-button><el-button type="primary" :loading="saving" @click="saveQuestion">{{ standalone ? '保存并开放单题' : '保存到题库' }}</el-button></span>
+      <div slot="footer" class="authoring-footer"><el-button :disabled="saving" @click="closeQuestion()">取消</el-button><div><el-button v-if="questionStep > 0 && !preview" :disabled="saving" @click="goQuestionStep(questionStep - 1)">上一步</el-button><el-button :disabled="saving" @click="preview = !preview">{{ preview ? '继续编辑' : '预览题面' }}</el-button><el-button v-if="questionStep < 2 && !preview" type="primary" @click="goQuestionStep(questionStep + 1)">下一步</el-button><el-button v-else-if="questionStep === 2" type="primary" :loading="saving" @click="saveQuestion">{{ standalone ? '保存并开放单题' : '保存到题库' }}</el-button></div></div>
     </el-dialog>
     <el-dialog :title="problemSet && problemSet.mode === 'PAPER' ? '客观题试卷与开放设置' : '题集与开放设置'" :visible.sync="setDialog" width="min(900px, 94vw)" top="5vh" custom-class="objective-editor-dialog" append-to-body :close-on-click-modal="false" :before-close="closeSet">
+      <authoring-steps :value="setStep" :steps="['基本信息', '选择与排序', '开放设置']" :disabled="saving" @input="goSetStep" />
       <el-form v-if="problemSet" label-position="top" @submit.native.prevent>
+        <div v-show="setStep === 0">
         <el-form-item label="名称"><el-input v-model="problemSet.title" maxlength="200" /></el-form-item>
         <el-form-item label="说明"><el-input v-model="problemSet.description" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
         <p class="form-help">{{ problemSet.mode === 'PAPER' ? '保留已有客观题试卷的整卷答题方式。新建混合试卷请使用「新建试卷」。' : '题集按题提交，适合逐题训练。需要整卷交卷或编程题时，请使用「新建试卷」。' }}</p>
+        </div>
+        <div v-show="setStep === 1">
         <el-form-item label="选择题目（最多 50 题，按下方顺序出题）">
           <el-select v-model="problemSet.questionIds" multiple filterable remote :remote-method="searchChoices" :loading="choiceLoading" placeholder="输入标题搜索自己的题目" style="width:100%">
             <el-option v-for="item in choices" :key="item.id" :value="item.id" :label="item.id + '. ' + item.title" />
@@ -73,15 +86,19 @@
           <el-button type="text" icon="el-icon-plus" :disabled="problemSet.questionIds.length >= 50" @click="$refs.setCreator.open()">录入新题并加入题集</el-button>
           <ol class="selected-questions"><li v-for="(id, index) in problemSet.questionIds" :key="id"><span>{{ choiceTitle(id) }}</span><el-button size="mini" :disabled="index === 0" aria-label="上移题目" @click="moveQuestion(index, -1)">上移</el-button><el-button size="mini" :disabled="index === problemSet.questionIds.length - 1" aria-label="下移题目" @click="moveQuestion(index, 1)">下移</el-button></li></ol>
         </el-form-item>
+        </div>
+        <div v-show="setStep === 2">
+        <div class="publication-summary"><strong>{{ problemSet.title }}</strong><p>{{ problemSet.questionIds.length }} 题 · {{ problemSet.mode === 'PAPER' ? '整卷交卷' : '逐题提交' }}</p></div>
         <div class="release-fields">
           <el-form-item label="答案与判分反馈开放条件"><el-select v-model="problemSet.answerPolicy"><el-option v-for="(label, value) in releasePolicies" :key="value" :value="value" :label="label" /></el-select><el-date-picker v-if="problemSet.answerPolicy === 'AT_TIME'" v-model="problemSet.answerReleaseAt" type="datetime" value-format="timestamp" placeholder="选择答案开放时间" /></el-form-item>
           <el-form-item label="解析开放条件"><el-select v-model="problemSet.explanationPolicy"><el-option v-for="(label, value) in releasePolicies" :key="value" :value="value" :label="label" /></el-select><el-date-picker v-if="problemSet.explanationPolicy === 'AT_TIME'" v-model="problemSet.explanationReleaseAt" type="datetime" value-format="timestamp" placeholder="选择解析开放时间" /></el-form-item>
         </div>
         <p class="form-help">整卷交卷前仅保存草稿，即使选择“提交本题后”，也要交卷后才开放。指定时间开放同样要求已提交。解析可能包含答案，请按实际需要分别设置。修改开放条件会同时影响已有作答；下架题集会暂停学生访问。</p>
         <el-form-item label="开放题集 / 试卷"><el-switch v-model="problemSet.published" /><small class="form-help">仅控制本题集 / 试卷的学生访问；其中题目的单题练习开关保持独立。</small></el-form-item>
+        </div>
         <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
       </el-form>
-      <span slot="footer"><el-button :disabled="saving" @click="closeSet()">取消</el-button><el-button type="primary" :loading="saving" @click="saveSet">保存题集与规则</el-button></span>
+      <div slot="footer" class="authoring-footer"><el-button :disabled="saving" @click="closeSet()">取消</el-button><div><el-button v-if="setStep > 0" :disabled="saving" @click="goSetStep(setStep - 1)">上一步</el-button><el-button v-if="setStep < 2" type="primary" @click="goSetStep(setStep + 1)">下一步</el-button><el-button v-else type="primary" :loading="saving" @click="saveSet">{{ problemSet && problemSet.published ? '保存并开放' : '保存题集与规则' }}</el-button></div></div>
     </el-dialog>
     <question-creator v-if="setDialog" ref="setCreator" objective-only @saved="addCreatedQuestion" />
   </section>
@@ -89,17 +106,22 @@
 <script>
 import api from '@/common/api';
 import { modes, questionTypes, releasePolicies, responseData, errorMessage } from '@/common/objective';
+import AuthoringSteps from '@/components/admin/AuthoringSteps';
+import authoringGuard, { confirmAuthoringDiscard } from '@/common/authoringGuard';
 const options = () => [{ id: 'A', text: '' }, { id: 'B', text: '' }];
 export default {
   name: 'ObjectiveAdmin',
-  components: { QuestionCreator: () => import('@/components/admin/QuestionCreator') },
+  components: { AuthoringSteps, QuestionCreator: () => import('@/components/admin/QuestionCreator') },
+  mixins: [authoringGuard],
   props: { editorOnly: Boolean, questionsOnly: Boolean, compact: Boolean },
   data: () => ({
     tab: 'questions', keyword: '', type: '', page: 1, total: 0, rows: [], loading: false, saving: false, error: '', formError: '',
     question: null, problemSet: null, questionDialog: false, setDialog: false, tags: [], choices: [], choiceLoading: false, preview: false,
     request: 0, choiceRequest: 0, formRequest: 0, modes, questionTypes, releasePolicies,
+    questionStep: 0, setStep: 0,
   }),
   computed: {
+    authoringState() { return this.questionDialog ? this.question : this.setDialog ? this.problemSet : null; },
     standalone: { get() { return !!(this.question && this.question.published && this.question.practiceEnabled !== false); }, set(value) { this.question.published = value; this.$set(this.question, 'practiceEnabled', value); } },
     uid() { return this.$store.getters.userInfo.uid; },
     answerOptions() { return this.question && this.question.questionType === 'TRUE_FALSE' ? [{ id: 'TRUE', text: '正确' }, { id: 'FALSE', text: '错误' }] : this.question ? this.question.options : []; },
@@ -123,16 +145,18 @@ export default {
     },
     newQuestion(type = 'SINGLE_CHOICE') {
       if (this.saving) return;
-      this.formRequest++; this.formError = ''; this.preview = false;
+      this.formRequest++; this.formError = ''; this.preview = false; this.questionStep = 0;
       this.question = { title: '', source: '', questionType: type, stem: '', options: options(), blanks: [], correctAnswers: [], explanation: '', tagIds: [], published: false, practiceEnabled: false, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null };
       this.changeQuestionType();
       this.questionDialog = true;
+      this.markAuthoringClean();
     },
     newSet() {
       if (this.saving) return;
-      this.formRequest++; this.formError = '';
+      this.formRequest++; this.formError = ''; this.setStep = 0;
       this.problemSet = { title: '', description: '', mode: 'PRACTICE', questionIds: [], answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null, published: false };
       this.setDialog = true; this.searchChoices('');
+      this.markAuthoringClean();
     },
     async edit(row) {
       if (this.saving) return;
@@ -142,16 +166,45 @@ export default {
           const question = responseData(await api.adminObjectiveQuestion(row.id));
           if (request !== this.formRequest) return;
           this.question = { practiceEnabled: true, answerPolicy: 'AFTER_ANSWER', explanationPolicy: 'AFTER_ANSWER', answerReleaseAt: null, explanationReleaseAt: null, ...question }; this.questionDialog = true;
+          this.questionStep = 0; this.markAuthoringClean();
         } else {
           const set = responseData(await api.adminObjectiveSet(row.id));
           const selected = await Promise.all(set.questionIds.map(id => api.adminObjectiveQuestion(id).then(responseData)));
           if (request !== this.formRequest) return;
           this.problemSet = set; this.choices = selected; this.setDialog = true; this.searchChoices('');
+          this.setStep = 0; this.markAuthoringClean();
         }
       } catch (error) { if (request === this.formRequest) { this.error = errorMessage(error); this.$emit('error', this.error); } }
     },
-    closeQuestion(done) { if (this.saving) return; this.questionDialog = false; this.formRequest++; if (typeof done === 'function') done(); },
-    closeSet(done) { if (this.saving) return; this.setDialog = false; this.formRequest++; if (typeof done === 'function') done(); },
+    async closeQuestion(done) { const revision = this.formRequest; if (!await confirmAuthoringDiscard(this) || revision !== this.formRequest) return; this.questionDialog = false; this.formRequest++; if (typeof done === 'function') done(); },
+    async closeSet(done) { const revision = this.formRequest; if (!await confirmAuthoringDiscard(this) || revision !== this.formRequest) return; this.setDialog = false; this.formRequest++; this.choiceRequest++; if (typeof done === 'function') done(); },
+    questionError(step) {
+      const question = this.question;
+      if (step === 0) {
+        if (!question.title.trim() || !question.stem.trim()) return '请填写标题和题干。';
+        if (!['TRUE_FALSE', 'FILL_BLANK'].includes(question.questionType) && question.options.some(option => !option.text.trim())) return '请填写每个选项的内容。';
+      }
+      if (step === 1) {
+        if (question.questionType === 'FILL_BLANK') {
+          if (!question.blanks.length || question.blanks.some(blank => !blank.answers.length || blank.answers.some(answer => !answer.trim()))) return '请为每个空填写标准答案。';
+        } else if (!question.correctAnswers.length) return '请选择标准答案。';
+      }
+      return '';
+    },
+    goQuestionStep(step) {
+      if (this.saving) return;
+      for (let index = 0; index < step; index++) {
+        const error = this.questionError(index);
+        if (error) { this.questionStep = index; this.formError = error; return; }
+      }
+      this.questionStep = step; this.formError = '';
+    },
+    goSetStep(step) {
+      if (this.saving) return;
+      if (step > 0 && !this.problemSet.title.trim()) { this.setStep = 0; this.formError = '请填写题集名称。'; return; }
+      if (step > 1 && !this.problemSet.questionIds.length) { this.setStep = 1; this.formError = '请至少选择一道题。'; return; }
+      this.setStep = step; this.formError = '';
+    },
     changeQuestionType() {
       if (this.question.options.some(option => ['TRUE', 'FALSE'].includes(option.id))) this.question.options = options();
       if (this.question.options.length < 2) this.question.options = options();
@@ -178,8 +231,7 @@ export default {
     },
     async saveQuestion() {
       if (this.saving) return;
-      const blank = this.question.questionType === 'FILL_BLANK';
-      if (!this.question.title.trim() || !this.question.stem.trim() || (blank ? !this.question.blanks.length || this.question.blanks.some(item => !item.answers.length || item.answers.some(answer => !answer.trim())) : !this.question.correctAnswers.length)) { this.preview = false; this.formError = '请填写标题、题干和各项标准答案。'; return; }
+      for (let step = 0; step < 2; step++) { const error = this.questionError(step); if (error) { this.preview = false; this.questionStep = step; this.formError = error; return; } }
       this.saving = true; this.formError = ''; const request = this.formRequest;
       try {
         const payload = { ...this.question, answerReleaseAt: this.question.answerReleaseAt ? Number(this.question.answerReleaseAt) : null, explanationReleaseAt: this.question.explanationReleaseAt ? Number(this.question.explanationReleaseAt) : null };
@@ -205,6 +257,11 @@ export default {
 };
 </script>
 <style scoped>
+.authoring-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.authoring-footer > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.authoring-footer .el-button { margin: 0; }
+.publication-summary { padding: 16px 20px; margin-bottom: 24px; border-left: 3px solid var(--accent); background: var(--soft); }.publication-summary p { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 8px 0 0; }.publication-summary strong { overflow-wrap: anywhere; }
+.answer-context { padding: 16px; margin-bottom: 24px; background: var(--soft); border-radius: 8px; }.answer-context p { margin-bottom: 0; }
+.answer-choices { display: grid; gap: 12px; width: 100%; }.answer-choices .el-radio, .answer-choices .el-checkbox { display: flex; align-items: baseline; margin: 0; }
+.answer-choices ::v-deep .el-radio__label, .answer-choices ::v-deep .el-checkbox__label { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
 .objective-admin.editor-only, .objective-admin.compact { padding: 0; }.objective-admin { padding: 24px; color: var(--text); }
 .question-creator .objective-admin:empty { padding: 0; }.preview-text { white-space: pre-wrap; line-height: 1.9; overflow-wrap: anywhere; }.preview-option { padding: 14px; margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; }
 .admin-objective-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
@@ -224,6 +281,7 @@ export default {
 .selected-questions { padding-left: 0; }
 .el-pagination { margin-top: 24px; overflow-x: auto; }
 @media (max-width: 700px) { .objective-admin { padding: 12px; } .admin-objective-heading, .admin-objective-filters { flex-wrap: wrap; } .release-fields { grid-template-columns: 1fr; } .option-editor { gap: 6px; } }
+@media (max-width: 420px) { .authoring-footer { align-items: flex-start; }.authoring-footer .el-button { padding: 10px; } }
 </style>
 <style>
 .objective-editor-dialog .el-dialog__body { max-height: 70vh; overflow-y: auto; }

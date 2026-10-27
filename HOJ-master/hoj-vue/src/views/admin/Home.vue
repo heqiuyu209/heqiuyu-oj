@@ -65,6 +65,7 @@
           >
         </el-submenu>
 
+        <el-menu-item v-if="canMaintainKnowledge" index="/admin/knowledge"><i class="el-icon-reading"></i>{{ $t('m.Knowledge_Admin') }}</el-menu-item>
         <el-submenu index="training">
           <template slot="title"
             ><i
@@ -366,6 +367,7 @@
             </mu-list-item>
           </mu-list-item>
 
+          <mu-list-item v-if="canMaintainKnowledge" button to="/admin/knowledge" @click="opendrawer = !opendrawer" active-class="mobile-menu-active"><mu-list-item-action><mu-icon value=":el-icon-reading" size="24"></mu-icon></mu-list-item-action><mu-list-item-title>{{ $t('m.Knowledge_Admin') }}</mu-list-item-title></mu-list-item>
           <mu-list-item
             button
             :ripple="false"
@@ -609,6 +611,7 @@ export default {
     }
   },
   computed: {
+    canMaintainKnowledge() { return (this.userInfo.roleList || []).some(role => role === 'root' || role === 'admin'); },
     ...mapGetters([
       'userInfo',
       'isSuperAdmin',

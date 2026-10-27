@@ -27,6 +27,7 @@
               ><i class="el-icon-s-claim"></i
               >{{ $t('m.NavBar_Training') }}</el-menu-item
             >
+            <el-menu-item index="/knowledge"><i class="el-icon-reading"></i>{{ $t('m.Knowledge') }}</el-menu-item>
             <el-menu-item index="/contest"
               ><i class="el-icon-trophy"></i
               >{{ $t('m.NavBar_Contest') }}</el-menu-item
@@ -35,17 +36,9 @@
               ><i class="el-icon-s-marketing"></i
               >{{ $t('m.NavBar_Status') }}</el-menu-item
             >
-            <el-submenu index="rank" popper-class="cdutetc-nav-popup">
-              <template slot="title"
-                ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</template
-              >
-              <el-menu-item index="/rank/practice">{{
-                $t('m.NavBar_ACM_Rank')
-              }}</el-menu-item>
-              <el-menu-item index="/rank/contest">{{
-                $t('m.NavBar_OI_Rank')
-              }}</el-menu-item>
-            </el-submenu>
+            <el-menu-item index="/rank/contest"
+              ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</el-menu-item
+            >
             <el-menu-item index="/discussion"
               v-if="websiteConfig.openPublicDiscussion"
               ><i class="el-icon-s-comment"></i
@@ -360,6 +353,8 @@
             }}</mu-list-item-title>
           </mu-list-item>
 
+          <mu-list-item button to="/knowledge" @click="opendrawer = !opendrawer" active-class="mobile-menu-active"><mu-list-item-action><mu-icon value=":el-icon-reading" size="24"></mu-icon></mu-list-item-action><mu-list-item-title>{{ $t('m.Knowledge') }}</mu-list-item-title></mu-list-item>
+
           <mu-list-item
             button
             to="/contest"
@@ -389,45 +384,14 @@
           <mu-list-item
             button
             :ripple="false"
-            nested
-            :open="openSideMenu === 'rank'"
-            @toggle-nested="openSideMenu = arguments[0] ? 'rank' : ''"
+            to="/rank/contest"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
           >
             <mu-list-item-action>
               <mu-icon value=":el-icon-s-data" size="24"></mu-icon>
             </mu-list-item-action>
             <mu-list-item-title>{{ $t('m.NavBar_Rank') }}</mu-list-item-title>
-            <mu-list-item-action>
-              <mu-icon
-                class="toggle-icon"
-                size="24"
-                value=":el-icon-arrow-down"
-              ></mu-icon>
-            </mu-list-item-action>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/rank/practice"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_ACM_Rank')
-              }}</mu-list-item-title>
-            </mu-list-item>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/rank/contest"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_OI_Rank')
-              }}</mu-list-item-title>
-            </mu-list-item>
           </mu-list-item>
 
           <mu-list-item
@@ -731,6 +695,7 @@ export default {
       return { training: '当前训练', contest: '当前比赛', group: '当前团队' }[this.mode];
     },
     activeMenuName() {
+      if (this.$route.path.split('/')[1] === 'rank') return '/rank/contest';
       if (['objective', 'papers'].includes(this.$route.path.split('/')[1])) return '/problem';
       if (this.$route.path.split('/')[1] == 'submission-detail') {
         return '/status';

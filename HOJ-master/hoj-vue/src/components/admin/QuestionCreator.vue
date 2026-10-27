@@ -16,6 +16,7 @@
 <script>
 import ObjectiveAdmin from '@/views/admin/problem/ObjectiveAdmin';
 import Problem from '@/views/admin/problem/Problem';
+import { confirmAuthoringDiscard } from '@/common/authoringGuard';
 const types = [
   { value: 'PROGRAMMING', label: '编程题', icon: 'el-icon-monitor', description: '编写代码，提交评测' },
   { value: 'SINGLE_CHOICE', label: '单选题', icon: 'el-icon-circle-check', description: '一个正确选项' },
@@ -34,7 +35,7 @@ export default {
     select(type) { this.choosing = false; if (type === 'PROGRAMMING') { this.generation++; this.programDialog = true; } else this.$refs.objective.newQuestion(type); },
     objectiveSaved(question) { this.$emit('saved', { kind: 'OBJECTIVE', question }); },
     programSaved(question) { this.programDialog = false; this.$emit('saved', { kind: 'PROGRAMMING', question }); },
-    closeProgram(done) { if (this.$refs.program && this.$refs.program.saving) return; this.programDialog = false; if (typeof done === 'function') done(); },
+    async closeProgram(done) { const generation = this.generation; if (!await confirmAuthoringDiscard(this) || generation !== this.generation) return; this.programDialog = false; if (typeof done === 'function') done(); },
   },
 };
 </script>

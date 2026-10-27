@@ -371,6 +371,7 @@ async function until(check, label, timeout = 30000) {
   await ev(find('ObjectiveAdmin') + ".newSet();");
   const future = Date.now() + 3600000;
   await ev("Object.assign(" + find('ObjectiveAdmin') + ".problemSet,{title:'指定时间开放试卷',mode:'PAPER',questionIds:[1,2,3],answerPolicy:'AT_TIME',answerReleaseAt:" + future + ",explanationPolicy:'NEVER',published:true});true");
+  await ev(find('ObjectiveAdmin') + '.goSetStep(2);true');
   await shot('objective-admin-policies');
   await ev(find('ObjectiveAdmin') + ".saveSet()");
   await until(() => ev("!" + find('ObjectiveAdmin') + ".setDialog"), 'save policies');

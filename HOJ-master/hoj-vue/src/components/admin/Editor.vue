@@ -7,6 +7,7 @@
       :ishljs="true"
       :html="openHtml"
       :autofocus="false"
+      :external-link="{ katex_js: false, katex_css: false }"
       :toolbars="toolbars"
       v-model="currentValue"
       codeStyle="arduino-light"

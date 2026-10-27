@@ -1,0 +1,51 @@
+# Optional local CPU knowledge service. Include after compose.yaml and compose.dev.yaml.
+# Model weights stay outside the build context and are mounted read-only.
+services:
+  hoj-rag-identity:
+    image: hoj-rag:local
+    build:
+      context: ${HOJ_RAG_SOURCE_DIR:?Set HOJ_RAG_SOURCE_DIR to the RAG repository}
+      dockerfile: Dockerfile.hoj
+    user: "0:0"
+    command: ["python", "scripts/init_hoj_identity.py", "/identity/service.key", "--uid", "10001"]
+    volumes:
+      - hoj-local-rag-identity:/identity
+    restart: "no"
+  hoj-rag:
+    image: hoj-rag:local
+    init: true
+    environment:
+      HOJ_RAG_DATA: /data
+      HOJ_RAG_MODEL_PATH: /models/bge-m3
+      HOJ_RAG_SHARED_KEY_FILE: /identity/service.key
+      # Hybrid remains an unqualified experiment; production uses vector ranking.
+      HOJ_RAG_RETRIEVAL_MODE: dense
+    volumes:
+      - hoj-local-rag-data:/data
+      - hoj-local-rag-identity:/identity:ro
+      - type: bind
+        source: ${HOJ_RAG_MODEL_DIR:?Set HOJ_RAG_MODEL_DIR to a complete local BGE-M3 directory}
+        target: /models/bge-m3
+        read_only: true
+    depends_on:
+      hoj-rag-identity:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "scripts/hoj_healthcheck.py"]
+      start_period: 240s
+      interval: 15s
+      timeout: 6s
+      retries: 6
+  hoj-backend:
+    environment:
+      HOJ_RAG_URL: http://hoj-rag:8097
+      HOJ_RAG_SHARED_KEY_FILE: /run/hoj-rag/service.key
+    volumes:
+      - hoj-local-rag-identity:/run/hoj-rag:ro
+    depends_on:
+      hoj-rag:
+        condition: service_healthy
+volumes:
+  hoj-local-rag-data:
+  hoj-local-rag-identity:

@@ -858,6 +858,7 @@
 import utils from "@/common/utils";
 import { mapGetters } from "vuex";
 import api from "@/common/api";
+import authoringGuard from "@/common/authoringGuard";
 import myMessage from "@/common/message";
 import { PROBLEM_LEVEL, JUDGE_CASE_MODE } from "@/common/constants";
 const Editor = () => import("@/components/admin/Editor.vue");
@@ -866,6 +867,7 @@ const AddExtraFile = () => import("@/components/admin/AddExtraFile.vue");
 const CodeMirror = () => import("@/components/admin/CodeMirror.vue");
 export default {
   name: "Problem",
+  mixins: [authoringGuard],
   props: { embedded: Boolean },
   components: {
     Accordion,
@@ -876,6 +878,7 @@ export default {
   data() {
     return {
       saving: false,
+      authoringReady: false,
       rules: {
         title: {
           required: true,
@@ -1060,6 +1063,10 @@ export default {
       }
       this.problem.spjLanguage = "C";
       this.init();
+      if (this.embedded) {
+        this.authoringReady = true;
+        this.$nextTick(this.markAuthoringClean);
+      }
     });
   },
   watch: {
@@ -1833,6 +1840,8 @@ export default {
       api[funcName](problemDto)
         .then((res) => {
           if (this.embedded) {
+            this.markAuthoringClean();
+            this.authoringReady = false;
             myMessage.success("题目已保存到题库");
             this.$emit("saved", res.data.data);
             return;
@@ -1867,6 +1876,13 @@ export default {
     },
   },
   computed: {
+    authoringState() {
+      return this.embedded && this.authoringReady ? {
+        problem: this.problem, tags: this.problemTags, languages: this.problemLanguages,
+        samples: this.problemSamples, codeTemplates: this.problemCodeTemplate,
+        userExtraFile: this.userExtraFile, judgeExtraFile: this.judgeExtraFile,
+      } : null;
+    },
     ...mapGetters(["userInfo"]),
   },
 };

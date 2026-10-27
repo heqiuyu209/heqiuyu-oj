@@ -1,0 +1,11 @@
+# Optional pinned offline passage classifier; include after compose.rag.yaml.
+# Retain compose.video.yaml when it is already enabled. No vector rebuild.
+services:
+  hoj-rag:
+    environment:
+      HOJ_RAG_RERANK_MODEL_PATH: /models/mmarco-minilm
+    volumes:
+      - type: bind
+        source: ${HOJ_RAG_RERANK_MODEL_DIR:?Set HOJ_RAG_RERANK_MODEL_DIR to the pinned mMARCO MiniLM directory}
+        target: /models/mmarco-minilm
+        read_only: true

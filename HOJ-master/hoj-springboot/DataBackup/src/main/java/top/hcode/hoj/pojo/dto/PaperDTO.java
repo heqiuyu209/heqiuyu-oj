@@ -48,6 +48,7 @@ public final class PaperDTO {
     @Data public static class Snapshot {
         private Paper paper;
         private List<SnapshotItem> items;
+        private Integer virtualContestType;
     }
     @Data public static class SavedAnswer {
         private List<String> selectedAnswers;

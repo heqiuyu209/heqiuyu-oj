@@ -58,8 +58,8 @@ public class AtCoderJudge extends RemoteJudgeStrategy {
         login();
         RemoteJudgeDTO remoteJudgeDTO = getRemoteJudgeDTO();
         if (remoteJudgeDTO.getLoginStatus() != 302) {
-            log.error("Login to AtCoder failed, the response status:{},username:{},password:{}",
-                    remoteJudgeDTO.getLoginStatus(), remoteJudgeDTO.getUsername(), remoteJudgeDTO.getPassword());
+            log.error("Login to AtCoder failed for judge task [{}], response status:{}",
+                    remoteJudgeDTO.getJudgeId(), remoteJudgeDTO.getLoginStatus());
             throw new RuntimeException("[AtCoder] Failed to Login, the response status:" + remoteJudgeDTO.getLoginStatus());
         }
 

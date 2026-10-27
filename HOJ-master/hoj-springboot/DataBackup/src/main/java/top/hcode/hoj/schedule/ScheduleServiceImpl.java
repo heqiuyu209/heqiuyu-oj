@@ -405,6 +405,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
         judgeQueryWrapper.select("submit_id", "paper_run_id");
+        judgeQueryWrapper.notInSql("submit_id", "SELECT submit_id FROM personal_remote_task");
         judgeQueryWrapper.eq("status", Constants.Judge.STATUS_PENDING.getStatus());
         judgeQueryWrapper.lt("gmt_modified", dateTime);
         List<Judge> judgeList = judgeEntityService.list(judgeQueryWrapper);

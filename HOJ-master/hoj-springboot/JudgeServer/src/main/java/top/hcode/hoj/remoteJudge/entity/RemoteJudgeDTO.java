@@ -21,7 +21,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
 @Builder
-@ToString
+@ToString(of = {"oj", "judgeId", "submitId"})
 public class RemoteJudgeDTO implements Serializable {
     private static final long serialVersionUID = 888L;
 

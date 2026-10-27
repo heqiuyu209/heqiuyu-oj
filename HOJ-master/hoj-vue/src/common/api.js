@@ -1,5 +1,12 @@
 import axios from 'axios'
 import objectiveApi from '@/common/objectiveApi'
+import learningApi from '@/common/learningApi'
+import aiApi from '@/common/aiApi'
+import virtualContestApi from '@/common/virtualContestApi'
+import knowledgeApi from '@/common/knowledgeApi'
+import externalApi from '@/common/externalApi'
+import remoteSourceApi from '@/common/remoteSourceApi'
+import personalRemoteApi from '@/common/personalRemoteApi'
 import Vue from 'vue'
 import mMessage from '@/common/message'
 import router from '@/router'
@@ -22,6 +29,7 @@ axios.defaults.timeout = 90000;
 axios.interceptors.request.use(
 
   config => {
+    config.hojAuthEpoch = store.getters.authEpoch;
 
     // NProgress.start();
     // 每次发送请求之前判断vuex中是否存在token
@@ -58,8 +66,9 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   response => {
     // NProgress.done();
+    if (response.config && response.config.headers && response.config.headers.Authorization && response.config.hojAuthEpoch !== store.getters.authEpoch) return Promise.reject(new axios.Cancel('Previous login session'));
     if (response.headers['refresh-token']) { // token续约！
-      store.commit('changeUserToken', response.headers['authorization'])
+      store.commit('refreshUserToken', response.headers['authorization'])
     }
     if (response.data.status === 200 || response.data.status == undefined) {
       return Promise.resolve(response);
@@ -81,8 +90,10 @@ axios.interceptors.response.use(
   error => {
     // NProgress.done();
     if (error.response) {
+      const config = error.response.config || error.config;
+      if (config && config.headers && config.headers.Authorization && config.hojAuthEpoch !== store.getters.authEpoch) return Promise.reject(new axios.Cancel('Previous login session'));
       if (error.response.headers['refresh-token']) { // token续约！！
-        store.commit('changeUserToken', error.response.headers['authorization'])
+        store.commit('refreshUserToken', error.response.headers['authorization'])
       }
       if (error.response.data instanceof Blob) { // 如果是文件操作的返回，由后续进行处理
         return Promise.resolve(error.response);
@@ -1935,7 +1946,7 @@ const adminApi = {
 }
 
 // 集中导出oj前台的api和admin管理端的api
-let api = Object.assign(ojApi, adminApi, objectiveApi)
+let api = Object.assign(ojApi, adminApi, objectiveApi, learningApi, aiApi, externalApi, remoteSourceApi, personalRemoteApi, virtualContestApi, knowledgeApi)
 export default api
 /**
  * @param url

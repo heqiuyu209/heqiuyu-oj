@@ -16,11 +16,6 @@ import java.net.InetAddress;
 import java.util.HashMap;
 
 
-/**
- * @Author: Himit_ZH
- * @Date: 2021/2/19 22:11
- * @Description:项目启动加载类，启动完毕将该判题机加入到redis里面
- */
 @Component
 @Slf4j
 public class StartupRunner implements CommandLineRunner {

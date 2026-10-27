@@ -1312,6 +1312,7 @@ CREATE TABLE IF NOT EXISTS paper_run (
     paper_id BIGINT NOT NULL,
     paper_version INT NOT NULL,
     contest_id BIGINT NULL,
+    virtual_run_id BIGINT UNSIGNED NULL,
     uid VARCHAR(32) NOT NULL,
     request_id VARCHAR(64) NOT NULL,
     state VARCHAR(24) NOT NULL,
@@ -1321,6 +1322,7 @@ CREATE TABLE IF NOT EXISTS paper_run (
     gmt_modified DATETIME(3) NOT NULL,
     UNIQUE KEY uk_paper_run_request (uid, request_id),
     UNIQUE KEY uk_paper_run_contest (contest_id, uid),
+    UNIQUE KEY uk_paper_run_virtual (virtual_run_id),
     KEY idx_paper_run_user (uid, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -1356,3 +1358,505 @@ CREATE TABLE IF NOT EXISTS site_rating_history (
     old_rating INT NOT NULL, rating INT NOT NULL, delta INT NOT NULL, place DOUBLE NULL,
     PRIMARY KEY(uid,type,source_key), KEY idx_site_rating_history(uid,type,occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- BEGIN GENERATED ALGORITHM TOPICS (scripts/generate-algorithm-topics.py)
+-- XCPC common learning taxonomy v1 (project-maintained; OI Wiki topic navigation reference).
+-- Additive and repeatable. Existing exact-name global tags are reused, existing custom tags stay available.
+CREATE TABLE IF NOT EXISTS algorithm_topic (
+ code VARCHAR(80) NOT NULL PRIMARY KEY,
+ name VARCHAR(100) NOT NULL,
+ group_code VARCHAR(40) NOT NULL,
+ group_name VARCHAR(80) NOT NULL,
+ sort_order INT NOT NULL,
+ problem_tag_id BIGINT UNSIGNED DEFAULT NULL,
+ training_category_id BIGINT UNSIGNED DEFAULT NULL,
+ tag_classification_id BIGINT UNSIGNED DEFAULT NULL,
+ UNIQUE KEY uq_algorithm_problem_tag(problem_tag_id),
+ UNIQUE KEY uq_algorithm_training_category(training_category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO algorithm_topic(code,name,group_code,group_name,sort_order) VALUES
+('basics.general','算法基础','basics','基础算法',0),
+('basics.complexity','复杂度分析','basics','基础算法',1),
+('basics.simulation','模拟','basics','基础算法',2),
+('basics.enumeration','枚举','basics','基础算法',3),
+('basics.sorting','排序','basics','基础算法',4),
+('basics.binary-search','二分','basics','基础算法',5),
+('basics.prefix-sum','前缀和与差分','basics','基础算法',6),
+('basics.two-pointers','双指针','basics','基础算法',7),
+('basics.greedy','贪心','basics','基础算法',8),
+('basics.divide-conquer','分治','basics','基础算法',9),
+('basics.constructive','构造','basics','基础算法',10),
+('basics.bitmask','位运算','basics','基础算法',11),
+('basics.randomized','随机化','basics','基础算法',12),
+('basics.meet-in-middle','折半搜索','basics','基础算法',13),
+('search.general','搜索基础','search','搜索',100),
+('search.dfs','深度优先搜索','search','搜索',101),
+('search.bfs','广度优先搜索','search','搜索',102),
+('search.backtracking','回溯与剪枝','search','搜索',103),
+('search.bidirectional','双向搜索','search','搜索',104),
+('search.iterative','迭代加深','search','搜索',105),
+('search.astar','启发式搜索','search','搜索',106),
+('search.dancing-links','精确覆盖与舞蹈链','search','搜索',107),
+('dp.general','动态规划基础','dp','动态规划',200),
+('dp.knapsack','背包 DP','dp','动态规划',201),
+('dp.linear','线性 DP','dp','动态规划',202),
+('dp.interval','区间 DP','dp','动态规划',203),
+('dp.tree','树形 DP','dp','动态规划',204),
+('dp.bitmask','状态压缩 DP','dp','动态规划',205),
+('dp.digit','数位 DP','dp','动态规划',206),
+('dp.probability','概率与期望 DP','dp','动态规划',207),
+('dp.counting','计数 DP','dp','动态规划',208),
+('dp.dag','DAG 上的 DP','dp','动态规划',209),
+('dp.optimization','DP 优化','dp','动态规划',210),
+('data-structure.general','数据结构基础','data-structure','数据结构',300),
+('data-structure.stack-queue','栈与队列','data-structure','数据结构',301),
+('data-structure.heap','堆与优先队列','data-structure','数据结构',302),
+('data-structure.dsu','并查集','data-structure','数据结构',303),
+('data-structure.fenwick','树状数组','data-structure','数据结构',304),
+('data-structure.segment-tree','线段树','data-structure','数据结构',305),
+('data-structure.sparse-table','ST 表','data-structure','数据结构',306),
+('data-structure.balanced-tree','平衡树','data-structure','数据结构',307),
+('data-structure.persistent','可持久化数据结构','data-structure','数据结构',308),
+('data-structure.hld','树链剖分','data-structure','数据结构',309),
+('data-structure.lct','动态树','data-structure','数据结构',310),
+('data-structure.mo','莫队算法','data-structure','数据结构',311),
+('data-structure.block','分块','data-structure','数据结构',312),
+('graph.general','图论基础','graph','图论',400),
+('graph.traversal','图的遍历','graph','图论',401),
+('graph.trees','树与倍增','graph','图论',402),
+('graph.shortest-path','最短路','graph','图论',403),
+('graph.mst','最小生成树','graph','图论',404),
+('graph.topological','拓扑排序','graph','图论',405),
+('graph.scc','强连通分量','graph','图论',406),
+('graph.biconnected','双连通分量','graph','图论',407),
+('graph.matching','二分图匹配','graph','图论',408),
+('graph.flow','网络流','graph','图论',409),
+('graph.lca','最近公共祖先','graph','图论',410),
+('graph.sat','2-SAT','graph','图论',411),
+('graph.euler','欧拉图','graph','图论',412),
+('graph.centroid','点分治','graph','图论',413),
+('graph.virtual-tree','虚树','graph','图论',414),
+('math.general','数学基础','math','数学',500),
+('math.number-theory','数论','math','数学',501),
+('math.gcd','最大公约数与扩展欧几里得','math','数学',502),
+('math.sieve','素数与筛法','math','数学',503),
+('math.modular','模运算与逆元','math','数学',504),
+('math.combinatorics','组合数学','math','数学',505),
+('math.probability','概率与期望','math','数学',506),
+('math.game','博弈论','math','数学',507),
+('math.linear-algebra','线性代数','math','数学',508),
+('math.matrix','矩阵与快速幂','math','数学',509),
+('math.polynomial','多项式与 FFT/NTT','math','数学',510),
+('math.mobius','莫比乌斯反演','math','数学',511),
+('math.crt','中国剩余定理','math','数学',512),
+('math.numerical','数值计算','math','数学',513),
+('math.integration','积分与数值积分','math','数学',514),
+('string.general','字符串基础','string','字符串',600),
+('string.hash','字符串哈希','string','字符串',601),
+('string.kmp','KMP','string','字符串',602),
+('string.z-function','Z 函数','string','字符串',603),
+('string.trie','字典树','string','字符串',604),
+('string.aho-corasick','AC 自动机','string','字符串',605),
+('string.suffix-array','后缀数组','string','字符串',606),
+('string.suffix-automaton','后缀自动机','string','字符串',607),
+('string.palindrome','回文算法','string','字符串',608),
+('string.lyndon','Lyndon 分解','string','字符串',609),
+('geometry.general','计算几何基础','geometry','计算几何',700),
+('geometry.vectors','向量与点线位置关系','geometry','计算几何',701),
+('geometry.convex-hull','凸包','geometry','计算几何',702),
+('geometry.intersection','扫描线与几何交','geometry','计算几何',703),
+('geometry.half-plane','半平面交','geometry','计算几何',704),
+('geometry.circle','圆与球','geometry','计算几何',705),
+('geometry.rotating-calipers','旋转卡壳','geometry','计算几何',706),
+('geometry.closest-pair','平面最近点对','geometry','计算几何',707)
+ON DUPLICATE KEY UPDATE name=VALUES(name),group_code=VALUES(group_code),group_name=VALUES(group_name),sort_order=VALUES(sort_order);
+
+START TRANSACTION;
+INSERT INTO tag_classification(name,oj,`rank`)
+ SELECT a.group_name,'ME',MIN(a.sort_order) FROM algorithm_topic a
+ WHERE NOT EXISTS(SELECT 1 FROM tag_classification c WHERE c.name=a.group_name AND c.oj='ME')
+ GROUP BY a.group_code,a.group_name;
+UPDATE algorithm_topic a SET tag_classification_id=(SELECT MIN(c.id) FROM tag_classification c WHERE c.name=a.group_name AND c.oj='ME');
+INSERT INTO tag(name,color,oj,tcid)
+ SELECT a.name,'#217e9d','ME',a.tag_classification_id FROM algorithm_topic a
+ WHERE NOT EXISTS(SELECT 1 FROM tag t WHERE t.name=a.name AND t.oj='ME' AND t.gid IS NULL);
+UPDATE algorithm_topic a SET problem_tag_id=(SELECT MIN(t.id) FROM tag t WHERE t.name=a.name AND t.oj='ME' AND t.gid IS NULL);
+UPDATE tag t JOIN algorithm_topic a ON a.problem_tag_id=t.id SET t.tcid=a.tag_classification_id;
+INSERT INTO training_category(name,color)
+ SELECT a.name,'#217e9d' FROM algorithm_topic a
+ WHERE NOT EXISTS(SELECT 1 FROM training_category c WHERE c.name=a.name AND c.gid IS NULL);
+UPDATE algorithm_topic a SET training_category_id=(SELECT MIN(c.id) FROM training_category c WHERE c.name=a.name AND c.gid IS NULL);
+COMMIT;
+
+-- END GENERATED ALGORITHM TOPICS
+
+-- AI assistant user settings
+-- Existing installations: additive; repeatable. Never stores plaintext provider keys.
+CREATE TABLE IF NOT EXISTS ai_user_setting (
+  uid varchar(32) NOT NULL,
+  base_url varchar(512) NOT NULL,
+  model varchar(120) NOT NULL,
+  key_ciphertext varchar(6000) NOT NULL,
+  updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Public contests have no password registration. This records authorized statement access, not spectators.
+CREATE TABLE IF NOT EXISTS ai_contest_entry (
+  uid varchar(32) NOT NULL,
+  cid bigint unsigned NOT NULL,
+  entered_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (uid,cid),
+  KEY idx_ai_entry_contest (cid),
+  CONSTRAINT fk_ai_entry_contest FOREIGN KEY (cid) REFERENCES contest(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Server-timed virtual practice; existing installations use virtual-contests.sql.
+CREATE TABLE IF NOT EXISTS contest_virtual_run (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  uid VARCHAR(32) NOT NULL,
+  cid BIGINT UNSIGNED NOT NULL,
+  request_id VARCHAR(64) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  started_at DATETIME(3) NOT NULL,
+  ends_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_virtual_request (uid,request_id),
+  KEY idx_virtual_active (uid,ends_at),
+  KEY idx_virtual_contest (cid,uid,id),
+  CONSTRAINT fk_virtual_contest FOREIGN KEY (cid) REFERENCES contest(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- BEGIN EXTERNAL LEARNING
+-- Public external learning evidence. Additive and repeatable; no passwords or remote-submit credentials.
+CREATE TABLE IF NOT EXISTS external_account (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ uid VARCHAR(32) NOT NULL,
+ platform VARCHAR(24) NOT NULL,
+ handle VARCHAR(64) NOT NULL,
+ handle_key VARCHAR(64) NOT NULL,
+ verified_identity VARCHAR(64) NULL,
+ verified_at DATETIME(3) NULL,
+ proof_code VARCHAR(64) NULL,
+ proof_expires_at DATETIME(3) NULL,
+ verification_note VARCHAR(200) NULL,
+ registration_time BIGINT NULL,
+ rating INT NULL,
+ max_rating INT NULL,
+ rated_contests INT NULL,
+ profile_synced_at DATETIME(3) NULL,
+ history_complete TINYINT(1) NOT NULL DEFAULT 0,
+ last_success_at DATETIME(3) NULL,
+ last_full_at DATETIME(3) NULL,
+ last_requested_at DATETIME(3) NOT NULL,
+ created_at DATETIME(3) NOT NULL,
+ UNIQUE KEY uk_external_user_handle(uid,platform,handle_key),
+ UNIQUE KEY uk_external_verified(platform,verified_identity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_sync_job (
+ account_id BIGINT NOT NULL PRIMARY KEY,
+ stage VARCHAR(24) NOT NULL DEFAULT 'PROFILE',
+ from_index INT NOT NULL DEFAULT 1,
+ full_scan TINYINT(1) NOT NULL DEFAULT 1,
+ checkpoint_id BIGINT NOT NULL DEFAULT 0,
+ working_high_id BIGINT NOT NULL DEFAULT 0,
+ last_page_min_id BIGINT NULL,
+ scan_token VARCHAR(36) NOT NULL,
+ next_run_at DATETIME(3) NULL,
+ lease_token VARCHAR(36) NULL,
+ lease_until DATETIME(3) NULL,
+ failures INT NOT NULL DEFAULT 0,
+ last_error VARCHAR(200) NULL,
+ KEY idx_external_job_due(next_run_at,lease_until),
+ CONSTRAINT fk_external_job_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_problem (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ platform VARCHAR(24) NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ rating INT NULL,
+ tags_json TEXT NOT NULL,
+ synced_at DATETIME(3) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_submission (
+ account_id BIGINT NOT NULL,
+ external_id BIGINT NOT NULL,
+ problem_key VARCHAR(120) NOT NULL,
+ verdict VARCHAR(32) NOT NULL,
+ submitted_at BIGINT NOT NULL,
+ individual TINYINT(1) NOT NULL,
+ seen_scan VARCHAR(36) NOT NULL,
+ PRIMARY KEY(account_id,external_id),
+ KEY idx_external_evidence(account_id,problem_key,verdict),
+ CONSTRAINT fk_external_submission_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_rating_event (
+ account_id BIGINT NOT NULL,
+ contest_id BIGINT NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ contest_rank INT NOT NULL,
+ old_rating INT NOT NULL,
+ new_rating INT NOT NULL,
+ occurred_at BIGINT NOT NULL,
+ PRIMARY KEY(account_id,contest_id),
+ CONSTRAINT fk_external_rating_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- END EXTERNAL LEARNING
+
+-- BEGIN REMOTE SOURCES
+-- Public source catalogue, import queue and versioned statements. Additive and repeatable.
+CREATE TABLE IF NOT EXISTS remote_source_job (
+ source_name VARCHAR(32) NOT NULL PRIMARY KEY,
+ next_run_at DATETIME(3) NULL,
+ last_requested_at DATETIME(3) NULL,
+ last_success_at DATETIME(3) NULL,
+ lease_token VARCHAR(36) NULL,
+ lease_until DATETIME(3) NULL,
+ failures INT NOT NULL DEFAULT 0,
+ last_error VARCHAR(200) NULL,
+ total_count INT NOT NULL DEFAULT 0,
+ added_count INT NOT NULL DEFAULT 0,
+ changed_count INT NOT NULL DEFAULT 0,
+ removed_count INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT IGNORE INTO remote_source_job(source_name,next_run_at) VALUES('CODEFORCES_PROBLEMS',CURRENT_TIMESTAMP(3));
+
+CREATE TABLE IF NOT EXISTS remote_catalog_problem (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ contest_id BIGINT NOT NULL,
+ problem_index VARCHAR(16) NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ rating INT NULL,
+ tags_json TEXT NOT NULL,
+ content_hash VARCHAR(64) NOT NULL,
+ revision BIGINT NOT NULL DEFAULT 1,
+ available TINYINT(1) NOT NULL DEFAULT 1,
+ seen_token VARCHAR(36) NOT NULL,
+ last_seen_at DATETIME(3) NOT NULL,
+ changed_at DATETIME(3) NOT NULL,
+ KEY idx_remote_catalog_rating(available,rating),
+ KEY idx_remote_catalog_order(contest_id,problem_index)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS remote_problem_import (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ requested_by VARCHAR(32) NOT NULL,
+ requested_author VARCHAR(100) NOT NULL,
+ state VARCHAR(16) NOT NULL DEFAULT 'QUEUED',
+ lease_token VARCHAR(36) NULL,
+ lease_until DATETIME(3) NULL,
+ last_requested_at DATETIME(3) NOT NULL,
+ next_run_at DATETIME(3) NULL,
+ failures INT NOT NULL DEFAULT 0,
+ last_error VARCHAR(200) NULL,
+ problem_id BIGINT NULL,
+ imported_hash VARCHAR(64) NULL,
+ catalog_hash VARCHAR(64) NULL,
+ auto_refresh TINYINT(1) NULL DEFAULT NULL,
+ last_checked_at DATETIME(3) NULL,
+ last_success_at DATETIME(3) NULL,
+ KEY idx_remote_import_due(state,next_run_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS remote_statement_version (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ problem_key VARCHAR(120) NOT NULL,
+ language VARCHAR(12) NOT NULL,
+ content_hash VARCHAR(64) NOT NULL,
+ source_hash VARCHAR(64) NOT NULL,
+ content_json MEDIUMTEXT NOT NULL,
+ origin VARCHAR(16) NOT NULL,
+ review_status VARCHAR(16) NOT NULL,
+ created_by VARCHAR(32) NULL,
+ created_at DATETIME(3) NOT NULL,
+ UNIQUE KEY uk_remote_statement_content(problem_key,language,content_hash,source_hash),
+ KEY idx_remote_statement_version(problem_key,language,id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS remote_statement_current (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ version_id BIGINT NOT NULL,
+ translation_version_id BIGINT NULL,
+ CONSTRAINT fk_remote_statement_current FOREIGN KEY(version_id) REFERENCES remote_statement_version(id),
+ CONSTRAINT fk_remote_translation_current FOREIGN KEY(translation_version_id) REFERENCES remote_statement_version(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- END REMOTE SOURCES
+
+-- BEGIN ATCODER LEARNING
+-- AtCoder public learning evidence; no remote-login credentials. Repeatable and additive.
+CREATE TABLE IF NOT EXISTS external_atcoder_cursor (
+ account_id BIGINT NOT NULL PRIMARY KEY,
+ from_second BIGINT NOT NULL DEFAULT 0,
+ scan_start_second BIGINT NOT NULL DEFAULT 0,
+ CONSTRAINT fk_atcoder_cursor_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_atcoder_rating (
+ account_id BIGINT NOT NULL,
+ contest_id VARCHAR(80) NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ contest_rank INT NOT NULL,
+ old_rating INT NOT NULL,
+ new_rating INT NOT NULL,
+ occurred_at BIGINT NOT NULL,
+ PRIMARY KEY(account_id,contest_id),
+ CONSTRAINT fk_atcoder_rating_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS external_atcoder_problem (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ task_id VARCHAR(80) NOT NULL,
+ contest_id VARCHAR(80) NOT NULL,
+ problem_index VARCHAR(32) NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ content_hash VARCHAR(64) NOT NULL,
+ revision BIGINT NOT NULL DEFAULT 1,
+ available TINYINT(1) NOT NULL DEFAULT 1,
+ seen_token VARCHAR(36) NOT NULL,
+ last_seen_at DATETIME(3) NOT NULL,
+ changed_at DATETIME(3) NOT NULL,
+ raw_difficulty DOUBLE NULL,
+ estimated_difficulty INT NULL,
+ model_experimental TINYINT(1) NULL,
+ model_updated_at DATETIME(3) NULL,
+ UNIQUE KEY uk_atcoder_task(task_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO remote_source_job(source_name,next_run_at) VALUES('ATCODER_PROBLEMS',CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO remote_source_job(source_name,next_run_at) VALUES('ATCODER_MODELS',DATE_ADD(CURRENT_TIMESTAMP(3),INTERVAL 5 SECOND));
+
+-- END ATCODER LEARNING
+
+-- BEGIN REMOTE CREDENTIALS
+-- Personal remote credentials, separate from the legacy administrator account pool.
+-- Apply external-learning.sql first; additive and repeatable.
+CREATE TABLE IF NOT EXISTS remote_user_credential (
+ account_id BIGINT NOT NULL PRIMARY KEY,
+ credential_ciphertext TEXT NULL,
+ credential_version BIGINT NOT NULL DEFAULT 1,
+ updated_at DATETIME(3) NOT NULL,
+ CONSTRAINT fk_remote_credential_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- END REMOTE CREDENTIALS
+
+-- BEGIN PERSONAL REMOTE TASKS
+-- Durable personal submissions. Apply external-learning.sql and remote-credentials.sql first.
+-- Credentials and HTTP cookies never belong in this journal. Repeatable and additive.
+CREATE TABLE IF NOT EXISTS personal_remote_task (
+ submit_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+ owner_uid VARCHAR(32) NOT NULL,
+ account_id BIGINT NULL,
+ account_ref BIGINT NOT NULL,
+ platform VARCHAR(20) NOT NULL,
+ handle_key VARCHAR(64) NOT NULL,
+ credential_version BIGINT NOT NULL,
+ request_id VARCHAR(64) NOT NULL,
+ request_hash CHAR(64) NULL,
+ remote_problem VARCHAR(120) NOT NULL,
+ source_contest VARCHAR(80) NULL,
+ language_id VARCHAR(20) NOT NULL,
+ code_hash CHAR(64) NOT NULL,
+ payload_hash CHAR(64) NOT NULL,
+ state VARCHAR(20) NOT NULL DEFAULT 'QUEUED',
+ lease_token VARCHAR(36) NULL,
+ lease_until DATETIME(3) NULL,
+ next_run_at DATETIME(3) NULL,
+ baseline_id BIGINT NULL,
+ remote_submit_id BIGINT NULL,
+ submit_attempts INT NOT NULL DEFAULT 0,
+ read_failures INT NOT NULL DEFAULT 0,
+ error_code VARCHAR(32) NULL,
+ post_started_at DATETIME(3) NULL,
+ created_at DATETIME(3) NOT NULL,
+ updated_at DATETIME(3) NOT NULL,
+ UNIQUE KEY uk_personal_remote_request(owner_uid,request_id),
+ KEY idx_personal_remote_due(state,next_run_at,lease_until),
+ KEY idx_personal_remote_account(platform,handle_key,state),
+ CONSTRAINT fk_personal_remote_judge FOREIGN KEY(submit_id) REFERENCES judge(submit_id) ON DELETE CASCADE,
+ CONSTRAINT fk_personal_remote_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The lane survives unlink/relink: uncertain requests must not release the same remote identity.
+CREATE TABLE IF NOT EXISTS personal_remote_lane (
+ platform VARCHAR(20) NOT NULL,
+ handle_key VARCHAR(64) NOT NULL,
+ active_submit_id BIGINT UNSIGNED NULL,
+ PRIMARY KEY(platform,handle_key),
+ CONSTRAINT fk_personal_remote_lane FOREIGN KEY(active_submit_id) REFERENCES personal_remote_task(submit_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- END PERSONAL REMOTE TASKS
+
+-- Official public regular-practice evidence; no login cookies or remote submission data.
+CREATE TABLE IF NOT EXISTS external_nowcoder_profile (
+ account_id BIGINT NOT NULL PRIMARY KEY,
+ display_name VARCHAR(255) NULL,
+ challenged_count INT NULL,
+ solved_count INT NULL,
+ submission_count INT NULL,
+ scan_challenged_count INT NULL,
+ scan_solved_count INT NULL,
+ scan_submission_count INT NULL,
+ scan_pages INT NULL,
+ scan_last_second BIGINT NULL,
+ scan_head_hash VARCHAR(64) NULL,
+ CONSTRAINT fk_external_nowcoder_account FOREIGN KEY(account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Apply personal-remote-tasks.sql first. No cookies, access tokens or source code belong here.
+CREATE TABLE IF NOT EXISTS personal_remote_nowcoder (
+ submit_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+ context_json TEXT NOT NULL,
+ context_hash CHAR(64) NOT NULL,
+ backend_job_id VARCHAR(80) NULL,
+ source_submission_id BIGINT NULL,
+ CONSTRAINT fk_personal_nowcoder_task FOREIGN KEY(submit_id) REFERENCES personal_remote_task(submit_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Apply external-learning.sql and remote-sources.sql first. Public ACM catalogue and durable page staging only.
+CREATE TABLE IF NOT EXISTS remote_nowcoder_problem (
+ problem_key VARCHAR(120) NOT NULL PRIMARY KEY,
+ native_problem_id BIGINT NULL,
+ contest_id BIGINT NULL,
+ problem_index VARCHAR(16) NULL,
+ question_id VARCHAR(16) NULL,
+ title VARCHAR(255) NOT NULL,
+ source_rating INT NULL,
+ content_hash CHAR(64) NOT NULL,
+ revision BIGINT NOT NULL DEFAULT 1,
+ available TINYINT(1) NOT NULL DEFAULT 1,
+ from_catalog TINYINT(1) NOT NULL DEFAULT 0,
+ last_seen_at DATETIME(3) NOT NULL,
+ changed_at DATETIME(3) NOT NULL,
+ KEY idx_nowcoder_source_rating(available,source_rating)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS remote_nowcoder_scan (
+ source_name VARCHAR(32) NOT NULL PRIMARY KEY,
+ scan_token VARCHAR(36) NULL,
+ next_page INT NOT NULL DEFAULT 1,
+ stage VARCHAR(12) NOT NULL DEFAULT 'HEAD',
+ target_total INT NULL,
+ last_id BIGINT NULL,
+ head_hash CHAR(64) NULL,
+ last_head_hash CHAR(64) NULL,
+ last_full_success_at DATETIME(3) NULL,
+ head_added INT NOT NULL DEFAULT 0,
+ head_changed INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS remote_nowcoder_catalog_stage (
+ scan_token VARCHAR(36) NOT NULL,
+ native_problem_id BIGINT NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ source_rating INT NULL,
+ content_hash CHAR(64) NOT NULL,
+ PRIMARY KEY(scan_token,native_problem_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT IGNORE INTO remote_source_job(source_name,next_run_at) VALUES('NOWCODER_PROBLEMS',CURRENT_TIMESTAMP(3));
+INSERT IGNORE INTO remote_nowcoder_scan(source_name) VALUES('NOWCODER_PROBLEMS');

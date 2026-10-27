@@ -121,6 +121,10 @@
           </el-col>
         </el-row>
         <RatingSummary :profile="profile" />
+        <ExternalAccounts v-if="!loading && profile.uid" :uid="profile.uid" />
+        <AbilityProfile v-if="!loading && profile.uid" :uid="profile.uid" />
+        <LearningProblemHistory v-if="!loading && profile.uid" :uid="profile.uid" />
+        <LearningRecommendations v-if="!loading && profile.uid" :uid="profile.uid" />
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
           <div class="card-title">
             <i class="el-icon-data-analysis" style="color:#409eff">
@@ -188,6 +192,10 @@
 </template>
 <script>
 import RatingSummary from '@/components/oj/learning/RatingSummary';
+import AbilityProfile from '@/components/oj/learning/AbilityProfile';
+import LearningProblemHistory from '@/components/oj/learning/LearningProblemHistory';
+import ExternalAccounts from '@/components/oj/learning/ExternalAccounts';
+import LearningRecommendations from '@/components/oj/learning/LearningRecommendations';
 import { mapActions } from 'vuex';
 import api from '@/common/api';
 import myMessage from '@/common/message';
@@ -201,6 +209,10 @@ import Markdown from '@/components/oj/common/Markdown';
 export default {
   components: {
     RatingSummary,
+    AbilityProfile,
+    LearningProblemHistory,
+    ExternalAccounts,
+    LearningRecommendations,
     Avatar,
     CalendarHeatmap,
     Markdown
@@ -225,6 +237,7 @@ export default {
       calendarHeatmapEndDate:'',
       loadingCalendarHeatmap:false,
       loading:false,
+      profileRequest: 0,
       PROBLEM_LEVEL: {},
     };
   },
@@ -269,13 +282,16 @@ export default {
     }
     this.init();
   },
+  beforeDestroy() { this.profileRequest++; },
   methods: {
     ...mapActions(['changeDomTitle']),
     init() {
+      const request = ++this.profileRequest;
       const uid = this.$route.query.uid;
       const username = this.$route.query.username;
       this.loading = true;
       api.getUserInfo(uid, username).then((res) => {
+        if (request !== this.profileRequest) return;
         this.changeDomTitle({ title: res.data.data.username });
         this.profile = res.data.data;
         this.$nextTick((_) => {
@@ -283,6 +299,7 @@ export default {
         });
         this.loading = false;
       },(_)=>{
+        if (request !== this.profileRequest) return;
         this.loading = false;
       });
 

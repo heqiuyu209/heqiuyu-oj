@@ -32,6 +32,7 @@
             <header><el-tag size="small" effect="plain">{{ questionTypes[selectedQuestion.questionType] }}</el-tag><h2>{{ selectedQuestion.title }}</h2>
               <div class="question-origin"><span><i class="el-icon-collection-tag" /> 来源：{{ selectedQuestion.source || '本校题库' }}</span><span>Rating {{ selectedQuestion.rating == null ? '未评级' : selectedQuestion.rating }}</span><span>题号 {{ selectedQuestion.id }}</span><span>版本 {{ selectedQuestion.version }}</span></div>
               <p v-if="!run.questionId" class="question-set"><i class="el-icon-folder-opened" /> 所属{{ run.mode === 'PAPER' ? '试卷' : '题集' }}：{{ run.title }}</p>
+              <AiProblemHelp :reference="{ kind: 'OBJECTIVE_RUN', runId: run.id, questionKey: String(selectedQuestion.id) }" :title="selectedQuestion.title" />
             </header>
             <h3>题目描述</h3><p class="question-stem">{{ selectedQuestion.stem }}</p>
             <div class="practice-rules"><h3>作答说明</h3>
@@ -52,13 +53,14 @@
 </template>
 <script>
 import api from '@/common/api';
+import AiProblemHelp from '@/components/oj/ai/AiProblemHelp';
 import ObjectiveAnswer from '@/components/oj/problem/ObjectiveAnswer';
 import WorkspaceLayout from '@/components/oj/problem/WorkspaceLayout';
 import QuestionNavigation from '@/components/oj/problem/QuestionNavigation';
 import { modes, questionTypes, releaseLabel, requestId, responseData, errorMessage } from '@/common/objective';
 export default {
   name: 'ObjectiveRun',
-  components: { ObjectiveAnswer, WorkspaceLayout, QuestionNavigation },
+  components: { ObjectiveAnswer, WorkspaceLayout, QuestionNavigation, AiProblemHelp },
   data: () => ({ run: null, selectedId: null, type: '', onlyWrong: false, loading: false, saving: false, error: '', request: 0, restartId: '',
     neighbors: { previous: null, next: null }, neighborsLoading: false, neighborsError: '', navigating: false, approvedRunId: '', navigationIds: {}, visitedRuns: {}, modes, questionTypes }),
   computed: {

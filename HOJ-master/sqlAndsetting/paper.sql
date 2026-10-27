@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS paper_run (
     paper_id BIGINT NOT NULL,
     paper_version INT NOT NULL,
     contest_id BIGINT NULL,
+    virtual_run_id BIGINT UNSIGNED NULL,
     uid VARCHAR(32) NOT NULL,
     request_id VARCHAR(64) NOT NULL,
     state VARCHAR(24) NOT NULL,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS paper_run (
     gmt_modified DATETIME(3) NOT NULL,
     UNIQUE KEY uk_paper_run_request (uid, request_id),
     UNIQUE KEY uk_paper_run_contest (contest_id, uid),
+    UNIQUE KEY uk_paper_run_virtual (virtual_run_id),
     KEY idx_paper_run_user (uid, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

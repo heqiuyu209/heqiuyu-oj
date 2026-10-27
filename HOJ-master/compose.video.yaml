@@ -1,0 +1,20 @@
+# Optional offline ASR. Include after compose.rag.yaml and keep this overlay on later updates.
+# Existing volumes are retained; apply sqlAndsetting/knowledge-video.sql before enabling the backend.
+services:
+  hoj-backend:
+    environment:
+      HOJ_KNOWLEDGE_MEDIA_DIR: /hoj/knowledge-media
+    volumes:
+      - hoj-local-knowledge-media:/hoj/knowledge-media
+  hoj-rag:
+    environment:
+      HOJ_RAG_MEDIA_DIR: /media
+      HOJ_RAG_ASR_MODEL_PATH: /models/whisper-small
+    volumes:
+      - hoj-local-knowledge-media:/media:ro
+      - type: bind
+        source: ${HOJ_VIDEO_MODEL_DIR:?Set HOJ_VIDEO_MODEL_DIR to the complete offline faster-whisper-small directory}
+        target: /models/whisper-small
+        read_only: true
+volumes:
+  hoj-local-knowledge-media:

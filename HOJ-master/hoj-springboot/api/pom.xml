@@ -26,6 +26,20 @@
     </build>
 
     <dependencies>
+        <!-- Shared personal remote protocol is used by the business backend and judge worker. -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.13.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
         <!--导入swagger-->
         <dependency>
             <groupId>io.springfox</groupId>

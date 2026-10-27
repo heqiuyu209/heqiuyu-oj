@@ -53,27 +53,25 @@ async function practice(account, answer) {
   await request(a, '/api/papers/runs/' + runA.id + '/answers', 'PUT', { key: 'OBJECTIVE:' + questionId, selectedAnswers: ['A'] });
   await request(b, '/api/papers/runs/' + runB.id + '/answers', 'PUT', { key: 'OBJECTIVE:' + questionId, selectedAnswers: ['B'] });
   // Leave both sheets open: the deadline job must finish and score them without browser activity.
-  const result = await until(async () => { const profile = await request(null, '/api/rating/users/' + a.uid); return profile.contestRating !== null ? profile : false; }, 'scheduled practice and contest settlement');
+  const result = await until(async () => { const profile = await request(null, '/api/rating/users/' + a.uid); return profile.contestRating !== null ? profile : false; }, 'scheduled contest settlement');
   const other = await request(null, '/api/rating/users/' + b.uid);
-  assert.equal(result.practiceRating, 829); assert.equal(result.practiceCount, 1);
-  assert.equal(other.practiceRating, 829); assert.equal(other.practiceCount, 1);
+  assert(!Object.keys(result).some(key=>key.startsWith('practice')));assert(!Object.keys(other).some(key=>key.startsWith('practice')));
+  assert.equal(sql(`SELECT COUNT(*) FROM site_rating_profile WHERE uid IN (${uids}) AND type='practice'`),'0');
   assert(result.contestRating > 1400); assert(other.contestRating < 1400);
   assert.equal(result.contestCount, 1); assert.equal(other.contestCount, 1);
-  const home = await request(null, '/api/get-user-home-info?uid=' + a.uid); assert.equal(home.practiceRating, 829); assert.equal(home.contestRating, result.contestRating);
+  const home = await request(null, '/api/get-user-home-info?uid=' + a.uid); assert(!Object.hasOwn(home,'practiceRating')); assert.equal(home.contestRating, result.contestRating);
   const rank = await request(null, '/api/rating/rank?type=contest&searchUser=' + a.username); assert.equal(rank.records.length, 1); assert.equal(rank.records[0].rating, result.contestRating);
-  for (const type of ['practice', 'contest']) {
-    const typed = await request(null, '/api/rating/users/' + a.uid + '?type=' + type);
-    assert.equal(typed.history.length, 1); assert.equal(typed.history[0].type, type);
-  }
+  const typed=await request(null,'/api/rating/users/'+a.uid+'?type=contest');assert.equal(typed.history.length,1);assert.equal(typed.history[0].type,'contest');assert.deepEqual(result.history,typed.history);
+  await request(null,'/api/rating/rank?type=practice','GET',undefined,true);await request(null,'/api/rating/users/'+a.uid+'?type=practice','GET',undefined,true);
   await request(null, '/api/rating/users/' + a.uid + '?type=invalid', 'GET', undefined, true);
   const finalRank = await request(a, '/api/contests/' + contestId + '/mixed/rank'); assert.equal(finalRank.records.find(row => row.uid === a.uid).objectiveScore, 10);
-  report.checks.push('Admin rating validation, numeric task interval query, first-correct practice credit exactly once despite retries, independent contest rating gain/loss, automatic deadline hand-in, typed public history and invalid type rejection, public rank and user-home integration.');
-  report.ratings = { practice: result.practiceRating, winner: result.contestRating, loser: other.contestRating };
+  report.checks.push('Admin task rating and interval filters remain available; repeated practice creates no practice Rating. Formal contest gains/losses, automatic deadline hand-in, contest-only history, rejected retired/invalid types, public rank and user-home integration remain correct.');
+  report.ratings = { winner: result.contestRating, loser: other.contestRating };
   report.validated = true;
 })().catch(error => { report.failure = error.stack; process.exitCode = 1; }).finally(async () => {
   try {
     for (const account of accounts) if (account.token) await request(account, '/api/logout').catch(() => {});
-    sql(`DELETE FROM site_rating_history WHERE uid IN (${uids}); DELETE FROM site_rating_profile WHERE uid IN (${uids}); DELETE FROM paper_run WHERE uid IN (${uids}); DELETE FROM objective_run WHERE uid IN (${uids}); ${contestId ? `DELETE FROM contest WHERE id=${contestId} AND uid=${quote(teacher.uid)};` : ''} ${paperId ? `DELETE FROM paper WHERE id=${paperId} AND created_by=${quote(teacher.uid)};` : ''} ${questionId ? `DELETE FROM objective_question_version WHERE question_id=${questionId}; DELETE FROM objective_question WHERE id=${questionId} AND created_by=${quote(teacher.uid)};` : ''} ${programId ? `DELETE FROM problem WHERE id=${programId} AND author=${quote(teacher.username)};` : ''} DELETE FROM session WHERE uid IN (${uids}); DELETE FROM user_info WHERE uuid IN (${uids});`);
+    sql(`START TRANSACTION;SELECT id FROM site_rating_lock WHERE id=1 FOR UPDATE;DELETE FROM site_rating_history WHERE uid IN (${uids}); DELETE FROM site_rating_profile WHERE uid IN (${uids}); DELETE FROM paper_run WHERE uid IN (${uids}); DELETE FROM objective_run WHERE uid IN (${uids}); ${contestId ? `DELETE FROM contest WHERE id=${contestId} AND uid=${quote(teacher.uid)};` : ''} ${paperId ? `DELETE FROM paper WHERE id=${paperId} AND created_by=${quote(teacher.uid)};` : ''} ${questionId ? `DELETE FROM objective_question_version WHERE question_id=${questionId}; DELETE FROM objective_question WHERE id=${questionId} AND created_by=${quote(teacher.uid)};` : ''} ${programId ? `DELETE FROM problem WHERE id=${programId} AND author=${quote(teacher.username)};` : ''} DELETE FROM session WHERE uid IN (${uids}); DELETE FROM user_info WHERE uuid IN (${uids});COMMIT;`);
     assert.equal(sql(`SELECT COUNT(*) FROM user_info WHERE uuid IN (${uids})`), '0'); report.cleaned = true;
   } catch (error) { report.cleanupFailure = error.message; process.exitCode = 1; }
   fs.writeFileSync(path.join(output, 'rating-local-integration.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));

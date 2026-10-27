@@ -2,7 +2,7 @@
   <div class="problem-origin" aria-label="题目来源与分数">
     <a v-if="url" :href="url" target="_blank" rel="noopener noreferrer" @click.stop>{{ source }} <i class="el-icon-top-right" /></a>
     <span v-else>{{ source }}</span>
-    <span v-if="detail && problem.source">{{ problem.source }}</span>
+    <span v-if="detail && problem.source" v-dompurify-html="problem.source" />
     <span :title="ratingTitle" class="rating-chip">Rating {{ score === null ? '未评级' : score }}</span>
     <small v-if="detail && original !== null">来源原始分数 {{ original }}</small>
   </div>
