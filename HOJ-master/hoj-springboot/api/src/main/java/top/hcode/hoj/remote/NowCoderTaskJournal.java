@@ -55,7 +55,7 @@ public final class NowCoderTaskJournal {
             Map<String,Object> task=row(id,token),source=source(id);context(jdbc,id);
             if(!"POLLING".equals(task.get("state")) || !result.jobId.equals(source.get("backend_job_id")) || !result.contextHash.equals(source.get("context_hash")))throw new PersonalRemoteTaskStore.Conflict("Source result belongs to another task");
             if(result.submissionId!=null){
-                if(result.submissionId<=number(task.get("baseline_id")) || source.get("source_submission_id")!=null && number(source.get("source_submission_id"))!=result.submissionId)throw new PersonalRemoteTaskStore.Conflict("Source submission identity changed");
+                if(result.submissionId<=number(task.get("baseline_id")) || source.get("source_submission_id")!=null && number(source.get("source_submission_id"))!=result.submissionId)throw new RemoteSourceFailure(RemoteSourceFailure.Kind.AMBIGUOUS_RESULT);
                 jdbc.update("UPDATE personal_remote_nowcoder SET source_submission_id=? WHERE submit_id=?",result.submissionId,id);jdbc.update("UPDATE personal_remote_task SET remote_submit_id=? WHERE submit_id=?",result.submissionId,id);
             }
             if(result.verdict==null){tasks.waitingForResult(id,token);return false;}

@@ -121,7 +121,8 @@ public final class PersonalRemoteTaskRunner {
                 PersonalRemoteSource.Form form=source.form();Map<String,String> current=form.sourceContext();
                 if(!context.questionId.equals(current.get("questionId")) || !context.problemId.equals(current.get("problemId")) || !context.contestId.equals(current.get("contestId")))throw new RemoteSourceFailure(RemoteSourceFailure.Kind.FORMAT_CHANGED);
                 if(!context.languageName.equals(form.languages().get(context.languageId)))throw new RemoteSourceFailure(RemoteSourceFailure.Kind.LANGUAGE_CHANGED);
-                NowCoderJudgeProtocol.Acknowledgement reply=protocol.submit(context,code,()->{if(!store.beginPost(id,token,0))throw new PersonalRemoteTaskStore.Conflict("Source POST authorization changed");});
+                long baseline=source.baseline(source.recent());
+                NowCoderJudgeProtocol.Acknowledgement reply=protocol.submit(context,code,()->{if(!store.beginPost(id,token,baseline))throw new PersonalRemoteTaskStore.Conflict("Source POST authorization changed");});
                 journal.acknowledged(id,token,reply);break;
             case "RECONCILING":case "POLLING":
                 String job=journal.job(id);
