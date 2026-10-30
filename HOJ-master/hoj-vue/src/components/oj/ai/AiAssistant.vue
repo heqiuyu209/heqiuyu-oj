@@ -68,7 +68,7 @@ export default {
   watch: {
     '$route.fullPath'() { this.epoch++; this.settingsRequest++; this.clearChat(); this.acceptProblem(currentAiProblem()); this.saving=false; this.form.apiKey=''; if (this.open && this.authenticated) this.loadSettings(); },
     identity() { this.reset(); this.open=false; },
-    blocked(value) { if (value) this.clearChat(); },
+    'settings.contestBlocked'(value) { if (value) this.clearChat(); },
     includeProfile(value) { if (!value) this.includeExternalProfile=false; },
   },
   mounted() { this.unsubscribeProblem=subscribeAiProblem(this.acceptProblem); window.addEventListener('hoj-ai-open-problem', this.openProblem); window.addEventListener('resize', this.clamp); window.addEventListener('hoj-ai-access-changed', this.refreshPolicy); window.addEventListener('hoj-ai-open-settings', this.openSettings); this.timer=window.setInterval(() => { if (this.open && this.authenticated && this.ready && !this.saving) this.loadSettings(true); }, 20000); },
@@ -102,7 +102,7 @@ export default {
         if (modelChanged) { this.clearChat(); this.error='模型配置已更新，旧对话已清空，请核对设置后重新提问'; }
         this.settings=settings; this.ready=true;
         if (!quiet || modelChanged) { this.form={baseUrl:settings.baseUrl,model:settings.model,apiKey:''}; if (!settings.configured) this.tab='settings'; }
-      } catch (error) { if (epoch===this.epoch && request===this.settingsRequest) { this.error=errorMessage(error); if (quiet) this.settings.contestBlocked=true; } }
+      } catch (error) { if (epoch===this.epoch && request===this.settingsRequest) { this.ready=false; this.clearChat(); this.error=errorMessage(error); } }
     },
     async saveSettings() {
       if (this.saving || this.pending) return;
@@ -135,7 +135,8 @@ export default {
       const sent=[...history,{role:'user',content}]; this.messages=sent; this.pending=true; this.error='';
       try {
         const reply=responseData(await api.aiChat({messages:sent,modelFingerprint:this.settings.fingerprint,problemContext:context?{reference:context.reference,fingerprint:context.fingerprint}:undefined,includeProfile:this.includeProfile,includeExternalProfile:this.includeProfile && this.includeExternalProfile}));
-        if (epoch!==this.epoch || request!==this.chatRequest || this.blocked) return;
+        // A foreground settings read pauses new sends; it need not discard an already authorized reply.
+        if (epoch!==this.epoch || request!==this.chatRequest || this.settings.contestBlocked) return;
         if (reply.modelFingerprint !== this.settings.fingerprint) { this.clearChat(); this.error='模型配置已变化，请核对设置后重新提问'; this.loadSettings(true); return; }
         if(context&&(reply.problemContextIncluded!==true||reply.problemFingerprint!==context.fingerprint)) { this.clearChat();this.error='题面已变化，请重新核验后提问';return; }
         this.messages=[...sent,{role:'assistant',content:reply.content}].slice(-14); this.question='';

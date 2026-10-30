@@ -17,6 +17,7 @@ let rejectNextQuestion = false, rejectNextPaper = false;
 let rejectLearning = false;
 const aiConfigurations = new Map();
 let aiBlocked=false, aiDelay=0, aiReject=false;
+let aiSettingsDelay=0, aiSettingsReject=false;
 let translationDelay=0, translationReject=false;
 let aiModelRevision=0;
 const virtualRuns = new Map();
@@ -208,6 +209,7 @@ let rows=clone(atRows);rows[0].importState=atImportState;rows[0].localId=atSourc
     return ok({submitId:Number(p.split('/')[4]),task:{state:personalState,submit_attempts:0},verdict:personalState==='COMPLETED'?0:5});
   }
   if (p === '/api/ai/settings') {
+    if(method==='GET'&&aiSettingsReject){aiSettingsReject=false;return {status:503,msg:'暂时无法读取模型设置'};}
     if(method==='PUT')aiConfigurations.set(uid,{baseUrl:data.baseUrl,model:data.model,configured:true,hasKey:true});
     if(method==='PUT')aiConfigurations.get(uid).fingerprint=(++aiModelRevision).toString(16).padStart(64,'0');
     if(method==='DELETE')aiConfigurations.delete(uid);
@@ -377,6 +379,7 @@ async function until(check, label, timeout = 30000) {
         const body = fixture(message.params.request);
         if (message.params.request.url.includes('/api/learning/users/stale/')) await sleep(1200);
         if (message.params.request.url.endsWith('/api/ai/chat') && aiDelay) await sleep(aiDelay);
+        if (new URL(message.params.request.url).pathname==='/api/ai/settings' && message.params.request.method==='GET' && aiSettingsDelay) await sleep(aiSettingsDelay);
         if (message.params.request.url.endsWith('/api/ai/problem-context') && aiContextDelay) await sleep(aiContextDelay);
         if (new URL(message.params.request.url).pathname==='/api/learning/problem-history' && historyDelay) await sleep(historyDelay);
         if (message.params.request.url.endsWith('/api/admin/remote-sources/translation') && translationDelay) await sleep(translationDelay);
@@ -829,7 +832,17 @@ async function until(check, label, timeout = 30000) {
     await ev("document.querySelector('.ai-problem-context summary').click();true");assert.equal(await ev("document.querySelector('.ai-problem-context img')===null&&document.querySelector('.ai-problem-context pre').textContent.includes('<img')"),true);
     await ev(assistant+".question='解释这道题的输入';"+assistant+'.send();true');await until(()=>ev(assistant+'.messages.length===2&&!'+assistant+'.pending'),'program context reply');
     const submitted=report.requests.filter(row=>row.path==='/api/ai/chat').pop().data;assert.equal(submitted.problemContext.reference.kind,'PROGRAMMING');assert.equal(submitted.problemContext.reference.problemId,'P1000');assert.deepEqual(Object.keys(submitted.problemContext).sort(),['fingerprint','reference']);assert.equal(JSON.stringify(submitted).includes('SERVER_SOLUTION_NOT_FOR_AI'),false);
+    const previewBeforeClose=await ev('JSON.stringify('+assistant+'.contextPreview)');
+    const previewReads=report.requests.filter(row=>row.path==='/api/ai/problem-context').length;
+    await ev(assistant+".question='继续解释边界';"+assistant+'.close();true');await ev(assistant+'.show();true');await until(()=>ev(assistant+'.ready'),'reopened problem conversation');
+    assert.equal(await ev(assistant+'.messages.length'),2);assert.equal(await ev(assistant+'.question'),'继续解释边界');assert.equal(await ev(assistant+'.includeProblem'),true);assert.equal(await ev('JSON.stringify('+assistant+'.contextPreview)'),previewBeforeClose);
+    await ev(assistant+'.openSettings().then(()=>true)');await ev(assistant+".tab='chat';true");
+    assert.equal(await ev(assistant+'.messages.length'),2);assert.equal(await ev(assistant+'.includeProblem'),true);assert.equal(await ev('JSON.stringify('+assistant+'.contextPreview)'),previewBeforeClose);assert.equal(report.requests.filter(row=>row.path==='/api/ai/problem-context').length,previewReads);
+    report.checks.push('Closing/reopening and viewing unchanged settings retain the same problem conversation, draft, verified preview and sharing consent without another context read.');
     await shot('ai-problem-context-desktop',true);report.checks.push('Opt-in clears old history; the preview escapes markup and chat sends only the verified reference/fingerprint, never browser statement text or hidden solution fields.');
+    aiSettingsReject=true;await ev(assistant+'.loadSettings().then(()=>true)');assert.equal(await ev(assistant+'.ready'),false);assert.equal(await ev(assistant+'.includeProblem'),false);assert.equal(await ev(assistant+'.contextPreview'),null);assert.equal(await ev(assistant+'.messages.length'),0);assert.equal(await ev(assistant+'.question'),'');
+    await ev(assistant+'.loadSettings().then(()=>true)');assert.equal(await ev(assistant+'.includeProblem'),false);assert.equal(await ev(assistant+'.contextPreview'),null);
+    report.checks.push('A settings failure revokes problem sharing and clears its preview, history and draft; a successful retry does not restore prior consent.');
     await route('/objective/run/11');await until(()=>ev(find('ObjectiveRun')+'?.run?.questions.length===2&&'+assistant+'.availableProblem?.reference.kind==="OBJECTIVE_RUN"'),'objective descriptor');
     assert.equal(await ev(assistant+'.messages.length'),0);aiContextDelay=900;await ev(assistant+'.setIncludeProblem(true);true');await until(()=>ev(assistant+'.contextLoading'),'pending objective preview');
     await ev("document.querySelectorAll('.question-nav .el-button')[1].click();true");await until(()=>ev(assistant+'.availableProblem?.reference.questionKey==="5"'),'same-route question changes');await sleep(1100);aiContextDelay=0;assert.equal(await ev(assistant+'.contextPreview'),null);assert.equal(await ev(assistant+'.includeProblem'),false);
@@ -872,8 +885,24 @@ async function until(check, label, timeout = 30000) {
     await until(()=>ev(assistant+'.error.includes(\'暂时不可用\')&&!'+assistant+'.pending'),'provider failure');
     assert.equal(await ev(assistant+'.question'),'失败后保留问题');assert.equal(await ev(assistant+'.messages.length'),2);
     report.checks.push('Chat submits only bounded text plus opt-in self profile, renders returned markup as text, and preserves the draft after failure.');
+    const historyBeforeClose=await ev('JSON.stringify('+assistant+'.messages)');
+    aiSettingsDelay=1200;await ev("document.querySelector('[aria-label=\"关闭 AI 助教\"]').click();true");await ev("document.querySelector('.ai-launcher').click();true");
+    assert.equal(await ev(assistant+'.ready'),false);assert.equal(await ev(assistant+'.blocked'),true);assert.equal(await ev('JSON.stringify('+assistant+'.messages)'),historyBeforeClose);assert.equal(await ev(assistant+'.question'),'失败后保留问题');
+    const callsBeforeRead=report.requests.filter(row=>row.path==='/api/ai/chat').length;
+    await ev(assistant+'.send().then(()=>true)');assert.equal(report.requests.filter(row=>row.path==='/api/ai/chat').length,callsBeforeRead);
+    await until(()=>ev(assistant+'.ready'),'reopened settings confirmed');aiSettingsDelay=0;
+    assert.equal(await ev('JSON.stringify('+assistant+'.messages)'),historyBeforeClose);assert.equal(await ev(assistant+'.question'),'失败后保留问题');assert.equal(await ev(assistant+'.includeProfile&&'+assistant+'.includeExternalProfile'),true);
+    await ev("window.dispatchEvent(new Event('hoj-ai-open-settings'));true");await until(()=>ev(assistant+'.ready&&'+assistant+'.tab===\'settings\''),'view unchanged model settings');
+    assert.equal(await ev('JSON.stringify('+assistant+'.messages)'),historyBeforeClose);assert.equal(await ev(assistant+'.question'),'失败后保留问题');assert.equal(await ev(assistant+'.includeProfile&&'+assistant+'.includeExternalProfile'),true);await ev(assistant+".tab='chat';true");
+    report.checks.push('Close/reopen and viewing unchanged settings preserve history, draft and profile consent; a slow foreground settings read blocks new chat requests.');
+    aiDelay=350;aiSettingsDelay=1800;await ev(assistant+".question='读取设置时返回的回答';"+assistant+'.send();true');await until(()=>ev(assistant+'.pending'),'chat before reopening');
+    await ev(assistant+'.close();true');await ev(assistant+'.show();true');await until(()=>ev('!'+assistant+'.pending&&'+assistant+'.messages.length===4'),'reply during foreground settings read');
+    assert.equal(await ev(assistant+'.ready'),false);assert.deepEqual(await ev(assistant+'.messages.map(message=>message.role)'),['user','assistant','user','assistant']);
+    await until(()=>ev(assistant+'.ready'),'settings after in-flight reply');aiDelay=0;aiSettingsDelay=0;
+    assert.equal(await ev(assistant+'.messages.length'),4);assert.equal(await ev(assistant+'.question'),'');
+    report.checks.push('A previously authorized in-flight reply survives a same-model foreground read, leaving complete alternating chat turns.');
     const currentModel=aiConfigurations.get(uid);const previousFingerprint=currentModel.fingerprint;
-    await ev(assistant+'.loadSettings(true);true');await until(()=>ev(assistant+'.ready'),'same model quiet read');assert.equal(await ev(assistant+'.messages.length'),2);
+    await ev(assistant+'.loadSettings(true).then(()=>true)');assert.equal(await ev(assistant+'.messages.length'),4);
     aiDelay=900;await ev(assistant+".question='旧模型尚未完成';"+assistant+'.send();true');await until(()=>ev(assistant+'.pending'),'in-flight model call');
     currentModel.model='changed-from-another-page';currentModel.fingerprint=(++aiModelRevision).toString(16).padStart(64,'0');
     await ev(assistant+'.loadSettings(true);true');await until(()=>ev(assistant+'.settings.model==="changed-from-another-page"&&!'+assistant+'.pending'),'configuration refresh');await sleep(1100);aiDelay=0;
@@ -881,6 +910,20 @@ async function until(check, label, timeout = 30000) {
     assert.equal(report.requests.filter(row=>row.path==='/api/ai/chat').pop().data.modelFingerprint,previousFingerprint);
     await ev(assistant+".question='按新配置开始';"+assistant+'.send();true');await until(()=>ev(assistant+'.messages.length===2&&!'+assistant+'.pending'),'new configuration chat');assert.equal(report.requests.filter(row=>row.path==='/api/ai/chat').pop().data.messages.length,1);
     report.checks.push('Quiet settings reads preserve same-model history; changing configuration clears old history and profile consent, suppresses an in-flight reply, and starts the next request with the newly confirmed fingerprint.');
+    aiDelay=150;aiSettingsDelay=1200;await ev(assistant+".question='配置核验前返回的旧回答';"+assistant+'.send();true');
+    currentModel.model='foreground-model-change';currentModel.fingerprint=(++aiModelRevision).toString(16).padStart(64,'0');await ev(assistant+'.loadSettings();true');
+    await until(()=>ev('!'+assistant+'.pending&&'+assistant+'.messages.length===4'),'old reply before model verification');assert.equal(await ev(assistant+'.ready'),false);
+    await until(()=>ev(assistant+'.ready'),'foreground model verification');aiDelay=0;aiSettingsDelay=0;assert.equal(await ev(assistant+'.messages.length'),0);
+    await ev(assistant+".question='当前模型的新问题';"+assistant+'.send();true');await until(()=>ev(assistant+'.messages.length===2&&!'+assistant+'.pending'),'foreground model recovery');
+    report.checks.push('A reply received before a foreground read confirms a model change is cleared when that change is verified.');
+    aiDelay=900;await ev(assistant+".question='读取失败后不能保留的回答';"+assistant+'.includeProfile=true;'+assistant+'.includeExternalProfile=true;'+assistant+'.send();true');await until(()=>ev(assistant+'.pending'),'chat before settings failure');
+    aiSettingsReject=true;await ev(assistant+'.loadSettings().then(()=>true)');await sleep(1100);aiDelay=0;
+    assert.equal(await ev(assistant+'.ready'),false);assert.equal(await ev(assistant+'.blocked'),true);assert.equal(await ev(assistant+'.settings.contestBlocked'),false);assert.equal(await ev(assistant+'.messages.length'),0);assert.equal(await ev(assistant+'.question'),'');assert.equal(await ev(assistant+'.includeProfile||'+assistant+'.includeExternalProfile'),false);assert.equal(await ev(assistant+'.error.includes("无法读取模型设置")'),true);
+    const callsAfterFailure=report.requests.filter(row=>row.path==='/api/ai/chat').length;await ev(assistant+".question='尚未核验不能发送';"+assistant+'.send().then(()=>true)');assert.equal(report.requests.filter(row=>row.path==='/api/ai/chat').length,callsAfterFailure);
+    await ev("document.querySelector('.ai-popup .el-alert .el-button').click();true");await until(()=>ev(assistant+'.ready&&!'+assistant+'.blocked'),'retry settings read');
+    await ev(assistant+'.send();true');await until(()=>ev(assistant+'.messages.length===2&&!'+assistant+'.pending'),'chat after settings recovery');
+    aiSettingsReject=true;await ev(assistant+'.loadSettings(true).then(()=>true)');assert.equal(await ev(assistant+'.ready'),false);assert.equal(await ev(assistant+'.messages.length'),0);assert.equal(await ev(assistant+'.settings.contestBlocked'),false);await ev(assistant+'.loadSettings().then(()=>true)');
+    report.checks.push('Failed foreground or background settings reads clear history, block sending and suppress late replies without claiming a contest restriction; the visible retry restores use.');
     await route('/contest/6/rank');await until(()=>ev(assistant+'.ready'), 'spectator AI settings');
     assert.equal(await ev(assistant+'.blocked'),false);
     await ev(assistant+".question='旁观期间的学习问题';"+assistant+'.send();true');await until(()=>ev(assistant+'.messages.length===2&&!'+assistant+'.pending'), 'spectator AI reply');
