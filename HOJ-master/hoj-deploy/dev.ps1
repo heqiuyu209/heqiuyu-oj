@@ -5,13 +5,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-# Explicit project name reuses the existing local OJ containers and data volumes.
-$composeArgs = @('compose', '--project-name', 'hoj-master',
-    '-f', (Join-Path $projectRoot 'compose.yaml'),
-    '-f', (Join-Path $projectRoot 'compose.dev.yaml'))
+. (Join-Path $PSScriptRoot 'local-compose.ps1')
 
 docker info --format '{{.ServerVersion}}' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable. Start Docker Desktop and try again.' }
+$composeArgs = @(Get-HojComposeArguments -ProjectRoot $projectRoot)
 & docker @composeArgs config --quiet
 if ($LASTEXITCODE -ne 0) { throw 'Invalid development configuration. Docker Compose 2.24.4 or later is required.' }
 

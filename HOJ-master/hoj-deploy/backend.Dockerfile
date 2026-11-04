@@ -1,6 +1,9 @@
 FROM maven:3.9-eclipse-temurin-8 AS builder
 
 WORKDIR /build
+
+# Keep the single Maven compiler within a predictable Java heap budget.
+ARG MAVEN_OPTS="-Xms64m -Xmx768m"
 COPY hoj-springboot/ ./
 
 RUN --mount=type=cache,id=hoj-java8-maven,target=/root/.m2,sharing=locked mvn -B -pl DataBackup -am package -DskipTests

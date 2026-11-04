@@ -2,14 +2,14 @@
 
 目标：在真实的本地 HOJ 数据和接口上修改 UI，保存前端代码即可看到变化。入口为 **http://localhost:8080/home**。
 
-开发入口使用 `compose.yaml` + `compose.dev.yaml`。原 `compose.yaml` 仍负责生产镜像构建；开发配置只覆盖前端服务，MySQL、Redis、Nacos、业务后端与判题服务继续使用原有本地环境。
+开发入口使用 `compose.yaml` + `compose.dev.yaml`，并从已有本地容器识别、保留已启用的 RAG / 视频 / 重排 / 上下文覆盖文件。原 `compose.yaml` 仍负责生产镜像构建；开发配置只覆盖前端服务，MySQL、Redis、Nacos、业务后端与判题服务继续使用原有本地环境。
 
 ## 启动、查看与停止
 
-先启动 Docker Desktop（Linux containers），在 Git 根目录 `D:\IdeaProjects\HOJ-master` 执行：
+先启动 Docker Desktop（Linux containers），在 Git 根目录 `D:\IDEA\HOJ-master` 执行：
 
 ```powershell
-# 启动全部六个 OJ 服务，等待前端与网站接口就绪
+# 启动现有 OJ 配置（已启用 RAG 时一并保留），等待前端与网站接口就绪
 .\HOJ-master\hoj-deploy\dev.ps1 up
 
 # 查看状态 / 查看前端日志（Ctrl+C 退出日志查看，不停止服务）
@@ -61,19 +61,36 @@ powershell -ExecutionPolicy Bypass -File .\HOJ-master\hoj-deploy\dev.ps1 up
 | MySQL | `127.0.0.1:13306`，沿用原本地配置 |
 | Redis / 判题 / 沙箱 | Docker 内部访问，不增加宿主机端口 |
 
-这里显示的是原数据库中的真实本地数据，空列表保留空态。按用户要求保留的蓝桥杯风格演示题、套卷与混合比赛，以及客观题、混合卷和站内 Rating 的实现与验证状态，统一见 [任务记录](../docs/docs/ai/TODO.md)。真实集成检查会创建随机临时账号并清理自己的数据，不重置原账号密码；AI 服务仍待实现。已有数据库需先执行相应 [增量迁移](../sqlAndsetting/README.md)，再更新后端镜像。
+这里显示的是原数据库中的真实本地数据，空列表保留空态。按用户要求保留的蓝桥杯风格演示题、套卷与混合比赛，以及客观题、混合卷和站内 Rating 的实现与验证状态，统一见 [任务记录](../docs/docs/ai/TODO.md)。真实集成检查会创建随机临时账号并清理自己的数据，不重置原账号密码；AI 助教与知识库的实际实现和验收边界见上述任务记录。已有数据库需先执行相应 [增量迁移](../sqlAndsetting/README.md)，再更新后端镜像。
 
-## 修改 Java 后更新单个服务
+## 节省内存的镜像更新
 
-以下示例会先构建后端镜像，再替换后端容器；数据库与前端开发容器保持运行。只有修改对应源码后才需要执行。
+修改 Java 后端、判题或已验收的 RAG 源码后，用统一入口更新。前端开发模式保存 Vue/CSS/JS 即可热更新，无需构建镜像。
 
 ```powershell
-docker compose -p hoj-master -f .\HOJ-master\compose.yaml build hoj-backend
-# 确认上一条构建成功后再执行
-docker compose -p hoj-master -f .\HOJ-master\compose.yaml -f .\HOJ-master\compose.dev.yaml up -d --no-deps --no-build hoj-backend
+# 只读预检：识别完整覆盖文件，核对原镜像、数据卷与环境配置
+.\HOJ-master\hoj-deploy\update.ps1 -Service hoj-backend,hoj-judgeserver -PauseRag -Plan
+
+# 停止选中的 Java 服务并暂时暂停 RAG，逐个构建，成功后逐个替换并检查
+.\HOJ-master\hoj-deploy\update.ps1 -Service hoj-backend,hoj-judgeserver -PauseRag
+
+# 只更新后端；不带 PauseRag 时，知识库继续运行
+.\HOJ-master\hoj-deploy\update.ps1 -Service hoj-backend
 ```
 
-更新判题服务时把两条命令中的 `hoj-backend` 改为 `hoj-judgeserver`，随后做实际判题验证。普通 `restart` 不会把新镜像装进旧容器。
+先停止服务就能释放运行内存。脚本停止全部选中服务后，按顺序一次构建一个镜像，再由 Compose 替换旧容器；不用手工删除容器。Java 构建默认 Maven 堆上限为768MiB；该值不是整个 BuildKit 或 Docker 的总内存上限。`-PauseRag` 会临时释放本地模型的运行内存，结束或失败后恢复原 RAG 容器并等待健康；暂停期间知识库暂不可用。
+
+脚本保留命名数据卷和现有全部覆盖文件，禁止并发执行两个更新；不执行数据库迁移、删卷或缓存清理。构建失败会恢复原镜像标签和原容器运行状态，并停止后续构建；替换启动失败会尝试恢复旧镜像。恢复失败会明确报错，旧镜像以 `hoj-update-backup/...` 本地标签保留。停止的容器与镜像不占运行内存，备份标签共享镜像层。
+
+此入口更新源码镜像；若环境变量或命名卷配置改变，预检会拒绝，须单独审查配置变更。构建可能在依赖缺失时访问软件仓库，但启动阶段使用 `--no-build --pull never`，不会隐式构建或拉取镜像。
+
+RAG 更新使用 `-Service hoj-rag`，脚本实际构建共享镜像的 `hoj-rag-identity` 定义，仅替换 RAG 服务，保留身份容器及凭据卷。运行前须完成对应源码版本的质量和性能验收；本命令本身不代表未部署的 ONNX 候选已获资格。普通 `restart` 不会加载新镜像。
+
+无需真实 Docker 的故障回归：
+
+```powershell
+.\HOJ-master\hoj-deploy\tests\update.Tests.ps1
+```
 
 ## 切回生产构建预览
 
