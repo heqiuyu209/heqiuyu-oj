@@ -55,7 +55,7 @@
             </testResource>
             <testResource>
                 <directory>../../sqlAndsetting</directory>
-                  <includes><include>objective.sql</include><include>paper.sql</include><include>site-rating.sql</include><include>ai-assistant.sql</include><include>knowledge-base.sql</include><include>knowledge-video.sql</include><include>virtual-contests.sql</include><include>external-learning.sql</include><include>remote-sources.sql</include><include>atcoder-learning.sql</include><include>nowcoder-learning.sql</include><include>nowcoder-context.sql</include><include>nowcoder-practice.sql</include><include>nowcoder-sources.sql</include><include>nowcoder-remote.sql</include><include>remote-credentials.sql</include><include>personal-remote-tasks.sql</include></includes>
+                  <includes><include>objective.sql</include><include>paper.sql</include><include>site-rating.sql</include><include>ai-assistant.sql</include><include>knowledge-base.sql</include><include>knowledge-video.sql</include><include>virtual-contests.sql</include><include>external-learning.sql</include><include>external-cf-pagination.sql</include><include>remote-sources.sql</include><include>atcoder-learning.sql</include><include>nowcoder-learning.sql</include><include>nowcoder-context.sql</include><include>nowcoder-practice.sql</include><include>nowcoder-sources.sql</include><include>nowcoder-remote.sql</include><include>remote-credentials.sql</include><include>personal-remote-tasks.sql</include></includes>
             </testResource>
             <testResource>
                 <directory>../../sqlAndsetting</directory>

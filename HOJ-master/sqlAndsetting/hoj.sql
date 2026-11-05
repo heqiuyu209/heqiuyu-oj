@@ -1563,6 +1563,7 @@ CREATE TABLE IF NOT EXISTS external_sync_job (
  checkpoint_id BIGINT NOT NULL DEFAULT 0,
  working_high_id BIGINT NOT NULL DEFAULT 0,
  last_page_min_id BIGINT NULL,
+ cf_head_hash CHAR(64) NULL,
  scan_token VARCHAR(36) NOT NULL,
  next_run_at DATETIME(3) NULL,
  lease_token VARCHAR(36) NULL,

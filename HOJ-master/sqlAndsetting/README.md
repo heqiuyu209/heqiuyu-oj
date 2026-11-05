@@ -1,5 +1,21 @@
 > 这是 HOJ 数据库初始化文件、增量结构与服务配置文件。
 
+2026-11-05 CF账号分页一致性升级：已有库先执行 `external-cf-pagination.sql`，再更新业务后端。脚本仅向 `external_sync_job` 添加可空 `cf_head_hash CHAR(64)`，可重复执行，不清空游标、账号、提交或其他平台数据；新库的 `hoj.sql` / `external-learning.sql` 已包含此列。不要对旧库重跑完整初始化或删除数据卷。
+
+新CF扫描按500条请求、相邻页重叠1条校验原始ID；遇到短尾页或增量checkpoint后，进入内部 `VERIFY_STATUS` 阶段重取首屏，核验后才更新成功时间、checkpoint并按全量语义清理未见提交。ghost参与位置校验但不计学习证据；空历史也要复核两次。漂移时保留缓存、换扫描世代并退避至少1分钟，从PROFILE重新开始；成功PROFILE/RATING会重置临时失败计数，不承诺跨多轮漂移退避逐轮增长。旧的无首屏指纹在途游标会自动重开。公开API不是原子快照，此机制校验遍历边界与首屏稳定性，不保证任意并发来源修改下的瞬时完整历史。
+
+若回滚到不识别VERIFY_STATUS的旧后端，应先停止后端，再仅重排尚未完成的CF作业（保留checkpoint及全部缓存），之后启动旧镜像；无需删除新列。以下是回滚接续步骤，不属于正常升级时要执行的SQL：
+
+```sql
+UPDATE external_sync_job j JOIN external_account a ON a.id=j.account_id
+SET j.stage='PROFILE',j.from_index=1,j.working_high_id=0,j.last_page_min_id=NULL,
+    j.cf_head_hash=NULL,j.scan_token=UUID(),j.lease_token=NULL,j.lease_until=NULL,
+    j.next_run_at=NOW(3),j.failures=0,j.last_error=NULL
+WHERE a.platform='CODEFORCES' AND j.stage<>'DONE';
+```
+
+实际迁移、隔离MySQL并发测试及本地更新状态见[任务记录](../docs/docs/ai/TODO.md)，未执行的步骤不因出现在文档中而视为已执行。
+
 2026-10-27 牛客专项与试卷记录升级：已有库在 `external-learning.sql` 之后执行可重复的 `nowcoder-practice.sql`，再更新业务后端与前端。仅新增 `external_nowcoder_practice_job`、`external_nowcoder_practice_record` 两表，按账号级联清理；不修改编程提交、通过题数、比赛成绩或 Rating。空库由 Compose 新增的 `06-nowcoder-practice.sql` 包装器加载同一 DDL；保留已有全部 SQL 挂载，不对旧库重跑 `hoj.sql` 或删除数据卷。已执行的迁移、MySQL 测试与本地部署证据见 [任务记录](../docs/docs/ai/TODO.md)，下述 10-21 首次初始化是新增两表之前的历史检查点。
 
 2026-10-27 已从准确提交快照复验首次初始化：独立、断网、无主机端口 / 持久卷的 MySQL 创建 99 张表、51 张功能表、94 个完整关联的知识点。`verify-fresh-init.py` 现将 `nowcoder-practice.sql` 纳入 23 份可重复迁移，每份重放两次后列 / 索引 / 外键结构与自定义项保持，临时容器已清理。证据在 D:/learning-OS-RAG/data/hoj-app-release-20261027/fresh-init；这仍是数据库初始化与重放证据，不能替代全新整栈部署验收。

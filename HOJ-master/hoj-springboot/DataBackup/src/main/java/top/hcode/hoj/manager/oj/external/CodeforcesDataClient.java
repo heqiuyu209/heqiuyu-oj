@@ -29,7 +29,7 @@ public class CodeforcesDataClient {
         if (catalogue) { method="problemset.problems"; query="lang=en"; }
         else if ("PROFILE".equals(stage)) { method="user.info"; query="handles="+handle+"&checkHistoricHandles=false&lang=en"; }
         else if ("RATING".equals(stage)) { method="user.rating"; query="handle="+handle; }
-        else if ("STATUS".equals(stage) && from>0) { method="user.status"; query="handle="+handle+"&from="+from+"&count=500"; }
+        else if (("STATUS".equals(stage) || "VERIFY_STATUS".equals(stage)) && from>0) { method="user.status"; query="handle="+handle+"&from="+from+"&count=500"; }
         else throw new IllegalArgumentException("Unknown sync stage");
         HttpGet request = new HttpGet(endpoint(method,query));
         ScheduledFuture<?> timeout=deadlines.schedule(request::abort,catalogue?45:20,TimeUnit.SECONDS);

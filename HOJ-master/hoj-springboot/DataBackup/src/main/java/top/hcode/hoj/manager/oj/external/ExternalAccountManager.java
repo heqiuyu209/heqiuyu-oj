@@ -101,7 +101,7 @@ public class ExternalAccountManager {
         String platform=jdbc.queryForObject("SELECT platform FROM external_account WHERE id=?",String.class,id);
         if("ATCODER".equals(platform)) atcoder.reset(id,full);
         if("NOWCODER".equals(platform)) nowcoder.reset(id);
-        jdbc.update("UPDATE external_sync_job SET stage='PROFILE',from_index=1,full_scan=?,working_high_id=0,last_page_min_id=NULL,scan_token=?,next_run_at=?,lease_token=NULL,lease_until=NULL,failures=0,last_error=NULL WHERE account_id=?",full,UUID.randomUUID().toString(),time(),id);
+        jdbc.update("UPDATE external_sync_job SET stage='PROFILE',from_index=1,full_scan=?,working_high_id=0,last_page_min_id=NULL,cf_head_hash=NULL,scan_token=?,next_run_at=?,lease_token=NULL,lease_until=NULL,failures=0,last_error=NULL WHERE account_id=?",full,UUID.randomUUID().toString(),time(),id);
     }
     /** A short transaction leases work. No network request holds a database lock. */
     public Map<String,Object> claim() {
@@ -112,6 +112,13 @@ public class ExternalAccountManager {
             if("DONE".equals(job.get("stage"))) {
                 boolean full=job.get("last_full_at")==null || now()-((Timestamp)job.get("last_full_at")).getTime()>=86400000L;
                 resetJob(id,full);job.putAll(jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id));
+            }
+            if("CODEFORCES".equals(job.get("platform")) && job.get("cf_head_hash")==null
+                    && ("VERIFY_STATUS".equals(job.get("stage")) || "STATUS".equals(job.get("stage")) && number(job.get("from_index"))>1)) {
+                // Old offsets have no overlap/head proof. Reopen without discarding cached evidence.
+                resetJob(id,flag(job.get("full_scan")) || !flag(job.get("history_complete")) || job.get("last_full_at")==null
+                        || now()-((Timestamp)job.get("last_full_at")).getTime()>=86400000L);
+                job.putAll(jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id));
             }
             if("ATCODER".equals(job.get("platform"))) job.putAll(jdbc.queryForMap("SELECT from_second,scan_start_second FROM external_atcoder_cursor WHERE account_id=?",id));
             String token=UUID.randomUUID().toString();
@@ -134,7 +141,7 @@ public class ExternalAccountManager {
             else if("RATING".equals(stage)) { applyRating(id,result);
                 if("NOWCODER".equals(account.get("platform"))) jdbc.update("UPDATE external_account SET max_rating=(SELECT MAX(new_rating) FROM external_rating_event WHERE account_id=?) WHERE id=?",id,id);
                 next(id,"STATUS"); }
-            else if("STATUS".equals(stage)) applySubmissions(id,account,job,result);
+            else if("STATUS".equals(stage) || "VERIFY_STATUS".equals(stage)) applySubmissions(id,account,job,result);
             else throw new IllegalArgumentException("Invalid stage");
             return null;
         });
@@ -153,7 +160,7 @@ public class ExternalAccountManager {
             jdbc.update("UPDATE remote_user_credential SET credential_ciphertext=NULL,credential_version=credential_version+1,updated_at=? WHERE account_id=?",time(),id);
             jdbc.update("DELETE FROM external_submission WHERE account_id=?",id);jdbc.update("DELETE FROM external_rating_event WHERE account_id=?",id);
             jdbc.update("UPDATE external_account SET verified_identity=NULL,verified_at=NULL,proof_code=NULL,proof_expires_at=NULL,history_complete=0,last_success_at=NULL,last_full_at=NULL,verification_note=? WHERE id=?","平台账号身份发生变化，请重新验证",id);
-            jdbc.update("UPDATE external_sync_job SET full_scan=1,checkpoint_id=0,from_index=1,working_high_id=0,last_page_min_id=NULL WHERE account_id=?",id);
+            jdbc.update("UPDATE external_sync_job SET full_scan=1,checkpoint_id=0,from_index=1,working_high_id=0,last_page_min_id=NULL,cf_head_hash=NULL,scan_token=? WHERE account_id=?",UUID.randomUUID().toString(),id);
             account.put("proof_code",null);
         }
         jdbc.update("UPDATE external_account SET handle=?,registration_time=?,rating=?,max_rating=?,profile_synced_at=? WHERE id=?",handle,registration,user.path("rating").isIntegralNumber()?user.path("rating").intValue():null,user.path("maxRating").isIntegralNumber()?user.path("maxRating").intValue():null,time(),id);
@@ -178,35 +185,64 @@ public class ExternalAccountManager {
         if(!rows.isEmpty()) jdbc.batchUpdate("INSERT INTO external_rating_event(account_id,contest_id,title,contest_rank,old_rating,new_rating,occurred_at) VALUES(?,?,?,?,?,?,?)",rows);
         jdbc.update("UPDATE external_account SET rated_contests=? WHERE id=?",rows.size(),id);
     }
+    private void restartCfScan(long id,Map<String,Object> account,Map<String,Object> job) {
+        int failures=Math.min(10,((Number)job.get("failures")).intValue()+1);
+        long delay=Math.min(21600000L,60000L*(1L<<Math.min(9,failures-1)));
+        boolean full=flag(job.get("full_scan")) || !flag(account.get("history_complete")) || account.get("last_full_at")==null
+                || now()-((Timestamp)account.get("last_full_at")).getTime()>=86400000L;
+        resetJob(id,full);
+        jdbc.update("UPDATE external_sync_job SET failures=?,last_error=?,next_run_at=? WHERE account_id=?",failures,
+                "来源分页发生变化，已保留缓存并重新排队",new Timestamp(now()+delay),id);
+        // Commit this restart normally. Throwing here would roll it back and retry the stale offset forever.
+    }
     private void applySubmissions(long id,Map<String,Object> account,Map<String,Object> job,JsonNode result) {
         if(result.size()>500) throw new IllegalArgumentException("Oversized submission page");
-        long high=number(job.get("working_high_id")), low=Long.MAX_VALUE,previous=Long.MAX_VALUE;
-        Map<String,Object[]> problems=new LinkedHashMap<>();List<Object[]> submissions=new ArrayList<>();
+        boolean verify="VERIFY_STATUS".equals(job.get("stage"));int from=((Number)job.get("from_index")).intValue();
+        if((verify || from>1) && job.get("cf_head_hash")==null){restartCfScan(id,account,job);return;}
+        long high=number(job.get("working_high_id")),low=Long.MAX_VALUE,previous=Long.MAX_VALUE;
+        Map<String,Object[]> problems=new LinkedHashMap<>();List<Object[]> submissions=new ArrayList<>();List<Object> canonical=new ArrayList<>();
         for(JsonNode submission:result) {
-            if(!submission.path("id").isIntegralNumber() || !submission.path("creationTimeSeconds").isIntegralNumber()) throw new IllegalArgumentException("Invalid submission");
-            long sid=submission.path("id").asLong();if(sid<=0 || sid>=previous) throw new IllegalArgumentException("Unordered submission page");previous=sid;
+            if(!submission.path("id").isIntegralNumber() || !submission.path("id").canConvertToLong()
+                    || !submission.path("creationTimeSeconds").isIntegralNumber() || !submission.path("creationTimeSeconds").canConvertToLong())
+                throw new IllegalArgumentException("Invalid submission");
+            long sid=submission.path("id").asLong(),created=submission.path("creationTimeSeconds").asLong();
+            if(sid<=0 || sid>=previous) throw new IllegalArgumentException("Unordered submission page");previous=sid;
             high=Math.max(high,sid);low=Math.min(low,sid);
-            if(submission.path("author").path("ghost").asBoolean(false)) continue;
+            // Raw ghost IDs still participate in pagination even though they cannot count as evidence.
+            if(submission.path("author").path("ghost").asBoolean(false)){canonical.add(Arrays.asList(sid,created,"GHOST"));continue;}
             JsonNode problem=submission.path("problem");String key=ProblemIdentity.codeforces(problem);
             List<String> tags=new ArrayList<>();if(!problem.path("tags").isArray() || problem.path("tags").size()>64) throw new IllegalArgumentException("Invalid tags");
-            for(JsonNode tag:problem.path("tags")) { if(!tag.isTextual() || tag.asText().length()>100) throw new IllegalArgumentException("Invalid tag");tags.add(tag.asText()); }
-            problems.put(key,new Object[]{key,"CODEFORCES",shortText(problem.path("name").asText(""),255),problem.path("rating").isIntegralNumber()?problem.path("rating").intValue():null,write(tags),time()});
+            for(JsonNode tag:problem.path("tags")){if(!tag.isTextual() || tag.asText().length()>100)throw new IllegalArgumentException("Invalid tag");tags.add(tag.asText());}
+            String name=shortText(problem.path("name").asText(""),255);Integer rating=problem.path("rating").isIntegralNumber()?problem.path("rating").intValue():null;
+            problems.put(key,new Object[]{key,"CODEFORCES",name,rating,write(tags),time()});
             JsonNode members=submission.path("author").path("members");
             boolean individual=members.isArray() && members.size()==1 && members.get(0).path("handle").asText().equalsIgnoreCase((String)account.get("handle")) && !submission.path("author").has("teamId");
-            String verdict=submission.path("verdict").asText("PENDING");if(!verdict.matches("[A-Z_]{1,32}")) throw new IllegalArgumentException("Invalid verdict");
-            submissions.add(new Object[]{id,sid,key,verdict,submission.path("creationTimeSeconds").asLong(),individual,job.get("scan_token")});
+            String verdict=submission.path("verdict").asText("PENDING");if(!verdict.matches("[A-Z_]{1,32}"))throw new IllegalArgumentException("Invalid verdict");
+            submissions.add(new Object[]{id,sid,key,verdict,created,individual,job.get("scan_token")});
+            canonical.add(Arrays.asList(sid,created,key,verdict,individual,name,rating,tags));
         }
-        if(!result.isEmpty() && job.get("last_page_min_id")!=null && low>=number(job.get("last_page_min_id"))) throw new IllegalArgumentException("Pagination made no progress");
-        if(!problems.isEmpty()) jdbc.batchUpdate("INSERT INTO external_problem(problem_key,platform,title,rating,tags_json,synced_at) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title),rating=COALESCE(VALUES(rating),rating),tags_json=VALUES(tags_json),synced_at=VALUES(synced_at)",new ArrayList<>(problems.values()));
-        if(!submissions.isEmpty()) jdbc.batchUpdate("INSERT INTO external_submission(account_id,external_id,problem_key,verdict,submitted_at,individual,seen_scan) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE problem_key=VALUES(problem_key),verdict=VALUES(verdict),submitted_at=VALUES(submitted_at),individual=VALUES(individual),seen_scan=VALUES(seen_scan)",submissions);
-        boolean full=flag(job.get("full_scan"));int from=((Number)job.get("from_index")).intValue();
-        if(result.size()<500 || !full && from>500 && low<=number(job.get("checkpoint_id"))) {
-            if(full) jdbc.update("DELETE FROM external_submission WHERE account_id=? AND seen_scan<>?",id,job.get("scan_token"));
+        String pageHash=RemoteCatalogManager.hash(write(canonical));
+        if(verify){
+            if(from!=1 || !pageHash.equals(job.get("cf_head_hash"))){restartCfScan(id,account,job);return;}
+        }else if(from>1 && (result.isEmpty() || job.get("last_page_min_id")==null
+                || result.get(0).path("id").asLong()!=number(job.get("last_page_min_id")))){
+            restartCfScan(id,account,job);return;
+        }
+        // Validate the whole page and its boundary before changing any imported rows.
+        if(!problems.isEmpty())jdbc.batchUpdate("INSERT INTO external_problem(problem_key,platform,title,rating,tags_json,synced_at) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title),rating=COALESCE(VALUES(rating),rating),tags_json=VALUES(tags_json),synced_at=VALUES(synced_at)",new ArrayList<>(problems.values()));
+        if(!submissions.isEmpty())jdbc.batchUpdate("INSERT INTO external_submission(account_id,external_id,problem_key,verdict,submitted_at,individual,seen_scan) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE problem_key=VALUES(problem_key),verdict=VALUES(verdict),submitted_at=VALUES(submitted_at),individual=VALUES(individual),seen_scan=VALUES(seen_scan)",submissions);
+        boolean full=flag(job.get("full_scan"));String head=from==1&&!verify?pageHash:(String)job.get("cf_head_hash");
+        if(verify){
+            if(full)jdbc.update("DELETE FROM external_submission WHERE account_id=? AND seen_scan<>?",id,job.get("scan_token"));
             jdbc.update("UPDATE external_account SET history_complete=CASE WHEN ? THEN 1 ELSE history_complete END,last_success_at=?,last_full_at=CASE WHEN ? THEN ? ELSE last_full_at END WHERE id=?",full,time(),full,time(),id);
-            jdbc.update("UPDATE external_sync_job SET stage='DONE',checkpoint_id=?,working_high_id=0,from_index=1,last_page_min_id=NULL,next_run_at=?,lease_token=NULL,lease_until=NULL,failures=0,last_error=NULL WHERE account_id=?",Math.max(high,number(job.get("checkpoint_id"))),account.get("verified_identity")==null?null:new Timestamp(now()+900000),id);
-        } else {
-            if(from>Integer.MAX_VALUE-500) throw new IllegalArgumentException("Submission history too large");
-            jdbc.update("UPDATE external_sync_job SET from_index=?,working_high_id=?,last_page_min_id=? WHERE account_id=?",from+500,high,low,id);next(id,"STATUS");
+            jdbc.update("UPDATE external_sync_job SET stage='DONE',checkpoint_id=?,working_high_id=0,from_index=1,last_page_min_id=NULL,cf_head_hash=NULL,next_run_at=?,lease_token=NULL,lease_until=NULL,failures=0,last_error=NULL WHERE account_id=?",Math.max(high,number(job.get("checkpoint_id"))),account.get("verified_identity")==null?null:new Timestamp(now()+900000),id);
+        }else if(result.size()<500 || !full && from>1 && low<=number(job.get("checkpoint_id"))){
+            jdbc.update("UPDATE external_sync_job SET from_index=1,working_high_id=?,last_page_min_id=?,cf_head_hash=? WHERE account_id=?",high,result.isEmpty()?null:low,head,id);
+            next(id,"VERIFY_STATUS");
+        }else{
+            if(from>Integer.MAX_VALUE-499)throw new IllegalArgumentException("Submission history too large");
+            jdbc.update("UPDATE external_sync_job SET from_index=?,working_high_id=?,last_page_min_id=?,cf_head_hash=? WHERE account_id=?",from+499,high,low,head,id);
+            next(id,"STATUS");
         }
     }
     public void defer(Map<String,Object> job) {

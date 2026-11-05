@@ -30,6 +30,10 @@ class CodeforcesDataClientTest {
         client.fetch("PROFILE","a.b",1);client.fetch("RATING","a.b",1);client.fetch("STATUS","a.b",501);
         assertEquals(Arrays.asList("/api/user.info?handles=a.b&checkHistoricHandles=false&lang=en","/api/user.rating?handle=a.b","/api/user.status?handle=a.b&from=501&count=500"),requests);
     }
+    @Test void verificationUsesTheSameAnonymousFirstStatusPage() {
+        assertTrue(client.fetch("VERIFY_STATUS","tourist",1).isArray());
+        assertEquals(Collections.singletonList("/api/user.status?handle=tourist&from=1&count=500"),requests);
+    }
     @Test void redirectsAreNotFollowedAndRemoteErrorsAreNotReflected(){
         status=302;assertThrows(ObjectiveException.class,()->client.fetch("PROFILE","tourist",1));assertEquals(0,redirected.get());
         status=200;body="{\"status\":\"FAILED\",\"comment\":\"sensitive-upstream-text\"}";
