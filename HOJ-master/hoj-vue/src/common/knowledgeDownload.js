@@ -12,7 +12,7 @@ export async function knowledgePdfBlob(response) {
     }
     throw invalid(message);
   }
-  if (blob.size < 5 || blob.size > 8388608 || await blob.slice(0, 5).text() !== '%PDF-') throw invalid('PDF 原件响应无效，请重试。');
+  if (blob.size < 5 || blob.size > 33554432 || await blob.slice(0, 5).text() !== '%PDF-') throw invalid('PDF 原件响应无效，请重试。');
   return blob;
 }
 

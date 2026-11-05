@@ -6,7 +6,17 @@ const browser=spawn(process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/App
 const timer=setTimeout(()=>{browser.kill();process.exit(1);},300000);const sleep=ms=>new Promise(r=>setTimeout(r,ms));let stderr='';browser.stderr.on('data',data=>stderr+=data);
 const A='a'.repeat(32),B='b'.repeat(32),C='c'.repeat(64);
 let actor='alice',role='default_user',blocked=false,held=[],hold='',indexReady=true,directoryDenied=false,pdfDownloadDenied=false,answerError=false;
-const PDF='e'.repeat(32),pdfBytes=Buffer.from('%PDF-ui-binary-fixture\n'),pdfContent='第一页：前缀和的定义。\n\f\n\n\f\n# PDF 字面文字\n第三页：区间和公式。';
+function makePreviewPdf(){
+ const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>'];
+ for(let page=1;page<=3;page++){
+  const content=page===2?'':`BT /F1 18 Tf 50 730 Td (Original page ${page}: S\\(r\\) - S\\(l-1\\)) Tj ET`;
+  objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> >> /Contents ${objects.length+2} 0 R >>`,`<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`);
+ }
+ objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+ let body='%PDF-1.4\n',offsets=[0];objects.forEach((o,i)=>{offsets.push(Buffer.byteLength(body));body+=`${i+1} 0 obj\n${o}\nendobj\n`;});
+ const xref=Buffer.byteLength(body);body+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;return Buffer.from(body);
+}
+const PDF='e'.repeat(32),pdfBytes=makePreviewPdf(),pdfContent='第一页：前缀和的定义。\n\f\n\n\f\n# PDF 字面文字\n第三页：区间和公式。';
 const pdfSource={name:'中文讲义.pdf',pages:3,emptyPages:[2],byteLength:pdfBytes.length,hash:'f'.repeat(64)};
 const requests=[],external=[],errors=[],checks=[];
 const VIDEO='7'.repeat(32),VIDEO_TASK='6'.repeat(32),VIDEO_UPLOAD='8'.repeat(32);
@@ -125,7 +135,20 @@ await ev(`${vm('KnowledgeAdmin')}.importFile({target:{files:[new File(['%PDF-ui-
 assert(await ev(`${vm('KnowledgeAdmin')}.dirty && !!${vm('KnowledgeAdmin')}.pdfFile && !${vm('KnowledgeAdmin')}.form.content && ${vm('KnowledgeAdmin')}.hasBody`));
 assert(await ev(`!${vm('KnowledgeAdmin')}.form.ocr`));await ev(`document.querySelector('.knowledge-source-panel input[type="checkbox"]').click();true`);assert(await ev(`${vm('KnowledgeAdmin')}.form.ocr && document.querySelector('.knowledge-source-panel').textContent.includes('对照原件检查')`));
 await ev(`${vm('KnowledgeAdmin')}.save()`);assert(await ev(`!${vm('KnowledgeAdmin')}.pdfFile && !${vm('KnowledgeAdmin')}.dirty && ${vm('KnowledgeAdmin')}.form.sourceVersion===1 && document.querySelectorAll('.knowledge-ocr-review textarea').length===3`));
-assert(await ev(`${vm('KnowledgeAdmin')}.form.ocr && document.querySelector('.knowledge-source-panel').textContent.includes('本地 OCR 识别')`));checks.push('OCR starts unchecked, actual checkbox selects whole-page local recognition, raw upload carries ocr=true, and the saved immutable version displays its OCR provenance.');
+assert(await ev(`${vm('KnowledgeAdmin')}.form.ocr && document.querySelector('.knowledge-source-panel').textContent.includes('本地 OCR 识别')`));
+await ev(`window.pdfPreviewRevoked=[];window.originalPdfRevoke=URL.revokeObjectURL;URL.revokeObjectURL=function(u){window.pdfPreviewRevoked.push(u);return window.originalPdfRevoke.call(URL,u);};document.querySelector('[data-pdf-edit-page="3"] button').click();true`);
+await wait(`!!${vm('KnowledgePdfPreview')}.url`,'admin PDF preview');
+assert(await ev(`${vm('KnowledgeAdmin')}.pdfReviewPage===3 && document.querySelector('.pdf-preview-frame').src.endsWith('#navpanes=0&page=3&zoom=page-width') && !${vm('KnowledgeAdmin')}.dirty`));
+const adminUrl=await ev(`${vm('KnowledgePdfPreview')}.url`),readsBeforePage=requests.filter(r=>r.path.endsWith('/original')).length;
+await ev(`window.previousPdfFrame=document.querySelector('.pdf-preview-frame');document.querySelector('[aria-label="上一页原件"]').click();true`);
+assert(await ev(`${vm('KnowledgeAdmin')}.pdfReviewPage===2 && ${vm('KnowledgeAdmin')}.pdfPages[1]==='' && document.querySelector('.pdf-preview-frame').src.endsWith('#navpanes=0&page=2&zoom=page-width')`));
+assert.equal(requests.filter(r=>r.path.endsWith('/original')).length,readsBeforePage);
+assert(await ev(`window.previousPdfFrame!==document.querySelector('.pdf-preview-frame') && ${vm('KnowledgePdfPreview')}.url===${JSON.stringify(adminUrl)}`));
+await cdp('Emulation.setDeviceMetricsOverride',{width:1600,height:1000,deviceScaleFactor:1,mobile:false});await ev(`document.querySelector('.pdf-preview-heading').scrollIntoView({block:'start'});true`);await shot('knowledge-pdf-comparison-admin');
+await ev(`${vm('KnowledgePdfPreview')}.close()`);assert(await ev(`window.pdfPreviewRevoked.includes(${JSON.stringify(adminUrl)})&&!document.querySelector('.pdf-preview-frame')`));
+await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+checks.push('Admin opens the selected physical PDF page beside the editor, page changes reuse one protected Blob, blank page 2 stays numbered, and closing releases the URL without changing saved text.');
+checks.push('OCR starts unchecked, actual checkbox selects whole-page local recognition, raw upload carries ocr=true, and the saved immutable version displays its OCR provenance.');
 await ev(`${vm('KnowledgeAdmin')}.form.title='中文讲义（修订标题）';${vm('KnowledgeAdmin')}.save()`);assert(await ev(`${vm('KnowledgeAdmin')}.selectedVersion===2 && ${vm('KnowledgeAdmin')}.form.content===${JSON.stringify(pdfContent)}`));
 await ev(`(function(t){t.value+='\\n管理员校订';t.dispatchEvent(new Event('input',{bubbles:true}));})(document.querySelector('.knowledge-ocr-review textarea'));true`);assert(await ev(`${vm('KnowledgeAdmin')}.form.reviewedPdf && !${vm('KnowledgeAdmin')}.form.reviewedOcr && ${vm('KnowledgeAdmin')}.dirty && ${vm('KnowledgeAdmin')}.pdfPages.length===3`));await ev(`${vm('KnowledgeAdmin')}.save()`);assert(await ev(`${vm('KnowledgeAdmin')}.selectedVersion===3 && ${vm('KnowledgeAdmin')}.sourceInfo.extractionMode==='OCR_REVIEWED' && !${vm('KnowledgeAdmin')}.dirty`));assert.equal(docs.get(PDF).versions[0].content,pdfContent);checks.push('Actual per-page OCR correction inputs preserve page count, send an explicit reviewedPdf command, create a separate labelled version, and leave the original extraction intact. Metadata-only edits omit browser text.');
 await ev(`document.documentElement.dataset.theme='dark';document.querySelector('.knowledge-source-panel').scrollIntoView({block:'start'});true`);await shot('knowledge-pdf-admin-mobile-dark');assert.equal(await ev(`getComputedStyle(document.documentElement).getPropertyValue('--page').trim()`),'#101f29');
@@ -133,6 +156,22 @@ docs.get(PDF).publishedVersion=3;await actorChange('pdf-reader','default_user');
 await ev(`${app}.$router.push({name:'KnowledgeDocument',params:{documentID:${JSON.stringify(PDF)}},query:{version:3,page:1}}).then(()=>true)`);await wait(`!!${vm('KnowledgeDocument')}.document && document.activeElement.dataset.pdfPage==='1'`,'numeric citation page 1');
 await ev(`${app}.$router.push({name:'KnowledgeDocument',params:{documentID:${JSON.stringify(PDF)}},query:{version:3,page:3}}).then(()=>true)`);await wait(`!!${vm('KnowledgeDocument')}.document && document.activeElement.dataset.pdfPage==='3'`,'numeric citation page 3');
 assert(await ev(`document.querySelectorAll('[data-pdf-page]').length===3 && document.activeElement.dataset.pdfPage==='3' && !document.querySelector('[data-pdf-page="3"] h1') && document.querySelector('[data-pdf-page="2"]').textContent.includes('没有可提取文字')`));assert(await ev('document.documentElement.scrollWidth<=innerWidth'));await ev(`document.documentElement.dataset.theme='dark';window.scrollTo(0,0);true`);await shot('knowledge-pdf-reader-mobile-dark');assert.equal(await ev(`getComputedStyle(document.documentElement).getPropertyValue('--page').trim()`),'#101f29');
+
+await ev(`${vm('KnowledgePdfPreview')}.open()`);await wait(`!!${vm('KnowledgePdfPreview')}.url`,'reader PDF page 3');
+assert(await ev(`${vm('KnowledgeDocument')}.pdfPage===3 && document.querySelector('.pdf-preview-frame').src.endsWith('#navpanes=0&page=3&zoom=page-width') && document.documentElement.scrollWidth<=innerWidth`));
+await shot('knowledge-pdf-comparison-reader-mobile');
+await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1080,deviceScaleFactor:1,mobile:false});await ev(`document.documentElement.dataset.theme='light';window.scrollTo(0,0);true`);await shot('knowledge-pdf-comparison-reader');
+const readerUrl=await ev(`${vm('KnowledgePdfPreview')}.url`);blocked=true;await ev(`${vm('KnowledgeDocument')}.loadKnowledgeAccess()`);
+assert(await ev(`!document.querySelector('.pdf-preview-frame') && window.pdfPreviewRevoked.includes(${JSON.stringify(readerUrl)})`));
+blocked=false;await ev(`${vm('KnowledgeDocument')}.loadKnowledgeAccess()`);await wait(`!!${vm('KnowledgeDocument')}.document`,'restore PDF reading');
+pdfDownloadDenied=true;await ev(`${vm('KnowledgePdfPreview')}.open()`);await wait(`!!${vm('KnowledgePdfPreview')}.error`,'preview permission failure');
+assert(await ev(`!document.querySelector('.pdf-preview-frame') && ${vm('KnowledgePdfPreview')}.error.includes('已撤回')`));pdfDownloadDenied=false;
+await ev(`${vm('KnowledgePdfPreview')}.load()`);await wait(`!!${vm('KnowledgePdfPreview')}.url`,'retry PDF preview');
+await ev(`${vm('KnowledgePdfPreview')}.close()`);hold='/original';await ev(`void ${vm('KnowledgePdfPreview')}.open();true`);for(let i=0;i<40&&!held.length;i++)await sleep(50);assert(held.length);
+await actorChange('pdf-preview-new-reader','default_user');await release();await wait(`!!${vm('KnowledgeDocument')}.document`,'PDF after account change');
+assert(await ev(`!${vm('KnowledgePdfPreview')}.url&&!${vm('KnowledgePdfPreview')}.opened&&!document.querySelector('.pdf-preview-frame')`));
+checks.push('Reader citation page opens the same original page on desktop/mobile; contest restriction releases it, errors allow retry, and a late original from an older account cannot create a preview.');
+await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
 await ev(`window.pdfDownloads=[];document.addEventListener('click',e=>{if(e.target.tagName==='A'&&e.target.download){e.preventDefault();window.pdfDownloads.push(e.target.download);}},true);true`);
 await ev(`${vm('KnowledgeDocument')}.downloadOriginal()`);assert.deepEqual(await ev('window.pdfDownloads'),[pdfSource.name]);
 pdfDownloadDenied=true;await ev(`${vm('KnowledgeDocument')}.downloadOriginal()`);assert(await ev(`${vm('KnowledgeDocument')}.downloadError.includes('已撤回') && window.pdfDownloads.length===1`));pdfDownloadDenied=false;
