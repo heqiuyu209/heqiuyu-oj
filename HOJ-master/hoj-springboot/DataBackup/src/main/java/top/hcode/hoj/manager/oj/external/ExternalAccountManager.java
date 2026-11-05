@@ -127,8 +127,11 @@ public class ExternalAccountManager {
         });
     }
     private Map<String,Object> leased(Map<String,Object> job) {
-        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.* FROM external_account a JOIN external_sync_job j ON j.account_id=a.id WHERE a.id=? AND j.lease_token=? FOR UPDATE",job.get("account_id"),job.get("lease_token"));
-        return rows.isEmpty()?null:rows.get(0);
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT a.*,j.lease_until AS sync_lease_until FROM external_account a JOIN external_sync_job j ON j.account_id=a.id JOIN user_info u ON u.uuid=a.uid WHERE a.id=? AND j.lease_token=? AND j.lease_until>? AND u.status=0 FOR UPDATE",job.get("account_id"),job.get("lease_token"),time());
+        if(rows.isEmpty())return null;
+        Map<String,Object> account=rows.get(0);Timestamp until=(Timestamp)account.remove("sync_lease_until");
+        // The SQL time argument predates a possible row-lock wait. Recheck with the locks held.
+        return until!=null && until.getTime()>now()?account:null;
     }
     public void apply(Map<String,Object> job,JsonNode result) {
         tx(() -> {
@@ -246,7 +249,10 @@ public class ExternalAccountManager {
         }
     }
     public void defer(Map<String,Object> job) {
-        jdbc.update("UPDATE external_sync_job SET next_run_at=?,lease_token=NULL,lease_until=NULL WHERE account_id=? AND lease_token=?",new Timestamp(now()+5000),job.get("account_id"),job.get("lease_token"));
+        tx(() -> {
+            if(leased(job)==null)return null;
+            jdbc.update("UPDATE external_sync_job SET next_run_at=?,lease_token=NULL,lease_until=NULL WHERE account_id=? AND lease_token=?",new Timestamp(now()+5000),job.get("account_id"),job.get("lease_token"));return null;
+        });
     }
     public void failed(Map<String,Object> job,String reason) {
         tx(() -> {

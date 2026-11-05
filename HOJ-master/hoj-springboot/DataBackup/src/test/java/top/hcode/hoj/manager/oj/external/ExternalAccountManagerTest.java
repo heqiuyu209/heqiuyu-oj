@@ -20,7 +20,7 @@ import static org.mockito.Mockito.*;
 
 class ExternalAccountManagerTest {
     JdbcTemplate jdbc; ObjectMapper json=new ObjectMapper(); ExternalAccountManager manager; LearningProfileManager profiles;
-    String actor; long clock; JsonNode cfHead;
+    String actor; volatile long clock; JsonNode cfHead;
     @BeforeEach void setup() throws Exception {
         DriverManagerDataSource source=new DriverManagerDataSource("jdbc:h2:mem:external_learning;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1","sa","");
         new JdbcTemplate(source).execute("DROP ALL OBJECTS");initialize(source);
@@ -92,6 +92,31 @@ class ExternalAccountManagerTest {
         long second=link();String secondCode=proof(second);ready(secondCode);apply(json.createArrayNode());
         assertEquals(true,own().get("verified"));assertEquals(1,accounts(manager.publicView("bob")).size());
         assertThrows(ObjectiveException.class,()->manager.publicView("alice"));
+    }
+    void invalidAuthorityCannotMutateCallback(String ownerChange,String callback) {
+        long id=link();Map<String,Object> job=manager.claim();assertNotNull(job);
+        if("expired".equals(ownerChange))clock+=90000;
+        else if("disabled".equals(ownerChange))jdbc.update("UPDATE user_info SET status=1 WHERE uuid='alice'");
+        else jdbc.update("DELETE FROM user_info WHERE uuid='alice'");
+        Map<String,Object> beforeAccount=jdbc.queryForMap("SELECT * FROM external_account WHERE id=?",id);
+        Map<String,Object> beforeJob=jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id);
+        if("apply".equals(callback))manager.apply(job,profile("late profile"));
+        else if("failed".equals(callback))manager.failed(job,"late failure");
+        else manager.defer(job);
+        assertEquals(beforeAccount,jdbc.queryForMap("SELECT * FROM external_account WHERE id=?",id));
+        assertEquals(beforeJob,jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id));
+    }
+    @Test void expiredLeaseWithoutReclaimRejectsApply(){invalidAuthorityCannotMutateCallback("expired","apply");}
+    @Test void expiredLeaseWithoutReclaimRejectsFailure(){invalidAuthorityCannotMutateCallback("expired","failed");}
+    @Test void expiredLeaseWithoutReclaimRejectsDeferral(){invalidAuthorityCannotMutateCallback("expired","defer");}
+    @Test void disabledOwnerRejectsApply(){invalidAuthorityCannotMutateCallback("disabled","apply");}
+    @Test void disabledOwnerRejectsFailure(){invalidAuthorityCannotMutateCallback("disabled","failed");}
+    @Test void disabledOwnerRejectsDeferral(){invalidAuthorityCannotMutateCallback("disabled","defer");}
+    @Test void deletedOwnerRejectsApply(){invalidAuthorityCannotMutateCallback("deleted","apply");}
+    @Test void liveLeaseBeforeItsDeadlineStillApplies(){
+        long id=link();Map<String,Object> job=manager.claim();clock+=89999;manager.apply(job,profile(""));
+        assertEquals(3000,jdbc.queryForObject("SELECT rating FROM external_account WHERE id=?",Integer.class,id));
+        assertEquals("RATING",jdbc.queryForObject("SELECT stage FROM external_sync_job WHERE account_id=?",String.class,id));
     }
     ArrayNode publicPage(Map<String,Object> job,int newest) {
         ArrayNode result=json.createArrayNode();int from=((Number)job.get("from_index")).intValue();

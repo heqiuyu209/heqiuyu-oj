@@ -78,6 +78,43 @@ class ExternalAccountMySqlTest extends ExternalAccountManagerTest {
     }
     @Test void ownerResetWinsAgainstAStaleCallbackBlockedOnTheActualRowLock() throws Exception {blockedOldCallbackCannotSurviveOwnerMutation(false);}
     @Test void unlinkWinsAgainstAStaleCallbackBlockedOnTheActualRowLock() throws Exception {blockedOldCallbackCannotSurviveOwnerMutation(true);}
+    void callbackMustRecheckAuthorityAfterWaitingForLocks(boolean expire) throws Exception {
+        long id=link();Map<String,Object> job=manager.claim();
+        Map<String,Object> beforeAccount=jdbc.queryForMap("SELECT * FROM external_account WHERE id=?",id);
+        Map<String,Object> beforeJob=jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id);
+        ExecutorService worker=Executors.newSingleThreadExecutor();AtomicLong connectionId=new AtomicLong();
+        CountDownLatch started=new CountDownLatch(1);List<Future<?>> pending=new ArrayList<>();
+        TransactionTemplate tx=new TransactionTemplate(new DataSourceTransactionManager(jdbc.getDataSource()));
+        try{
+            tx.execute(status->{
+                jdbc.queryForList("SELECT uuid FROM user_info WHERE uuid='alice' FOR UPDATE");
+                jdbc.queryForList("SELECT id FROM external_account WHERE id=? FOR UPDATE",id);
+                pending.add(worker.submit(()->tx.execute(other->{
+                    connectionId.set(jdbc.queryForObject("SELECT CONNECTION_ID()",Long.class));started.countDown();
+                    manager.apply(job,profile("late result"));return null;
+                })));
+                try{
+                    assertTrue(started.await(5,TimeUnit.SECONDS));long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);boolean waiting=false;
+                    while(System.nanoTime()<deadline){
+                        waiting=admin.queryForObject("SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_mysql_thread_id=? AND trx_state='LOCK WAIT'",Integer.class,connectionId.get())==1;
+                        if(waiting)break;Thread.sleep(25);
+                    }
+                    assertTrue(waiting,"Callback must really be blocked before changing authority");
+                }catch(InterruptedException error){Thread.currentThread().interrupt();throw new IllegalStateException(error);}
+                if(expire)clock+=90000;else jdbc.update("UPDATE user_info SET status=1 WHERE uuid='alice'");
+                return null;
+            });
+            pending.get(0).get(10,TimeUnit.SECONDS);
+            assertEquals(beforeAccount,jdbc.queryForMap("SELECT * FROM external_account WHERE id=?",id));
+            assertEquals(beforeJob,jdbc.queryForMap("SELECT * FROM external_sync_job WHERE account_id=?",id));
+            if(expire){
+                Map<String,Object> fresh=manager.claim();assertNotNull(fresh);assertNotEquals(job.get("lease_token"),fresh.get("lease_token"));
+                manager.apply(fresh,profile(""));assertEquals(3000,jdbc.queryForObject("SELECT rating FROM external_account WHERE id=?",Integer.class,id));
+            }else assertNull(manager.claim());
+        }finally{worker.shutdownNow();assertTrue(worker.awaitTermination(5,TimeUnit.SECONDS));}
+    }
+    @Test void leaseThatExpiresWhileTheCallbackWaitsCannotWriteAfterTheLockIsReleased() throws Exception {callbackMustRecheckAuthorityAfterWaitingForLocks(true);}
+    @Test void disabledOwnerWinsWhileTheCallbackIsWaitingForTheDatabaseLock() throws Exception {callbackMustRecheckAuthorityAfterWaitingForLocks(false);}
     @Test void additiveMigrationCanBeRepeatedWithoutResettingAnExistingCursorOrCachedEvidence() throws Exception {
         long id=link();ready("");Map<String,Object> first=manager.claim();manager.apply(first,publicPage(first,1000));
         jdbc.execute("ALTER TABLE external_sync_job DROP COLUMN cf_head_hash");String scan=jdbc.queryForObject("SELECT scan_token FROM external_sync_job",String.class);
