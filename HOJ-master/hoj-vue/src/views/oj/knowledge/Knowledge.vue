@@ -27,6 +27,8 @@
         <p v-if="error" class="knowledge-error knowledge-surface" role="alert">{{ error }}</p>
         <section v-if="result" class="knowledge-surface knowledge-results" aria-live="polite">
           <p class="knowledge-muted knowledge-submitted">{{ submittedQuestion }}</p>
+          <el-alert v-if="result.generationFailed" title="模型回答未完成，已保留检索资料" :description="result.generationError" type="warning" :closable="false" show-icon />
+          <p v-if="result.generationFailed && result.excerptsSent" class="knowledge-muted">本次已尝试向你选择的模型发送资料片段，未获得有效回答。可以继续阅读下方片段和原文。</p>
           <template v-if="result.content">
             <h2>{{ result.answerable === false ? '资料依据不足' : result.modelUsed ? '结合资料的回答' : '检索结果' }}</h2>
             <KnowledgeAnswer v-if="Array.isArray(result.claims) && result.claims.length" :claims="result.claims" :citations="result.citations" :citation-route="citationRoute" />

@@ -82,11 +82,11 @@ class AiAssistantManagerTest {
         assertEquals(false,manager.answerKnowledge(dto).get("modelUsed"));verify(knowledge).search(dto.getSearch());verifyNoInteractions(provider);assertEquals(0,acquired);
     }
     @Test void knowledgeConsentUsesOnlyRetrievedExcerptsAndServerCitations() throws Exception {
-        configured();KnowledgeManager.Context context=knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenReturn(knowledgeReply("先建立前缀数组。"));
+        configured();KnowledgeManager.Context context=knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(knowledgeReply("先建立前缀数组。"));
         Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));assertEquals(true,result.get("modelUsed"));assertEquals(true,result.get("excerptsSent"));assertEquals(1,((List<?>)result.get("citations")).size());
         assertEquals(true,result.get("answerable"));assertEquals(1,((List<?>)result.get("claims")).size());
         verify(knowledge,times(2)).verify(context);verifyNoInteractions(profiles,evidence,recommendations);assertEquals(1,released);
-        verify(provider).chat(anyString(),anyString(),anyString(),argThat(messages->messages.size()==3&&messages.get(2).get("content").contains("授权片段")&&!messages.get(2).get("content").contains("apiKey")));
+        verify(provider).chat(anyString(),anyString(),anyString(),argThat(messages->messages.size()==3&&messages.get(2).get("content").contains("授权片段")&&!messages.get(2).get("content").contains("apiKey")),eq(2048));
     }
     @Test void knowledgeEmptyRetrievalNeverCallsModelEvenWithConsent() throws Exception {
         configured();KnowledgeManager.Context context=knowledgeContext();when(knowledge.view(context)).thenAnswer(call->{Map<String,Object> result=new LinkedHashMap<>();result.put("items",Collections.emptyList());result.put("modelUsed",false);return result;});
@@ -94,21 +94,60 @@ class AiAssistantManagerTest {
     }
     @Test void knowledgeRejectsUnknownDuplicateOrMalformedCitations() throws Exception {
         configured();knowledgeContext();String valid=knowledgeReply("x");for(String reply:Arrays.asList(valid.replace("\"K1\"","\"invented\""),valid.replace("\"quote\":", "\"url\":\"https://invented.invalid\",\"quote\":"),valid.replace("区间和是两个前缀和之差","其他未检索的段落"),"not-json")){
-            when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenReturn(reply);fail(()->manager.answerKnowledge(knowledgeQuestion(true)),502);
+            when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(reply);Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));
+            assertEquals(true,result.get("generationFailed"));assertEquals(false,result.get("modelUsed"));assertNull(result.get("content"));
+            assertEquals(1,((List<?>)result.get("items")).size());assertTrue(((List<?>)result.get("claims")).isEmpty());
         }assertEquals(4,released);
     }
     @Test void knowledgeWithoutSupportingCitationCannotReturnAnUncitedClaim() throws Exception {
-        configured();knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenReturn("{\"answerable\":false,\"claims\":[]}");
+        configured();knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn("{\"answerable\":false,\"claims\":[]}");
         Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));assertTrue(((String)result.get("content")).contains("没有足够依据"));assertFalse(((String)result.get("content")).contains("invented"));
     }
     @Test void knowledgeRevocationDuringModelCallSuppressesReplyAndReleasesLock() throws Exception {
-        configured();KnowledgeManager.Context context=knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenAnswer(call->{doThrow(new ObjectiveException(409,"withdrawn")).when(knowledge).verify(context);return knowledgeReply("should not appear");});
+        configured();KnowledgeManager.Context context=knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{doThrow(new ObjectiveException(409,"withdrawn")).when(knowledge).verify(context);return knowledgeReply("should not appear");});
         fail(()->manager.answerKnowledge(knowledgeQuestion(true)),409);assertEquals(1,released);
     }
     @Test void contestStartingDuringKnowledgeModelCallSuppressesReply() throws Exception {
         configured();knowledgeContext();jdbc.update("INSERT INTO contest(id,start_time,end_time) VALUES(1,?,?)",new Timestamp(time+1),new Timestamp(time+1000));jdbc.update("INSERT INTO contest_register VALUES(1,'alice',0)");
-        when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenAnswer(call->{time++;return knowledgeReply("should not appear");});
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{time++;return knowledgeReply("should not appear");});
         fail(()->manager.answerKnowledge(knowledgeQuestion(true)),403);assertEquals(1,released);
+    }
+    @Test void knowledgeRequiresCompleteStructuredGenerationEvenWhenJsonAndQuotesAreValid() throws Exception {
+        configured();knowledgeContext();
+        when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenReturn(knowledgeReply("truncated but valid JSON"));
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenThrow(new ObjectiveException(502,"模型未完整生成内容"));
+        Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));
+        assertEquals(false,result.get("modelUsed"));assertEquals(true,result.get("generationFailed"));
+        assertEquals(true,result.get("excerptsSent"));assertNull(result.get("content"));assertFalse(result.containsKey("answerable"));
+        assertEquals(1,((List<?>)result.get("items")).size());assertTrue(((List<?>)result.get("claims")).isEmpty());
+        verify(provider,never()).chat(anyString(),anyString(),anyString(),anyList());assertEquals(1,released);
+    }
+    @Test void knowledgeGenerationFailureKeepsVerifiedRetrievalAndReportsThatExcerptsWereSent() throws Exception {
+        configured();KnowledgeManager.Context context=knowledgeContext();
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenThrow(new ObjectiveException(502,"controlled provider timeout"));
+        Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));
+        assertEquals(false,result.get("modelUsed"));assertEquals(true,result.get("generationFailed"));assertEquals(true,result.get("excerptsSent"));
+        assertEquals("controlled provider timeout",result.get("generationError"));assertFalse(result.containsKey("answerable"));
+        assertNull(result.get("content"));assertTrue(((List<?>)result.get("claims")).isEmpty());assertTrue(((List<?>)result.get("citations")).isEmpty());
+        assertEquals(1,((List<?>)result.get("items")).size());verify(knowledge,times(2)).verify(context);assertEquals(1,released);
+    }
+    @Test void generationFailureCannotReturnSourcesRevokedWhileTheProviderWasRunning() throws Exception {
+        configured();KnowledgeManager.Context context=knowledgeContext();
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{
+            doThrow(new ObjectiveException(409,"withdrawn")).when(knowledge).verify(context);
+            throw new ObjectiveException(502,"provider failed");
+        });
+        fail(()->manager.answerKnowledge(knowledgeQuestion(true)),409);assertEquals(1,released);
+    }
+    @Test void generationFailureCannotReturnSourcesWhenAContestStartsDuringTheCall() throws Exception {
+        configured();knowledgeContext();jdbc.update("INSERT INTO contest(id,start_time,end_time) VALUES(1,?,?)",new Timestamp(time+1),new Timestamp(time+1000));jdbc.update("INSERT INTO contest_register VALUES(1,'alice',0)");
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{time++;throw new ObjectiveException(502,"provider failed");});
+        fail(()->manager.answerKnowledge(knowledgeQuestion(true)),403);assertEquals(1,released);
+    }
+    @Test void generationFailureCannotReturnSourcesAfterTheConfirmedModelChanges() throws Exception {
+        configured();knowledgeContext();
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{jdbc.update("UPDATE ai_user_setting SET model='changed-model' WHERE uid='alice'");throw new ObjectiveException(502,"provider failed");});
+        fail(()->manager.answerKnowledge(knowledgeQuestion(true)),409);assertEquals(1,released);
     }
     ObjectiveException fail(Runnable action,int status) { ObjectiveException error=assertThrows(ObjectiveException.class,action::run);assertEquals(status,error.getStatus());return error; }
     @Test void storesOnlyAuthenticatedEncryptionAndNeverReturnsRawKeys() throws Exception {
@@ -262,7 +301,7 @@ class AiAssistantManagerTest {
         fail(()->manager.chat(prompt("user","修改密钥期间")),409); assertEquals(1,acquired); assertEquals(1,released);
     }
     @Test void knowledgeAndRecommendationRepliesAreAlsoBoundToModelSettings() throws Exception {
-        configured(); knowledgeContext(); when(provider.chat(anyString(),anyString(),anyString(),anyList())).thenAnswer(call->{manager.remove();return knowledgeReply("不应发布");});
+        configured(); knowledgeContext(); when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenAnswer(call->{manager.remove();return knowledgeReply("不应发布");});
         fail(()->manager.answerKnowledge(knowledgeQuestion(true)),409);
         configured(); when(recommendations.verify(eq("alice"),any())).thenReturn(recommendationPlan());
         doAnswer(call->{manager.remove();return validExplanation();}).when(provider).chat(anyString(),anyString(),anyString(),anyList());

@@ -187,11 +187,21 @@ public class AiAssistantManager {
             String key=secrets.decrypt(uid,(String)row.get("base_url"),(String)row.get("model"),(String)row.get("key_ciphertext"));
             knowledge.verify(context);access.requireChat(uid);
             verifyModel(uid,modelFingerprint);
-            String reply=provider.chat((String)row.get("base_url"),(String)row.get("model"),key,messages);
-            knowledge.verify(context);access.requireChat(uid);
-            verifyModel(uid,modelFingerprint);
-            Map<String,Object> answer=KnowledgeAnswer.parse(reply,citations,json);
-            result.putAll(answer);result.put("modelUsed",true);result.put("model",row.get("model"));result.put("modelFingerprint",modelFingerprint);result.put("excerptsSent",true);return result;
+            Map<String,Object> answer=null;ObjectiveException generationFailure=null;
+            try{
+                // A syntactically valid JSON prefix is not proof that generation finished.
+                String reply=provider.chat((String)row.get("base_url"),(String)row.get("model"),key,messages,2048);
+                answer=KnowledgeAnswer.parse(reply,citations,json);
+            }catch(ObjectiveException error){generationFailure=error;}
+            // A generation error must not bypass current source, contest or model checks.
+            knowledge.verify(context);access.requireChat(uid);verifyModel(uid,modelFingerprint);
+            result.put("model",row.get("model"));result.put("modelFingerprint",modelFingerprint);result.put("excerptsSent",true);
+            if(generationFailure!=null){
+                result.put("modelUsed",false);result.put("modelAttempted",true);result.put("generationFailed",true);
+                result.put("generationError",generationFailure.getMessage());result.remove("answerable");result.put("content",null);
+                result.put("claims",Collections.emptyList());result.put("citations",Collections.emptyList());return result;
+            }
+            result.putAll(answer);result.put("modelUsed",true);return result;
         }finally{if(acquired)access.release(uid,requestId);capacity.release();}
     }
     @SuppressWarnings("unchecked")

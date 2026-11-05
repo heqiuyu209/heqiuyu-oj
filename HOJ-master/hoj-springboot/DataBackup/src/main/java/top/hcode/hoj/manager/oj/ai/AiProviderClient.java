@@ -76,7 +76,7 @@ public class AiProviderClient {
         if (status != 200) throw new ObjectiveException(502, "AI 服务返回异常，请检查地址、模型和服务状态");
         JsonNode root = json.readTree(readText(response));
         JsonNode finish=root==null?null:root.path("choices").path(0).path("finish_reason");
-        if(requireComplete && finish!=null && !finish.isMissingNode() && !finish.isNull() && !"stop".equals(finish.asText()))throw new ObjectiveException(502,"模型未完整生成译文，请重试或继续手工编辑");
+        if(requireComplete && finish!=null && !finish.isMissingNode() && !finish.isNull() && !"stop".equals(finish.asText()))throw new ObjectiveException(502,"模型未完整生成内容，请重试或缩小本次请求范围");
         JsonNode content = root == null ? null : root.path("choices").path(0).path("message").path("content");
         if (content == null || !content.isTextual() || content.asText().trim().isEmpty()) throw new ObjectiveException(502, "AI 服务没有返回文字回复，请更换兼容的对话模型");
         if (content.asText().length() > 24000) throw new ObjectiveException(502, "AI 回复超过长度限制，请缩小提问范围");
