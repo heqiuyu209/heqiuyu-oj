@@ -53,7 +53,10 @@ public class NowCoderContextManager {
     private Map<String,Object> leased(Map<String,Object> old){
         long id=number(old.get("account_id"));jdbc.queryForList("SELECT id FROM external_account WHERE id=? FOR UPDATE",id);
         List<Map<String,Object>> rows=jdbc.queryForList("SELECT j.*,a.handle FROM external_nowcoder_context_job j JOIN external_account a ON a.id=j.account_id JOIN user_info u ON u.uuid=a.uid WHERE j.account_id=? AND j.lease_token=? AND j.lease_until>? AND a.platform='NOWCODER' AND u.status=0 FOR UPDATE",id,old.get("lease_token"),time());
-        return rows.isEmpty()?null:rows.get(0);
+        if(rows.isEmpty())return null;
+        Map<String,Object> job=rows.get(0);
+        // The job/user lock may have been released after the lease deadline.
+        return ((Timestamp)job.get("lease_until")).getTime()>now()?job:null;
     }
     public void defer(Map<String,Object> old){tx(()->{Map<String,Object> job=leased(old);if(job!=null)jdbc.update("UPDATE external_nowcoder_context_job SET next_run_at=?,lease_token=NULL,lease_until=NULL WHERE account_id=?",new Timestamp(now()+3000),job.get("account_id"));return null;});}
     public void failed(Map<String,Object> old,String ignored){tx(()->{Map<String,Object> job=leased(old);if(job!=null){int failures=((Number)job.get("failures")).intValue()+1;long delay=Math.min(3600000L,30000L*(1L<<Math.min(failures,7)));if(failures>=3 && !((String)job.get("stage")).endsWith("LIST"))restart(job,delay);jdbc.update("UPDATE external_nowcoder_context_job SET failures=?,last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL WHERE account_id=?",failures,"牛客比赛上下文未完成，保留上次完整记录",new Timestamp(now()+delay),job.get("account_id"));}return null;});}

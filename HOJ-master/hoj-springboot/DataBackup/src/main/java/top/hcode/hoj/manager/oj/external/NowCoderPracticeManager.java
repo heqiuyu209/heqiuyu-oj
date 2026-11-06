@@ -61,7 +61,10 @@ public class NowCoderPracticeManager {
         long id = number(old.get("account_id"));
         jdbc.queryForList("SELECT id FROM external_account WHERE id=? FOR UPDATE", id);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT j.*,a.handle FROM external_nowcoder_practice_job j JOIN external_account a ON a.id=j.account_id JOIN user_info u ON u.uuid=a.uid WHERE j.account_id=? AND j.lease_token=? AND j.lease_until>? AND a.platform='NOWCODER' AND u.status=0 FOR UPDATE", id, old.get("lease_token"), time());
-        return rows.isEmpty() ? null : rows.get(0);
+        if (rows.isEmpty()) return null;
+        Map<String, Object> job = rows.get(0);
+        // Recheck the clock after any wait for the job/user row locks.
+        return ((Timestamp) job.get("lease_until")).getTime() > now() ? job : null;
     }
     public void request(long id) { jdbc.update("UPDATE external_nowcoder_practice_job SET next_run_at=? WHERE account_id=?", time(), id); }
     public void defer(Map<String, Object> old) { tx(() -> {

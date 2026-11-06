@@ -67,7 +67,11 @@ public class RemoteStatementManager {
         if("FAILED".equals(job.get("state")))job.put("failures",0);
         String token=UUID.randomUUID().toString();jdbc.update("UPDATE remote_problem_import SET state='RUNNING',failures=?,lease_token=?,lease_until=? WHERE problem_key=?",job.get("failures"),token,new Timestamp(now()+90000),job.get("problem_key"));job.put("lease_token",token);return job;
     });}
-    private boolean leased(Map<String,Object> job){return !jdbc.queryForList("SELECT problem_key FROM remote_problem_import WHERE problem_key=? AND lease_token=? FOR UPDATE",job.get("problem_key"),job.get("lease_token")).isEmpty();}
+    private boolean leased(Map<String,Object> job){
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT lease_until FROM remote_problem_import WHERE problem_key=? AND lease_token=? AND lease_until>? FOR UPDATE",job.get("problem_key"),job.get("lease_token"),time());
+        // Recheck after acquiring the row lock, not only before the SQL call.
+        return !rows.isEmpty() && ((Timestamp)rows.get(0).get("lease_until")).getTime()>now();
+    }
     public void defer(Map<String,Object> job){tx(()->{if(leased(job))jdbc.update("UPDATE remote_problem_import SET state='QUEUED',lease_token=NULL,lease_until=NULL,next_run_at=? WHERE problem_key=?",new Timestamp(now()+3000),job.get("problem_key"));return null;});}
     public void apply(Map<String,Object> job,Content content){tx(()->{String key=(String)job.get("problem_key");lockCatalogue(key);if(!leased(job))return null;if(atcoder(key) && !Objects.equals(job.get("fetch_catalog_hash"),catalogue(key).get("content_hash")))throw new ObjectiveException(409,"AtCoder 题目来源已变化，请重新获取");if(!workerAuthorized(job))throw new ObjectiveException(403,"请求账号或题目权限已变化");publishSource((String)job.get("problem_key"),normalize(content,(String)job.get("problem_key")),"SOURCE",(String)job.get("requested_by"),(String)job.get("requested_author"));return null;});}
     public void applyNowCoder(Map<String,Object> job,NowCoderStatementClient.Statement source){tx(()->{

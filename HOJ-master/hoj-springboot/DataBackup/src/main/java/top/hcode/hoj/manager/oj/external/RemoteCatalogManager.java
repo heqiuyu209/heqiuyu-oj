@@ -55,7 +55,11 @@ public class RemoteCatalogManager {
             rows.get(0).put("lease_token",token);return rows.get(0);
         });
     }
-    private boolean leased(Map<String,Object> job) { return !jdbc.queryForList("SELECT source_name FROM remote_source_job WHERE source_name='CODEFORCES_PROBLEMS' AND lease_token=? FOR UPDATE",job.get("lease_token")).isEmpty(); }
+    private boolean leased(Map<String,Object> job) {
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT lease_until FROM remote_source_job WHERE source_name='CODEFORCES_PROBLEMS' AND lease_token=? AND lease_until>? FOR UPDATE",job.get("lease_token"),time());
+        // The bound SQL time may predate a wait for the current job row.
+        return !rows.isEmpty() && ((Timestamp)rows.get(0).get("lease_until")).getTime()>now();
+    }
     public void apply(Map<String,Object> job,JsonNode result) {
         JsonNode problems=result==null?null:result.get("problems");
         if(problems==null || !problems.isArray() || problems.size()==0 || problems.size()>100000) throw new IllegalArgumentException("Invalid catalogue");

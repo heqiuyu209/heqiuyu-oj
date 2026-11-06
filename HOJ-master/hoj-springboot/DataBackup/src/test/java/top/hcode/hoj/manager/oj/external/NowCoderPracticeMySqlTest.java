@@ -1,6 +1,8 @@
 package top.hcode.hoj.manager.oj.external;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -78,5 +80,27 @@ class NowCoderPracticeMySqlTest extends NowCoderPracticeManagerTest {
             finally { worker.shutdownNow(); }
             return null;
         });
+    }
+
+    @ParameterizedTest
+    @CsvSource({"apply,90000,false","failed,90000,false","defer,90000,false",
+            "apply,89999,true","failed,89999,true","defer,89999,true"})
+    void expiredCallbackAfterJobLock(String action,long elapsed,boolean live) throws Exception {
+        Map<String,Object> lease=manager.claim();assertNotNull(lease);
+        Map<String,Object> before=jdbc.queryForMap("SELECT * FROM external_nowcoder_practice_job WHERE account_id=1");
+        FetchLeaseLockTestSupport.whileJobLocked(jdbc,admin,"external_nowcoder_practice_job",()->{
+            if("apply".equals(action))manager.apply(lease,profile(true));
+            else if("failed".equals(action))manager.failed(lease,"late callback");
+            else manager.defer(lease);
+        },()->clock+=elapsed);
+        Map<String,Object> after=jdbc.queryForMap("SELECT * FROM external_nowcoder_practice_job WHERE account_id=1");
+        if(live){assertNotEquals(before,after);assertNull(after.get("lease_token"));}
+        else {
+            assertEquals(before,after);
+            Map<String,Object> fresh=manager.claim();assertNotNull(fresh);
+            assertNotEquals(lease.get("lease_token"),fresh.get("lease_token"));
+            manager.apply(fresh,profile(true));
+            assertNull(jdbc.queryForMap("SELECT * FROM external_nowcoder_practice_job WHERE account_id=1").get("lease_token"));
+        }
     }
 }

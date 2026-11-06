@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.core.io.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.*;
@@ -30,18 +31,22 @@ class RemoteSourceManagerTest {
     RemoteCatalogManager catalogue;
     RemoteStatementManager statements;
     RemoteProblemManager remote;
-    long clock;
+    volatile long clock;
     String actor;
     boolean privileged;
     final String key="cf:contest:4:A";
 
     @BeforeEach void setup() throws Exception {
         DriverManagerDataSource source=new DriverManagerDataSource("jdbc:h2:mem:remote_sources;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1","sa","");
-        jdbc=new JdbcTemplate(source);jdbc.execute("DROP ALL OBJECTS");
+        initialize(source);
+    }
+    void initialize(DriverManagerDataSource source) throws Exception {
+        jdbc=new JdbcTemplate(source);
+        if(source.getUrl().startsWith("jdbc:h2:"))jdbc.execute("DROP ALL OBJECTS");
         jdbc.execute("CREATE TABLE user_info(uuid VARCHAR(32) PRIMARY KEY,username VARCHAR(100),status INT)");
         jdbc.execute("CREATE TABLE role(id INT PRIMARY KEY,role VARCHAR(32))");
         jdbc.execute("CREATE TABLE user_role(uid VARCHAR(32),role_id INT)");
-        jdbc.execute("CREATE TABLE problem(id BIGINT AUTO_INCREMENT PRIMARY KEY,problem_id VARCHAR(50),author VARCHAR(100),auth INT,is_remote BOOLEAN,is_group BOOLEAN,gid BIGINT,title VARCHAR(255),description TEXT,input TEXT,output TEXT,hint TEXT,examples TEXT,time_limit INT,memory_limit INT,rating INT,gmt_modified TIMESTAMP)");
+        jdbc.execute("CREATE TABLE problem(id BIGINT AUTO_INCREMENT PRIMARY KEY,problem_id VARCHAR(50),author VARCHAR(100),auth INT,is_remote BOOLEAN,is_group BOOLEAN,gid BIGINT,title VARCHAR(255),description TEXT,input TEXT,output TEXT,hint TEXT,examples TEXT,time_limit INT,memory_limit INT,rating INT,gmt_modified TIMESTAMP(3))");
         jdbc.execute("CREATE TABLE language(id INT PRIMARY KEY,oj VARCHAR(20))");
         jdbc.update("INSERT INTO language VALUES(1,'CF')");
         jdbc.update("INSERT INTO user_info VALUES('alice','Alice',0),('bob','Bob',0)");
@@ -114,7 +119,7 @@ class RemoteSourceManagerTest {
         assertEquals(1L,catalogue.list(1,"4A",850,1000).get("total"));assertThrows(ObjectiveException.class,()->catalogue.list(0,null,null,null));
     }
     @Test void invalidSnapshotAndFailedOrLostLeasesRetainPublishedCache(){
-        jdbc.update("UPDATE remote_source_job SET next_run_at=?",new Timestamp(clock));Map<String,Object> job=catalogue.claim();
+        jdbc.update("UPDATE remote_source_job SET next_run_at=? WHERE source_name='CODEFORCES_PROBLEMS'",new Timestamp(clock));Map<String,Object> job=catalogue.claim();
         ObjectNode invalid=problem(20,"A",1000);invalid.put("rating",-1);
         assertThrows(IllegalArgumentException.class,()->catalogue.apply(job,data(problem(30,"A",1500),invalid)));
         assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM remote_catalog_problem",Integer.class));
@@ -188,7 +193,8 @@ class RemoteSourceManagerTest {
     @Test void libraryAndSourcePointerRollBackIfImportFinalizationFails(){
         statements.request(key);statements.apply(statements.claim(),content("Original"));Map<String,Object> original=library();String oldHash=hash(statements.adminView(key));
         clock+=86400001;Map<String,Object> job=statements.claim();jdbc.execute("ALTER TABLE remote_problem_import ADD CONSTRAINT reject_done CHECK (state<>'DONE')");
-        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->statements.apply(job,content("Changed source")));
+        org.springframework.dao.DataAccessException failure=assertThrows(org.springframework.dao.DataAccessException.class,()->statements.apply(job,content("Changed source")));
+        assertTrue(failure.getMostSpecificCause().getMessage().toLowerCase(Locale.ROOT).contains("reject_done"));
         assertEquals(original,library());assertEquals(oldHash,hash(statements.adminView(key)));assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version",Integer.class));assertEquals("RUNNING",jdbc.queryForObject("SELECT state FROM remote_problem_import",String.class));
     }
     @Test void ownershipConflictsAndPrivateOrGroupStatementsCannotLeak(){
@@ -273,5 +279,73 @@ class RemoteSourceManagerTest {
         RemoteStatementDTO english=new RemoteStatementDTO();english.setProblemKey(key);english.setSourceHash(hash(view));english.setContent(content("English translation"));view=statements.save(english,true);assertEquals("en",((Map)view.get("translation")).get("language"));jdbc.update("UPDATE problem SET auth=1 WHERE problem_id='NC-6'");long id=jdbc.queryForObject("SELECT id FROM problem WHERE problem_id='NC-6'",Long.class);assertNotNull(statements.publicView(id).get("translation"));
         clock+=86400001;Map<String,Object> stale=statements.claim();statements.refresh(key,false);statements.applyNowCoder(stale,new NowCoderStatementClient.Statement("8","6",content("Obsolete")));assertEquals("中文原文",jdbc.queryForObject("SELECT title FROM remote_nowcoder_problem WHERE problem_key=?",String.class,key));
         RemoteStatementDTO chinese=new RemoteStatementDTO();chinese.setProblemKey(key);chinese.setSourceHash(hash(view));chinese.setContent(content("修改原文"));statements.save(chinese,false);assertNull(statements.publicView(id).get("translation"));assertEquals(true,statements.publicView(id).get("translationStale"));
+    }
+
+    Map<String,Object> fetchLease(String action){
+        if(action.startsWith("catalog")){
+            jdbc.update("UPDATE remote_source_job SET next_run_at=? WHERE source_name='CODEFORCES_PROBLEMS'",new Timestamp(clock));
+            return catalogue.claim();
+        }
+        statements.request(key);return statements.claim();
+    }
+    String fetchJobTable(String action){return action.startsWith("catalog")?"remote_source_job":"remote_problem_import";}
+    Map<String,Object> fetchJobState(String action){
+        return jdbc.queryForMap("SELECT * FROM "+fetchJobTable(action)+(action.startsWith("catalog")?" WHERE source_name='CODEFORCES_PROBLEMS'":" WHERE problem_key='cf:contest:4:A'"));
+    }
+    void invokeFetchCallback(String action,Map<String,Object> job){
+        if("catalog-apply".equals(action))catalogue.apply(job,data(problem(99,"Z",1600)));
+        else if("catalog-failed".equals(action))catalogue.failed(job,"late callback");
+        else if("statement-apply".equals(action))statements.apply(job,content("Late source"));
+        else if("statement-failed".equals(action))statements.failed(job,"late callback");
+        else statements.defer(job);
+    }
+    @ParameterizedTest
+    @CsvSource({"catalog-apply,180000,false","catalog-failed,180000,false",
+            "statement-apply,90000,false","statement-failed,90000,false","statement-defer,90000,false",
+            "catalog-apply,179999,true","catalog-failed,179999,true",
+            "statement-apply,89999,true","statement-failed,89999,true","statement-defer,89999,true"})
+    void expiryWithoutReclaimRejectsFetchCallbacks(String action,long elapsed,boolean live){
+        Map<String,Object> lease=fetchLease(action);assertNotNull(lease);String table=fetchJobTable(action);
+        Map<String,Object> before=fetchJobState(action);
+        List<Map<String,Object>> catalog=jdbc.queryForList("SELECT * FROM remote_catalog_problem ORDER BY problem_key");
+        clock+=elapsed;invokeFetchCallback(action,lease);
+        Map<String,Object> after=fetchJobState(action);
+        if(live){assertNotEquals(before,after);assertNull(after.get("lease_token"));}
+        else {
+            assertEquals(before,after);assertEquals(catalog,jdbc.queryForList("SELECT * FROM remote_catalog_problem ORDER BY problem_key"));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version",Integer.class));
+            Map<String,Object> fresh=action.startsWith("catalog")?catalogue.claim():statements.claim();assertNotNull(fresh);
+            assertNotEquals(lease.get("lease_token"),fresh.get("lease_token"));invokeFetchCallback(action,fresh);
+            assertNull(fetchJobState(action).get("lease_token"));
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"90000,false","89999,true"})
+    void nowCoderExpiryCannotDiscoverMetadataOrPublishAStatement(long elapsed,boolean live){
+        String ncKey="nowcoder:acm:6";
+        jdbc.update("INSERT INTO language VALUES(2,'ME')");
+        when(remote.adminAddOtherOJProblem(any(),eq("NC"),eq(true))).thenAnswer(call->{
+            Problem problem=((ProblemStrategy.RemoteProblemInfo)call.getArgument(0)).getProblem();
+            return insertProblem(problem);
+        });
+        NowCoderCatalogManager nc=new NowCoderCatalogManager(){@Override protected long now(){return clock;}};
+        ReflectionTestUtils.setField(nc,"jdbc",jdbc);
+        ReflectionTestUtils.setField(nc,"transactions",new DataSourceTransactionManager(jdbc.getDataSource()));
+        ReflectionTestUtils.setField(statements,"nowcoderCatalogue",nc);
+        nc.discovered(ncKey,new NowCoderStatementClient.Statement("8","6",content("Original metadata")));
+        statements.request(ncKey);Map<String,Object> lease=statements.claim();assertNotNull(lease);
+        Map<String,Object> before=jdbc.queryForMap("SELECT * FROM remote_nowcoder_problem WHERE problem_key=?",ncKey);
+        Map<String,Object> job=jdbc.queryForMap("SELECT * FROM remote_problem_import WHERE problem_key=?",ncKey);
+        clock+=elapsed;statements.applyNowCoder(lease,new NowCoderStatementClient.Statement("8","6",content("New metadata")));
+        if(live){
+            assertEquals("New metadata",jdbc.queryForObject("SELECT title FROM remote_nowcoder_problem WHERE problem_key=?",String.class,ncKey));
+            assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version WHERE problem_key=?",Integer.class,ncKey));
+            assertNull(jdbc.queryForMap("SELECT * FROM remote_problem_import WHERE problem_key=?",ncKey).get("lease_token"));
+        }else{
+            assertEquals(before,jdbc.queryForMap("SELECT * FROM remote_nowcoder_problem WHERE problem_key=?",ncKey));
+            assertEquals(job,jdbc.queryForMap("SELECT * FROM remote_problem_import WHERE problem_key=?",ncKey));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version WHERE problem_key=?",Integer.class,ncKey));
+        }
     }
 }

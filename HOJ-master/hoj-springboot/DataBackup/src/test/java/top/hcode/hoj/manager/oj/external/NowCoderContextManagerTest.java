@@ -15,7 +15,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NowCoderContextManagerTest {
-    JdbcTemplate jdbc;NowCoderContextManager contexts;ObjectMapper json=new ObjectMapper();long clock=1800000000000L;
+    JdbcTemplate jdbc;NowCoderContextManager contexts;ObjectMapper json=new ObjectMapper();volatile long clock=1800000000000L;
     @BeforeEach void setup() throws Exception {
         DriverManagerDataSource source=new DriverManagerDataSource("jdbc:h2:mem:nc_context_"+UUID.randomUUID()+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1","sa","");
         initialize(source);

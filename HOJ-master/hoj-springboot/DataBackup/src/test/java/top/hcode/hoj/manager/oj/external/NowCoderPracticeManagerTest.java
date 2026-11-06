@@ -15,7 +15,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class NowCoderPracticeManagerTest {
-    JdbcTemplate jdbc; NowCoderPracticeManager manager; ObjectMapper json = new ObjectMapper(); long clock = 1800000000000L;
+    JdbcTemplate jdbc; NowCoderPracticeManager manager; ObjectMapper json = new ObjectMapper(); volatile long clock = 1800000000000L;
     @BeforeEach void setup() throws Exception {
         initialize(new DriverManagerDataSource("jdbc:h2:mem:nc_practice_" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "sa", ""));
     }
