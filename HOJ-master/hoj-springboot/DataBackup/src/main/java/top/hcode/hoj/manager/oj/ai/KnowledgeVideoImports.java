@@ -113,7 +113,12 @@ public class KnowledgeVideoImports {
         for(String id:ids){String token=UUID.randomUUID().toString();int won=jdbc.update("UPDATE knowledge_video_import SET state='RUNNING',lease_token=?,lease_until=?,attempts=attempts+1,stage_attempts=stage_attempts+1,revision=revision+1,updated_at=? WHERE id=? AND ((state='QUEUED' AND next_run_at<=?) OR (state='RUNNING' AND lease_until<=?))",token,new Timestamp(now()+180000),time(),id,time(),time());if(won==1)return row(id,false);}return null;});}
     private Map<String,Object> leased(Map<String,Object> job){Map<String,Object> current=row((String)job.get("id"),true);if(!"RUNNING".equals(current.get("state"))||!Objects.equals(current.get("lease_token"),job.get("lease_token"))||current.get("lease_until")==null||((Timestamp)current.get("lease_until")).getTime()<=now())return null;return current;}
     private void finish(Map<String,Object> row,String state,String code){jdbc.update("UPDATE knowledge_video_import SET state=?,lease_token=NULL,lease_until=NULL,last_error=?,revision=revision+1,updated_at=? WHERE id=?",state,code,time(),row.get("id"));}
-    private boolean owner(Map<String,Object> row){if(actualAdmin((String)row.get("processing_by")))return true;finish(row,"FAILED","ACCESS_REVOKED");return false;}
+    private boolean owner(Map<String,Object> row){
+        boolean allowed=actualAdmin((String)row.get("processing_by"));
+        // The current admin read can wait on user/role locks past this task lease.
+        if(((Timestamp)row.get("lease_until")).getTime()<=now())return false;
+        if(allowed)return true;finish(row,"FAILED","ACCESS_REVOKED");return false;
+    }
     private void sameSource(Map<String,Object> current,KnowledgeVideoDTO.Asset result){
         if(result==null||!Objects.equals(current.get("asset_id"),result.getAssetId())||!Objects.equals(current.get("source_hash"),result.getSourceHash())
                 ||result.getByteLength()==null||number(current.get("byte_length"))!=result.getByteLength())throw new VideoServiceFailure(502,"视频处理回执校验失败，请重试","INVALID_VIDEO_RESULT");
