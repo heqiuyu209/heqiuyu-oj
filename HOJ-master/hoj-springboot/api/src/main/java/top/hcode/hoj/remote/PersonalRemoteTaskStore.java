@@ -55,13 +55,18 @@ public final class PersonalRemoteTaskStore {
             throw new Conflict("Remote submission is not accessible");
         return task;
     }
+    /** Only reads the locked task snapshot; later authorization/association locks may take time. */
+    void requireLiveLease(Map<String, Object> task) {
+        Timestamp until = (Timestamp) task.get("lease_until");
+        if (until == null || until.getTime() <= clock.getAsLong()) throw new Conflict("Remote submission lease expired");
+    }
     Map<String, Object> leased(long id, String token) {
         Map<String, Object> first = row(id, false);
         lockLane(first);
         Map<String, Object> task = row(id, true);
-        Timestamp until = (Timestamp) task.get("lease_until");
-        if (token == null || !token.equals(task.get("lease_token")) || until == null || until.getTime() <= clock.getAsLong() || terminal((String) task.get("state")))
+        if (token == null || !token.equals(task.get("lease_token")) || terminal((String) task.get("state")))
             throw new Conflict("Remote submission lease expired");
+        requireLiveLease(task);
         return task;
     }
     public static String hash(String text) {
@@ -214,6 +219,7 @@ public final class PersonalRemoteTaskStore {
         return tx(() -> {
             Map<String, Object> task = leased(id, token);
             Error reason = invalidContext(task);
+            requireLiveLease(task);
             if (reason == null) return true;
             stop(task, number(task.get("submit_attempts")) == 0 ? "FAILED" : "NEEDS_REVIEW", reason);
             return false;
@@ -226,6 +232,7 @@ public final class PersonalRemoteTaskStore {
             Map<String, Object> task = leased(id, token);
             if (!"PREPARING".equals(task.get("state")) || number(task.get("submit_attempts")) != 0) throw new Conflict("This submission cannot be posted again");
             Error reason = invalidContext(task);
+            requireLiveLease(task);
             if (reason != null) { stop(task, "FAILED", reason); return false; }
             Timestamp now = time();
             jdbc.update("UPDATE personal_remote_task SET state='SUBMITTING',baseline_id=?,submit_attempts=1,post_started_at=?,updated_at=? WHERE submit_id=?", baselineId, now, now, id);
@@ -237,8 +244,11 @@ public final class PersonalRemoteTaskStore {
         if (replacementCipher == null || !replacementCipher.startsWith("s1:")) throw new IllegalArgumentException("Invalid source session");
         return tx(() -> {
             Map<String, Object> task = leased(id, token);
-            if (invalidContext(task) != null) return false;
+            Error reason = invalidContext(task);
+            requireLiveLease(task);
+            if (reason != null) return false;
             String current = jdbc.queryForObject("SELECT credential_ciphertext FROM remote_user_credential WHERE account_id=? FOR UPDATE", String.class, task.get("account_id"));
+            requireLiveLease(task);
             if (!Objects.equals(expectedCipher, current)) return false;
             jdbc.update("UPDATE remote_user_credential SET credential_ciphertext=?,updated_at=? WHERE account_id=?", replacementCipher, time(), task.get("account_id"));
             return true;
@@ -302,8 +312,13 @@ public final class PersonalRemoteTaskStore {
         return tx(() -> {
             Map<String, Object> task = leased(id, token);
             if (!"POLLING".equals(task.get("state")) || task.get("remote_submit_id") == null) throw new Conflict("Remote result is not identified");
-            if (!sourceCurrent(task)) { stop(task, "NEEDS_REVIEW", Error.SOURCE_CHANGED); return false; }
+            Error reason = invalidContext(task);
+            requireLiveLease(task);
+            if (reason != null) { stop(task, "NEEDS_REVIEW", reason); return false; }
             applyVerdict.run();
+            // Association writes can wait after authorization. Expiry must roll them all back.
+            // Do not re-read sourceCurrent: this callback has already made judge terminal.
+            requireLiveLease(task);
             stop(task, "COMPLETED", null);
             return true;
         });

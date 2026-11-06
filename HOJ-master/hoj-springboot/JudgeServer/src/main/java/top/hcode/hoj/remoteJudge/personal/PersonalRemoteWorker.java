@@ -76,11 +76,12 @@ public class PersonalRemoteWorker {
         long cid = ((Number) judge.get("cid")).longValue();
         Integer score = cid == 0 ? null : status == 0 ? 100 : 0;
         Integer time = result == null ? null : result.time;
-        jdbc.update("UPDATE judge SET status=?,time=?,memory=?,score=?,error_message=?,judger='PersonalRemote',vjudge_submit_id=?,vjudge_username=NULL,vjudge_password=NULL,gmt_modified=CURRENT_TIMESTAMP WHERE submit_id=?",
+        int updated = jdbc.update("UPDATE judge SET status=?,time=?,memory=?,score=?,error_message=?,judger='PersonalRemote',vjudge_submit_id=?,vjudge_username=NULL,vjudge_password=NULL,gmt_modified=CURRENT_TIMESTAMP WHERE submit_id=?",
                 status, time, result == null ? null : result.memory, score,
                 result == null ? "Personal remote task stopped before code submission" : null,
                 result == null ? null : result.id, id);
-        judgeContext.updateOtherTable(id, status, cid, (String) judge.get("uid"),
+        if (updated != 1) throw new IllegalStateException("Personal remote judge update failed");
+        judgeContext.updatePersonalRemoteRecords(id, status, cid, (String) judge.get("uid"),
                 ((Number) judge.get("pid")).longValue(), judge.get("gid") == null ? null : ((Number) judge.get("gid")).longValue(), score, time);
     }
 }

@@ -83,4 +83,15 @@ class NowCoderTaskJournalTest {
         enqueue();Map<String,Object> task=claim();assertTrue(tasks.beginPost(1,token(task),90));tasks.uncertain(1,token(task));now.addAndGet(5001);Map<String,Object> recovered=claim();assertNull(journal.job(1));assertEquals("RECONCILING",recovered.get("state"));assertThrows(Conflict.class,()->tasks.beginPost(1,token(recovered),90));
         jdbc.update("DELETE FROM judge WHERE submit_id=1");assertEquals(0,count("personal_remote_task"));assertEquals(0,count("personal_remote_nowcoder"));assertEquals(1,count("external_account"));
     }
+
+    @Test void deadlineInsideGradingRollsBackSourceIdsAndVerdictTogether(){
+        acknowledge();Map<String,Object> poll=claim();
+        Map<String,Object> task=jdbc.queryForMap("SELECT * FROM personal_remote_task"),snapshot=jdbc.queryForMap("SELECT * FROM personal_remote_nowcoder");
+        NowCoderJudgeProtocol.Status result=protocol.status(context,"opaque-job");long deadline=((java.sql.Timestamp)poll.get("lease_until")).getTime();
+        assertThrows(Conflict.class,()->journal.result(1,token(poll),result,()->{grade();now.set(deadline);}));
+        assertEquals(task,jdbc.queryForMap("SELECT * FROM personal_remote_task"));assertEquals(snapshot,jdbc.queryForMap("SELECT * FROM personal_remote_nowcoder"));
+        assertEquals(5,jdbc.queryForObject("SELECT status FROM judge",Integer.class));assertEquals(0,count("grading_event"));
+        Map<String,Object> fresh=claim();assertNotEquals(token(poll),token(fresh));
+        assertTrue(journal.result(1,token(fresh),result,this::grade));assertEquals(1,count("grading_event"));assertEquals(1,source.posts);
+    }
 }

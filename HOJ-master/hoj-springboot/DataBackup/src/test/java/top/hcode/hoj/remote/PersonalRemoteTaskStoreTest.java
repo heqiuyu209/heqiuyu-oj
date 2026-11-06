@@ -1,6 +1,8 @@
 package top.hcode.hoj.remote;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.io.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.*;
@@ -196,5 +198,54 @@ class PersonalRemoteTaskStoreTest {
         jdbc.update("UPDATE remote_user_credential SET credential_ciphertext=NULL,credential_version=2 WHERE account_id=1");
         assertFalse(store.rotateSession(1,lease,"s1:rotated-synthetic","s1:resurrected-synthetic"));
         assertNull(jdbc.queryForObject("SELECT credential_ciphertext FROM remote_user_credential WHERE account_id=1",String.class));
+    }
+
+    Map<String,Object> pollingLease(){
+        enqueue(1,"alice",1);Map<String,Object> lease=store.claim("CODEFORCES");
+        assertTrue(store.beginPost(1,token(lease),100));store.accepted(1,token(lease),101);
+        return store.claim("CODEFORCES");
+    }
+    @ParameterizedTest
+    @ValueSource(strings={"UNLINK","DISABLE","REVOKE","SESSION_VERSION","UNVERIFY"})
+    void completionRechecksRevocationAfterSourceRead(String mutation){
+        Map<String,Object> poll=pollingLease();enqueue(2,"alice",1);
+        Map<String,Object> posted=jdbc.queryForMap("SELECT * FROM personal_remote_task WHERE submit_id=1");
+        if("UNLINK".equals(mutation))jdbc.update("DELETE FROM external_account WHERE id=1");
+        else if("DISABLE".equals(mutation))jdbc.update("UPDATE user_info SET status=1 WHERE uuid='alice'");
+        else if("REVOKE".equals(mutation))jdbc.update("DELETE FROM remote_user_credential WHERE account_id=1");
+        else if("SESSION_VERSION".equals(mutation))jdbc.update("UPDATE remote_user_credential SET credential_version=2 WHERE account_id=1");
+        else jdbc.update("UPDATE external_account SET verified_identity=NULL WHERE id=1");
+        AtomicInteger verdicts=new AtomicInteger();
+        assertFalse(store.completed(1,token(poll),()->{verdicts.incrementAndGet();jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1");}));
+        assertEquals(0,verdicts.get());assertEquals("NEEDS_REVIEW",state(1));
+        assertEquals(5,jdbc.queryForObject("SELECT status FROM judge WHERE submit_id=1",Integer.class));
+        assertEquals(1L,jdbc.queryForObject("SELECT active_submit_id FROM personal_remote_lane WHERE handle_key='tourist'",Long.class));
+        assertNull(store.claim("CODEFORCES"));
+        // Explicitly rebind the same source identity; the original payload reference remains.
+        jdbc.update("UPDATE user_info SET status=0 WHERE uuid='alice'");jdbc.update("DELETE FROM external_account WHERE id=1");
+        jdbc.update("INSERT INTO external_account(id,uid,platform,handle,handle_key,verified_identity,last_requested_at,created_at) VALUES(9,'alice','CODEFORCES','Tourist','tourist','tourist',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO remote_user_credential VALUES(9,'s1:replacement-synthetic',3,CURRENT_TIMESTAMP)");
+        store.reconcile(1,"alice");Map<String,Object> recovered=store.claim("CODEFORCES");
+        assertEquals("POLLING",recovered.get("state"));assertEquals(1,((Number)recovered.get("submit_attempts")).intValue());
+        assertEquals(posted.get("account_ref"),recovered.get("account_ref"));assertEquals(posted.get("baseline_id"),recovered.get("baseline_id"));
+        assertEquals(posted.get("post_started_at"),recovered.get("post_started_at"));assertEquals(posted.get("payload_hash"),recovered.get("payload_hash"));
+        assertThrows(Conflict.class,()->store.beginPost(1,token(recovered),100));
+        assertTrue(store.completed(1,token(recovered),()->jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1")));
+        assertEquals(2L,store.claim("CODEFORCES").get("submit_id"));
+    }
+    @Test void deadlineReachedInsideVerdictRollsBackAllDatabaseEffects(){
+        Map<String,Object> poll=pollingLease();jdbc.execute("CREATE TABLE result_effect(submit_id BIGINT PRIMARY KEY)");
+        Map<String,Object> before=jdbc.queryForMap("SELECT * FROM personal_remote_task WHERE submit_id=1");
+        long deadline=((java.sql.Timestamp)poll.get("lease_until")).getTime();
+        assertThrows(Conflict.class,()->store.completed(1,token(poll),()->{
+            jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1");jdbc.update("INSERT INTO result_effect VALUES(1)");now.set(deadline);
+        }));
+        assertEquals(before,jdbc.queryForMap("SELECT * FROM personal_remote_task WHERE submit_id=1"));
+        assertEquals(5,jdbc.queryForObject("SELECT status FROM judge WHERE submit_id=1",Integer.class));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect",Integer.class));
+        assertEquals(1L,jdbc.queryForObject("SELECT active_submit_id FROM personal_remote_lane WHERE handle_key='tourist'",Long.class));
+        Map<String,Object> fresh=store.claim("CODEFORCES");assertNotEquals(token(poll),token(fresh));
+        assertTrue(store.completed(1,token(fresh),()->{jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1");jdbc.update("INSERT INTO result_effect VALUES(1)");}));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect",Integer.class));
     }
 }

@@ -27,7 +27,7 @@ import java.sql.Connection;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
@@ -161,9 +161,13 @@ class PersonalRemoteRunnerMySqlTest {
         manifest.getMainAttributes().putValue("Class-Path",Arrays.stream(classpath.split(java.util.regex.Pattern.quote(File.pathSeparator))).map(entry->Paths.get(entry).toUri().toASCIIString()).collect(java.util.stream.Collectors.joining(" ")));
         Path launcher=Files.createTempFile(secret,"local-worker-classpath-",".jar");try(java.util.jar.JarOutputStream ignored=new java.util.jar.JarOutputStream(Files.newOutputStream(launcher),manifest)){}
         args.addAll(Arrays.asList("-cp",launcher.toString(),getClass().getName(),"worker",schema,source.platform.name(),String.valueOf(source.port()),secret.toAbsolutePath().toString(),String.valueOf(clock.get())));
-        Process process=new ProcessBuilder(args).redirectErrorStream(true).start();
+        // Never wait for a child while leaving its diagnostic pipe unread.
+        Path receipts=Paths.get(System.getProperty("user.dir"),"target","surefire-reports");Files.createDirectories(receipts);
+        Path receipt=receipts.resolve("personal-worker-"+UUID.randomUUID()+".log");
+        Process process=new ProcessBuilder(args).redirectErrorStream(true).redirectOutput(receipt.toFile()).start();
         try{
-            assertTrue(process.waitFor(40,TimeUnit.SECONDS),"Local child worker did not finish");String output=read(process.getInputStream());
+            assertTrue(process.waitFor(40,TimeUnit.SECONDS),"Local child worker did not finish; receipt="+receipt);
+            String output;try(InputStream saved=Files.newInputStream(receipt)){output=read(saved);}
             assertEquals(0,process.exitValue(),output);source.healthy();
             return Arrays.stream(output.split("\\R")).filter(line->line.startsWith("worker_process=")).findFirst().orElseThrow(()->new AssertionError("Missing child worker receipt"));
         }finally{if(process.isAlive()){process.destroyForcibly();process.waitFor(5,TimeUnit.SECONDS);}}
@@ -186,6 +190,7 @@ class PersonalRemoteRunnerMySqlTest {
         final Platform platform;final int verdict;final HttpServer server;final ObjectMapper json=new ObjectMapper();
         final AtomicInteger posts=new AtomicInteger();final AtomicLong postedAt=new AtomicLong();final AtomicBoolean dropNextRead=new AtomicBoolean();final AtomicReference<Throwable> error=new AtomicReference<>();
         volatile boolean dropPostReply;
+        final AtomicReference<Runnable> beforeFinalResult=new AtomicReference<>();
         SimulatedSource(Platform platform,int verdict) throws IOException {this.platform=platform;this.verdict=verdict;server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);server.createContext("/",this::handle);server.start();}
         int port(){return server.getAddress().getPort();}
         void healthy(){if(error.get()!=null)throw new AssertionError("Local source assertion failed",error.get());}
@@ -215,6 +220,9 @@ class PersonalRemoteRunnerMySqlTest {
                 else if(path.endsWith("/submit") || path.contains("/tasks/"))body=nav()+"<form method='POST' action='"+(platform==Platform.ATCODER?"/contests/abc001/submit":"/contest/4/submit")+"'><input type='hidden' name='csrf_token' value='synthetic'><input name='"+(platform==Platform.ATCODER?"data.TaskScreenName":"submittedProblemIndex")+"' value='"+(platform==Platform.ATCODER?"abc001_1":"A")+"'><select name='"+(platform==Platform.ATCODER?"data.LanguageId":"programTypeId")+"'><option value='5400'>C++ 23</option></select></form>";
                 else if(path.endsWith("/101"))body=nav()+"<pre id='"+(platform==Platform.ATCODER?"submission-code":"program-source-text")+"'>"+escape(CODE)+"</pre>";
                 else throw new AssertionError("Unexpected local source route: "+path);
+                if((path.endsWith("/101") || path.equals("/nc/status")) && "POLLING".equals(state())){
+                    Runnable change=beforeFinalResult.getAndSet(null);if(change!=null)change.run();
+                }
                 byte[] bytes=body.getBytes(StandardCharsets.UTF_8);exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);
             }catch(Throwable problem){error.compareAndSet(null,problem);try{exchange.sendResponseHeaders(500,-1);}catch(IOException ignored){}}
             finally{exchange.close();}
@@ -230,8 +238,126 @@ class PersonalRemoteRunnerMySqlTest {
         }
         String history(){
             String date=Instant.ofEpochMilli(time()).atZone(ZoneId.of("Asia/Shanghai")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-            return nav()+"<table class='table-hover'><thead><tr>"+String.join("",Collections.nCopies(9,"<th>Header</th>"))+"</tr></thead><tbody><tr><td><a href='/acm/contest/view-submission?submissionId=101&amp;uid=12345'>101</a></td><td><a href='/acm/problem/218144'>Problem</a></td>"+String.join("",Collections.nCopies(5,"<td>fixture</td>"))+"<td>C++</td><td>"+date+"</td></tr></tbody></table>";
+            return nav()+"<table class='table-hover'><thead><tr>"+String.join("",Collections.nCopies(9,"<th>Header</th>"))+"</tr></thead><tbody><tr><td><a href='/acm/contest/view-submission?submissionId="+(posts.get()==0?100:101)+"&amp;uid=12345'>"+(posts.get()==0?100:101)+"</a></td><td><a href='/acm/problem/218144'>Problem</a></td>"+String.join("",Collections.nCopies(5,"<td>fixture</td>"))+"<td>C++</td><td>"+date+"</td></tr></tbody></table>";
         }
         @Override public void close(){server.stop(0);}
+    }
+
+    static Stream<Arguments> revocations(){
+        return Arrays.stream(Platform.values()).flatMap(p->Stream.of("UNLINK","DISABLE","REVOKE").map(reason->Arguments.of(p,reason)));
+    }
+    @ParameterizedTest @MethodSource("revocations")
+    void sourceReadThenRevocationCannotCommit(Platform platform,String change) throws Exception {
+        prepare(platform,0);identify();assertEquals(100L,jdbc.queryForObject("SELECT baseline_id FROM personal_remote_task",Long.class));AtomicBoolean changed=new AtomicBoolean();
+        source.beforeFinalResult.set(()->{
+            if("UNLINK".equals(change))jdbc.update("DELETE FROM external_account WHERE id=1");
+            else if("DISABLE".equals(change))jdbc.update("UPDATE user_info SET status=1 WHERE uuid='alice'");
+            else jdbc.update("UPDATE remote_user_credential SET credential_ciphertext=NULL,credential_version=2 WHERE account_id=1");
+            changed.set(true);
+        });
+        step();assertTrue(changed.get(),"Revocation must occur in the final result response, after its request guard");
+        assertEquals("NEEDS_REVIEW",state());
+        assertEquals("REVOKE".equals(change)?"CREDENTIAL_CHANGED":"ACCOUNT_REVOKED",jdbc.queryForObject("SELECT error_code FROM personal_remote_task",String.class));
+        assertEquals(5,jdbc.queryForObject("SELECT status FROM judge",Integer.class));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect",Integer.class));
+        assertEquals(1L,jdbc.queryForObject("SELECT active_submit_id FROM personal_remote_lane",Long.class));
+        assertEquals(1,source.posts.get());assertEquals(1,jdbc.queryForObject("SELECT submit_attempts FROM personal_remote_task",Integer.class));
+        assertFalse(worker(jdbc,transactions,secret,clock,platform,source.port(),failWrite).runOne(platform.name()));assertEquals(1,source.posts.get());
+    }
+    void whileCallbackWaits(String lockSql,Runnable callback,Runnable advance,boolean live) throws Exception {
+        TransactionTemplate tx=new TransactionTemplate(transactions);ExecutorService worker=Executors.newSingleThreadExecutor();
+        AtomicLong connection=new AtomicLong();CountDownLatch started=new CountDownLatch(1);AtomicReference<Future<?>> pending=new AtomicReference<>();AtomicReference<Throwable> outcome=new AtomicReference<>();
+        try {
+            tx.execute(held->{
+                jdbc.queryForList(lockSql);
+                pending.set(worker.submit(()->{
+                    try{tx.execute(waiting->{connection.set(jdbc.queryForObject("SELECT CONNECTION_ID()",Long.class));started.countDown();callback.run();return null;});}
+                    catch(Throwable failure){outcome.set(failure);}
+                }));
+                try {
+                    assertTrue(started.await(5,TimeUnit.SECONDS));long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);boolean blocked=false;
+                    while(System.nanoTime()<deadline){
+                        blocked=admin.queryForObject("SELECT COUNT(*) FROM performance_schema.data_lock_waits w JOIN performance_schema.threads t ON t.THREAD_ID=w.REQUESTING_THREAD_ID JOIN performance_schema.data_locks l ON l.ENGINE=w.ENGINE AND l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID WHERE t.PROCESSLIST_ID=? AND l.OBJECT_SCHEMA=? AND l.OBJECT_NAME=? AND l.LOCK_TYPE='RECORD'",Integer.class,connection.get(),schema,lockSql.split(" ")[3])>0;
+                        if(blocked)break;
+                        if(pending.get().isDone())throw new AssertionError("Callback exited before the expected row lock",outcome.get());
+                        Thread.sleep(25);
+                    }
+                    if(!blocked){
+                        List<Map<String,Object>> observed=admin.queryForList("SELECT p.ID,p.DB,p.COMMAND,p.STATE,t.trx_state,t.trx_requested_lock_id FROM information_schema.processlist p LEFT JOIN information_schema.innodb_trx t ON t.trx_mysql_thread_id=p.ID WHERE p.ID=?",connection.get());
+                        throw new AssertionError("Callback lock observation missing; connection="+connection.get()+", done="+pending.get().isDone()+", state="+observed,outcome.get());
+                    }
+                }catch(InterruptedException error){Thread.currentThread().interrupt();throw new IllegalStateException(error);}
+                advance.run();return null;
+            });
+            pending.get().get(10,TimeUnit.SECONDS);
+            if(live)assertNull(outcome.get(),"A callback before its deadline must succeed");
+            else assertTrue(outcome.get() instanceof PersonalRemoteTaskStore.Conflict,"Expired callback must throw Conflict after the entire transaction ends: "+outcome.get());
+        }finally{worker.shutdownNow();assertTrue(worker.awaitTermination(5,TimeUnit.SECONDS));}
+    }
+    Map<String,Object> directPollingLease(){
+        PersonalRemoteTaskStore tasks=store();Map<String,Object> first=tasks.claim("CODEFORCES");
+        assertTrue(tasks.beginPost(1,(String)first.get("lease_token"),100));tasks.accepted(1,(String)first.get("lease_token"),101);
+        return tasks.claim("CODEFORCES");
+    }
+    boolean authorityAction(String action,Map<String,Object> task,String cipher){
+        String token=(String)task.get("lease_token");PersonalRemoteTaskStore tasks=store();
+        if("authorize".equals(action))return tasks.authorize(1,token);
+        if("beginPost".equals(action))return tasks.beginPost(1,token,100);
+        if("rotateSession".equals(action))return tasks.rotateSession(1,token,cipher,"s1:synthetic-rotated");
+        return tasks.completed(1,token,()->{jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1");jdbc.update("INSERT INTO result_effect VALUES(1,0,101)");});
+    }
+    static Stream<Arguments> authorityLocks(){
+        return Stream.of(new String[]{"authorize","user"},new String[]{"authorize","account"},new String[]{"authorize","judge"},
+                new String[]{"beginPost","user"},new String[]{"beginPost","account"},new String[]{"beginPost","judge"},
+                new String[]{"rotateSession","user"},new String[]{"rotateSession","account"},new String[]{"rotateSession","credential"},new String[]{"rotateSession","judge"},
+                new String[]{"completed","user"},new String[]{"completed","account"},new String[]{"completed","judge"}).flatMap(pair->Stream.of(false,true).map(live->Arguments.of(pair[0],pair[1],live)));
+    }
+    @ParameterizedTest(name="{0} waits on {1}, live={2}") @MethodSource("authorityLocks")
+    void authorityLockWaitMustRecheckDeadline(String action,String locked,boolean live) throws Exception {
+        prepare(Platform.CODEFORCES,0);
+        Map<String,Object> task="completed".equals(action)?directPollingLease():store().claim("CODEFORCES");
+        Map<String,Object> before=jdbc.queryForMap("SELECT * FROM personal_remote_task"),judge=jdbc.queryForMap("SELECT * FROM judge"),credential=jdbc.queryForMap("SELECT * FROM remote_user_credential");
+        String cipher=(String)credential.get("credential_ciphertext");long deadline=((java.sql.Timestamp)task.get("lease_until")).getTime();
+        String sql="user".equals(locked)?"SELECT uuid FROM user_info WHERE uuid='alice' FOR UPDATE":"account".equals(locked)?"SELECT id FROM external_account WHERE id=1 FOR UPDATE":"credential".equals(locked)?"SELECT account_id FROM remote_user_credential WHERE account_id=1 FOR UPDATE":"SELECT submit_id FROM judge WHERE submit_id=1 FOR UPDATE";
+        whileCallbackWaits(sql,()->assertTrue(authorityAction(action,task,cipher)),()->clock.set(deadline-(live?1:0)),live);
+        if(!live){
+            assertEquals(before,jdbc.queryForMap("SELECT * FROM personal_remote_task"));assertEquals(judge,jdbc.queryForMap("SELECT * FROM judge"));
+            assertEquals(credential,jdbc.queryForMap("SELECT * FROM remote_user_credential"));assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect",Integer.class));
+            assertEquals(1L,jdbc.queryForObject("SELECT active_submit_id FROM personal_remote_lane",Long.class));
+            Map<String,Object> fresh=store().claim("CODEFORCES");assertNotEquals(task.get("lease_token"),fresh.get("lease_token"));assertTrue(authorityAction(action,fresh,cipher));
+        }
+        assertEquals(0,source.posts.get(),"Direct journal checks perform no HTTP code POST");
+    }
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void verdictSideEffectWaitRollsBackAtDeadline(boolean live) throws Exception {
+        prepare(Platform.CODEFORCES,0);Map<String,Object> task=directPollingLease();
+        jdbc.update("INSERT INTO result_effect VALUES(99,99,99)");Map<String,Object> before=jdbc.queryForMap("SELECT * FROM personal_remote_task");
+        long deadline=((java.sql.Timestamp)task.get("lease_until")).getTime();
+        Runnable grade=()->{jdbc.update("UPDATE judge SET status=0 WHERE submit_id=1");jdbc.update("INSERT INTO result_effect VALUES(1,0,101)");jdbc.update("UPDATE result_effect SET verdict=0 WHERE submit_id=99");};
+        whileCallbackWaits("SELECT submit_id FROM result_effect WHERE submit_id=99 FOR UPDATE",()->assertTrue(store().completed(1,(String)task.get("lease_token"),grade)),()->clock.set(deadline-(live?1:0)),live);
+        if(!live){
+            assertEquals(before,jdbc.queryForMap("SELECT * FROM personal_remote_task"));assertEquals(5,jdbc.queryForObject("SELECT status FROM judge",Integer.class));
+            assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect WHERE submit_id=1",Integer.class));
+            assertEquals(99,jdbc.queryForObject("SELECT verdict FROM result_effect WHERE submit_id=99",Integer.class));
+            Map<String,Object> fresh=store().claim("CODEFORCES");assertTrue(store().completed(1,(String)fresh.get("lease_token"),grade));
+        }
+        assertEquals("COMPLETED",state());assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM result_effect",Integer.class));
+    }
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void acknowledgementAfterProviderLockWaitHonorsDeadline(boolean live) throws Exception {
+        prepare(Platform.NOWCODER,0);PersonalRemoteTaskStore tasks=store();NowCoderTaskJournal journal=new NowCoderTaskJournal(jdbc,transactions,tasks);
+        Map<String,Object> task=tasks.claim("NOWCODER");String token=(String)task.get("lease_token");
+        try(NowCoderTaskJournalTest.FakeSource fake=new NowCoderTaskJournalTest.FakeSource()){
+            NowCoderJudgeProtocol.Acknowledgement reply=new NowCoderJudgeProtocol(fake).submit(journal.context(1),CODE,()->assertTrue(tasks.beginPost(1,token,90)));
+            Map<String,Object> before=jdbc.queryForMap("SELECT * FROM personal_remote_task"),provider=jdbc.queryForMap("SELECT * FROM personal_remote_nowcoder");
+            long deadline=((java.sql.Timestamp)task.get("lease_until")).getTime();
+            whileCallbackWaits("SELECT submit_id FROM personal_remote_nowcoder WHERE submit_id=1 FOR UPDATE",()->journal.acknowledged(1,token,reply),()->clock.set(deadline-(live?1:0)),live);
+            if(!live){
+                assertEquals(before,jdbc.queryForMap("SELECT * FROM personal_remote_task"));assertEquals(provider,jdbc.queryForMap("SELECT * FROM personal_remote_nowcoder"));
+                Map<String,Object> fresh=tasks.claim("NOWCODER");journal.acknowledged(1,(String)fresh.get("lease_token"),reply);
+            }
+            assertEquals("POLLING",state());assertEquals("opaque-job",journal.job(1));assertEquals(1,fake.posts);
+            assertEquals(1,jdbc.queryForObject("SELECT submit_attempts FROM personal_remote_task",Integer.class));
+        }
     }
 }

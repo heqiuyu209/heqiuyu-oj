@@ -104,19 +104,31 @@ public class JudgeContext {
                                  Long gid,
                                  Integer score,
                                  Integer useTime) {
+        updateOtherTable(submitId, status, cid, uid, pid, gid, score, useTime, false);
+    }
 
+    /** Synchronous association writes participate in the personal task's existing transaction. */
+    public void updatePersonalRemoteRecords(Long submitId, Integer status, Long cid, String uid,
+                                            Long pid, Long gid, Integer score, Integer useTime) {
+        updateOtherTable(submitId, status, cid, uid, pid, gid, score, useTime, true);
+    }
+
+    private void updateOtherTable(Long submitId, Integer status, Long cid, String uid,
+                                  Long pid, Long gid, Integer score, Integer useTime, boolean strict) {
         if (cid == 0) { // 非比赛提交
             // 如果是AC,就更新user_acproblem表,
             if (status.intValue() == Constants.Judge.STATUS_ACCEPTED.getStatus() && gid == null) {
-                userAcproblemEntityService.saveOrUpdate(new UserAcproblem()
+                boolean saved = userAcproblemEntityService.saveOrUpdate(new UserAcproblem()
                         .setPid(pid)
                         .setUid(uid)
                         .setSubmitId(submitId)
                 );
+                if (strict && !saved) throw new IllegalStateException("Personal remote accepted record update failed");
             }
 
         } else { //如果是比赛提交
-            contestRecordEntityService.updateContestRecord(score, status, submitId, useTime);
+            if (strict) contestRecordEntityService.updateContestRecordStrict(score, status, submitId, useTime);
+            else contestRecordEntityService.updateContestRecord(score, status, submitId, useTime);
         }
     }
 }

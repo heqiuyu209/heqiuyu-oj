@@ -41,6 +41,7 @@ public final class NowCoderTaskJournal {
     public void acknowledged(long id,String token,NowCoderJudgeProtocol.Acknowledgement reply){
         Objects.requireNonNull(reply);transaction.execute(status->{
             Map<String,Object> task=row(id,token),source=source(id);
+            tasks.requireLiveLease(task);
             if(!Arrays.asList("SUBMITTING","RECONCILING").contains(task.get("state")) || !reply.contextHash.equals(source.get("context_hash")) || !reply.codeHash.equals(task.get("code_hash")))throw new PersonalRemoteTaskStore.Conflict("Unmatched source acknowledgement");
             context(jdbc,id);
             if(source.get("backend_job_id")!=null && !reply.jobId.equals(source.get("backend_job_id")))throw new PersonalRemoteTaskStore.Conflict("Source job already identified");
@@ -53,6 +54,7 @@ public final class NowCoderTaskJournal {
     public boolean result(long id,String token,NowCoderJudgeProtocol.Status result,Runnable applyVerdict){
         Objects.requireNonNull(result);Objects.requireNonNull(applyVerdict);return transaction.execute(status->{
             Map<String,Object> task=row(id,token),source=source(id);context(jdbc,id);
+            tasks.requireLiveLease(task);
             if(!"POLLING".equals(task.get("state")) || !result.jobId.equals(source.get("backend_job_id")) || !result.contextHash.equals(source.get("context_hash")))throw new PersonalRemoteTaskStore.Conflict("Source result belongs to another task");
             if(result.submissionId!=null){
                 if(result.submissionId<=number(task.get("baseline_id")) || source.get("source_submission_id")!=null && number(source.get("source_submission_id"))!=result.submissionId)throw new RemoteSourceFailure(RemoteSourceFailure.Kind.AMBIGUOUS_RESULT);

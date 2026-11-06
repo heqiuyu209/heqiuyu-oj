@@ -12,6 +12,17 @@
     <packaging>jar</packaging>
 
     <build>
+        <testResources>
+            <testResource><directory>src/test/resources</directory></testResource>
+            <testResource>
+                <directory>../../sqlAndsetting</directory>
+                <includes>
+                    <include>external-learning.sql</include>
+                    <include>remote-credentials.sql</include>
+                    <include>personal-remote-tasks.sql</include>
+                </includes>
+            </testResource>
+        </testResources>
         <finalName>${project.artifactId}-${version}</finalName>
         <plugins>
             <plugin>

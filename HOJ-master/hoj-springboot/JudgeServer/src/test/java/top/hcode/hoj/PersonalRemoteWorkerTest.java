@@ -20,12 +20,12 @@ class PersonalRemoteWorkerTest {
         }) { return new PersonalRemoteSource(new RemoteProblemRef("CF-4A", null), "Tourist", http).recent().get(0); }
     }
     void verifyWrite(long cid, PersonalRemoteSource.Candidate result, int status, Integer score) {
-        JdbcTemplate jdbc = mock(JdbcTemplate.class); JudgeContext context = mock(JudgeContext.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class,call->"update".equals(call.getMethod().getName())?1:RETURNS_DEFAULTS.answer(call)); JudgeContext context = mock(JudgeContext.class);
         Map<String, Object> judge = new HashMap<>(); judge.put("uid", "alice"); judge.put("pid", 1L); judge.put("cid", cid); judge.put("gid", null);
         when(jdbc.queryForMap("SELECT uid,pid,cid,gid FROM judge WHERE submit_id=?", 42L)).thenReturn(judge);
         PersonalRemoteWorker worker = new PersonalRemoteWorker(jdbc, mock(PlatformTransactionManager.class), mock(StringRedisTemplate.class), context, "unused-local-test-key-directory");
         ReflectionTestUtils.invokeMethod(worker, "applyResult", 42L, result, status);
-        verify(context).updateOtherTable(42L, status, cid, "alice", 1L, null, score, result == null ? null : result.time);
+        verify(context).updatePersonalRemoteRecords(42L, status, cid, "alice", 1L, null, score, result == null ? null : result.time);
         verify(jdbc).update(eq("UPDATE judge SET status=?,time=?,memory=?,score=?,error_message=?,judger='PersonalRemote',vjudge_submit_id=?,vjudge_username=NULL,vjudge_password=NULL,gmt_modified=CURRENT_TIMESTAMP WHERE submit_id=?"),
                 eq(status), eq(result == null ? null : result.time), eq(result == null ? null : result.memory), eq(score),
                 eq(result == null ? "Personal remote task stopped before code submission" : null), eq(result == null ? null : result.id), eq(42L));
