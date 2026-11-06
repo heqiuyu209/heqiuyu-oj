@@ -29,7 +29,9 @@ public class AtCoderCatalogManager {
         });
     }
     private boolean leased(Map<String,Object> job) {
-        return !jdbc.queryForList("SELECT source_name FROM remote_source_job WHERE source_name=? AND source_name IN ('ATCODER_PROBLEMS','ATCODER_MODELS') AND lease_token=? FOR UPDATE",job.get("source_name"),job.get("lease_token")).isEmpty();
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT lease_until FROM remote_source_job WHERE source_name=? AND source_name IN ('ATCODER_PROBLEMS','ATCODER_MODELS') AND lease_token=? AND lease_until>? FOR UPDATE",job.get("source_name"),job.get("lease_token"),time());
+        // The job lock may have taken longer than the remaining lease.
+        return !rows.isEmpty() && ((Timestamp)rows.get(0).get("lease_until")).getTime()>now();
     }
     public void apply(Map<String,Object> job,JsonNode result) {
         if("ATCODER_PROBLEMS".equals(job.get("source_name"))) problems(job,result);

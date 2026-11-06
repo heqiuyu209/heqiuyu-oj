@@ -27,7 +27,11 @@ public class NowCoderCatalogManager {
         if(scan.get("scan_token")==null){String generation=UUID.randomUUID().toString();jdbc.update("UPDATE remote_nowcoder_scan SET scan_token=?,next_page=1,stage='HEAD',target_total=NULL,last_id=NULL,head_hash=NULL,head_added=0,head_changed=0 WHERE source_name='NOWCODER_PROBLEMS'",generation);scan.put("scan_token",generation);scan.put("next_page",1);scan.put("stage","HEAD");scan.put("target_total",null);scan.put("last_id",null);scan.put("head_hash",null);}
         String lease=UUID.randomUUID().toString();jdbc.update("UPDATE remote_source_job SET lease_token=?,lease_until=? WHERE source_name='NOWCODER_PROBLEMS'",lease,new Timestamp(now()+90000));job.putAll(scan);job.put("lease_token",lease);return job;
     });}
-    private boolean leased(Map<String,Object> job){return !jdbc.queryForList("SELECT source_name FROM remote_source_job WHERE source_name='NOWCODER_PROBLEMS' AND lease_token=? FOR UPDATE",job.get("lease_token")).isEmpty();}
+    private Timestamp leased(Map<String,Object> job){
+        List<Map<String,Object>> rows=jdbc.queryForList("SELECT lease_until FROM remote_source_job WHERE source_name='NOWCODER_PROBLEMS' AND lease_token=? AND lease_until>? FOR UPDATE",job.get("lease_token"),time());
+        Timestamp deadline=rows.isEmpty()?null:(Timestamp)rows.get(0).get("lease_until");
+        return deadline!=null && deadline.getTime()>now()?deadline:null;
+    }
     private String fingerprint(NowCoderStatementClient.Page page){StringBuilder value=new StringBuilder().append(page.total);for(NowCoderStatementClient.Entry row:page.entries)value.append('\n').append(row.problemId).append(':').append(hash(row.title,row.rating));return RemoteCatalogManager.hash(value.toString());}
     private int[] publish(List<NowCoderStatementClient.Entry> entries){
         Map<String,Map<String,Object>> old=new HashMap<>();for(Map<String,Object> row:jdbc.queryForList("SELECT problem_key,content_hash,available FROM remote_nowcoder_problem"))old.put((String)row.get("problem_key"),row);
@@ -53,7 +57,9 @@ public class NowCoderCatalogManager {
         jdbc.update("UPDATE remote_source_job SET last_success_at=?,failures=0,last_error=NULL,total_count=?,added_count=?,changed_count=?,removed_count=? WHERE source_name='NOWCODER_PROBLEMS'",time(),total,added,changed,removed);release(3600000);
     }
     public void apply(Map<String,Object> job,NowCoderStatementClient.Page page){tx(()->{
-        if(!leased(job))return null;Map<String,Object> scan=jdbc.queryForMap("SELECT * FROM remote_nowcoder_scan WHERE source_name='NOWCODER_PROBLEMS' FOR UPDATE");
+        Timestamp deadline=leased(job);if(deadline==null)return null;Map<String,Object> scan=jdbc.queryForMap("SELECT * FROM remote_nowcoder_scan WHERE source_name='NOWCODER_PROBLEMS' FOR UPDATE");
+        // The scan lock is acquired after the job lock and can also outlive the lease.
+        if(deadline.getTime()<=now())return null;
         if(!Objects.equals(job.get("scan_token"),scan.get("scan_token")) || page.page!=number(scan.get("next_page")))throw new ObjectiveException(409,"牛客目录扫描进度已变化");String token=(String)scan.get("scan_token"),phase=(String)scan.get("stage");
         if("HEAD".equals(phase)){
             String head=fingerprint(page);int[] delta=publish(page.entries);boolean fresh=scan.get("last_full_success_at")!=null && now()-((Timestamp)scan.get("last_full_success_at")).getTime()<86400000L;
@@ -70,8 +76,8 @@ public class NowCoderCatalogManager {
         int[] delta=publish(all);int removed=jdbc.update("UPDATE remote_nowcoder_problem p SET available=0,revision=revision+1,changed_at=? WHERE p.available=1 AND p.from_catalog=1 AND p.contest_id IS NULL AND NOT EXISTS(SELECT 1 FROM remote_nowcoder_catalog_stage s WHERE s.scan_token=? AND s.native_problem_id=p.native_problem_id)",time(),token);
         finish(job,page.total,delta[0]+((Number)scan.get("head_added")).intValue(),delta[1]+((Number)scan.get("head_changed")).intValue(),removed,true,(String)scan.get("head_hash"));return null;
     });}
-    public void defer(Map<String,Object> job){tx(()->{if(leased(job))release(3000);return null;});}
-    public void failed(Map<String,Object> job,String reason){tx(()->{if(!leased(job))return null;int failures=Math.min(10,((Number)job.get("failures")).intValue()+1);jdbc.update("UPDATE remote_source_job SET failures=?,last_error=? WHERE source_name='NOWCODER_PROBLEMS'",failures,RemoteCatalogManager.limited(reason,200));release(Math.min(21600000L,60000L*(1L<<Math.min(9,failures-1))));return null;});}
+    public void defer(Map<String,Object> job){tx(()->{if(leased(job)!=null)release(3000);return null;});}
+    public void failed(Map<String,Object> job,String reason){tx(()->{if(leased(job)==null)return null;int failures=Math.min(10,((Number)job.get("failures")).intValue()+1);jdbc.update("UPDATE remote_source_job SET failures=?,last_error=? WHERE source_name='NOWCODER_PROBLEMS'",failures,RemoteCatalogManager.limited(reason,200));release(Math.min(21600000L,60000L*(1L<<Math.min(9,failures-1))));return null;});}
     /** Only the fixed public client can supply the source title and IDs; never accepts an arbitrary URL. */
     public void discovered(String key,NowCoderStatementClient.Statement statement){tx(()->{
         RemoteProblemRef ref=NowCoderStatementClient.ref(key);List<Map<String,Object>> prior=jdbc.queryForList("SELECT source_rating FROM remote_nowcoder_problem WHERE problem_key=? FOR UPDATE",key);Integer rating=prior.isEmpty()?null:(Integer)prior.get(0).get("source_rating");jdbc.update("INSERT INTO remote_nowcoder_problem(problem_key,native_problem_id,contest_id,problem_index,question_id,title,content_hash,last_seen_at,changed_at) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE native_problem_id=VALUES(native_problem_id),question_id=VALUES(question_id),title=VALUES(title),revision=CASE WHEN title<>VALUES(title) OR available=0 THEN revision+1 ELSE revision END,changed_at=CASE WHEN title<>VALUES(title) OR available=0 THEN VALUES(changed_at) ELSE changed_at END,content_hash=VALUES(content_hash),available=1,last_seen_at=VALUES(last_seen_at)",key,Long.valueOf(statement.nativeProblemId),ref.contest.isEmpty()?null:Long.valueOf(ref.contest),ref.contest.isEmpty()?null:ref.task,statement.questionId,statement.content.getTitle(),hash(statement.content.getTitle(),rating),time(),time());return null;
