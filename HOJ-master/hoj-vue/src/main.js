@@ -82,6 +82,8 @@ Vue.use(VXETable) // 表格组件
 Vue.use(VueClipboard) // 剪贴板
 Vue.use(highlight) // 代码高亮
 Vue.use(Element,{
+  // Modal masks and dialogs must cover the mobile navigation and its popovers.
+  zIndex: 4000,
   i18n: (key, value) => i18n.t(key, value)
 })
 
