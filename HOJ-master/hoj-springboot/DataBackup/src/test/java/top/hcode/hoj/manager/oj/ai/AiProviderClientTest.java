@@ -56,7 +56,7 @@ class AiProviderClientTest {
     }
     @Test void validKnowledgeJsonDoesNotOverrideAnExplicitIncompleteFinishReason() throws Exception {
         Map<String,Object> citation=new LinkedHashMap<>();citation.put("citationId","K1");citation.put("excerpt","区间和是两个前缀和之差");
-        replyContent.set("{\"answerable\":true,\"claims\":[{\"content\":\"先作差。\",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"两个前缀和之差\"}]}]}");
+        replyContent.set("{\"answerable\":true,\"unansweredQuestions\":[],\"claims\":[{\"content\":\"先作差。\",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"两个前缀和之差\"}]}]}");
         for(String reason:Arrays.asList("length","content_filter","tool_calls")){
             finishReason.set(reason);assertThrows(ObjectiveException.class,()->client.chat("unused","controlled-model","test-only-key",Collections.emptyList(),2048));
         }

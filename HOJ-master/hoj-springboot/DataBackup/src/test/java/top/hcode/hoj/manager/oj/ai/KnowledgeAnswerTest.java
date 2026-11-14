@@ -14,7 +14,8 @@ class KnowledgeAnswerTest {
     }
     Map<String, String> quote(String id, String quote) {Map<String,String> value=new LinkedHashMap<>();value.put("citationId",id);value.put("quote",quote);return value;}
     Map<String, Object> claim(String content, Object... evidence) {Map<String,Object> value=new LinkedHashMap<>();value.put("content",content);value.put("evidence",Arrays.asList(evidence));return value;}
-    String reply(boolean answerable,Object... claims)throws Exception {Map<String,Object> value=new LinkedHashMap<>();value.put("answerable",answerable);value.put("claims",Arrays.asList(claims));return json.writeValueAsString(value);}
+    String reply(boolean answerable,Object... claims)throws Exception {return withUnanswered(answerable,answerable?Collections.emptyList():Collections.singletonList("当前问题缺少哪份资料？"),claims);}
+    String withUnanswered(boolean answerable,Object unanswered,Object... claims)throws Exception {Map<String,Object> value=new LinkedHashMap<>();value.put("answerable",answerable);value.put("claims",Arrays.asList(claims));value.put("unansweredQuestions",unanswered);return json.writeValueAsString(value);}
     List<Map<String,Object>> sources(){return Arrays.asList(citation("K1","建立前缀和。区间查询使用两个前缀值相减。"),citation("K2","正文保持原有的物理页号。"));}
     Map<String,Object> parse(String text){return KnowledgeAnswer.parse(text,sources(),json);}
     void rejected(String text){ObjectiveException error=assertThrows(ObjectiveException.class,()->parse(text));assertEquals(502,error.getStatus());}
@@ -30,6 +31,33 @@ class KnowledgeAnswerTest {
     @Test void refusalReturnsOnlyTheServerMessageAndNoUsedCitations()throws Exception{
         Map<String,Object> result=parse(reply(false));assertEquals(KnowledgeAnswer.INSUFFICIENT,result.get("content"));
         assertEquals(false,result.get("answerable"));assertTrue(((List<?>)result.get("claims")).isEmpty());assertTrue(((List<?>)result.get("citations")).isEmpty());
+        assertEquals("insufficient",result.get("answerCoverage"));assertEquals(1,((List<?>)result.get("unansweredQuestions")).size());
+    }
+    @Test void partialAnswerKeepsBackedClaimsAndListsOnlyTheUnansweredQuestions()throws Exception{
+        List<String> missing=Arrays.asList("修改数组后如何更新？","动态查询的时间复杂度是多少？");
+        Map<String,Object> result=parse(withUnanswered(true,missing,claim("静态查询使用两个前缀值相减。",quote("K1","两个前缀值相减"))));
+        assertEquals("partial",result.get("answerCoverage"));assertEquals(true,result.get("answerable"));
+        assertEquals(missing,result.get("unansweredQuestions"));assertEquals(1,((List<?>)result.get("claims")).size());
+        assertEquals(Collections.singletonList(sources().get(0)),result.get("citations"));
+        assertFalse(((String)result.get("content")).contains("动态查询"));
+        Map<String,Object> complete=parse(reply(true,claim("先预处理。",quote("K1","建立前缀和。"))));
+        assertEquals("complete",complete.get("answerCoverage"));assertEquals(Collections.emptyList(),complete.get("unansweredQuestions"));
+    }
+    @Test void unansweredQuestionsCannotBeOmittedMalformedBlankDuplicateOrContradictory()throws Exception{
+        rejected("{\"answerable\":true,\"claims\":[{\"content\":\"说明\",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"建立前缀和。\"}]}]}");
+        for(Object missing:Arrays.asList(null,"缺资料",Arrays.asList(1),Arrays.asList("Q"," Q "),Arrays.asList("\u3000"),Arrays.asList("\u00a0"))){
+            rejected(withUnanswered(true,missing,claim("说明",quote("K1","建立前缀和。"))));
+        }
+        rejected(withUnanswered(false,Collections.emptyList()));
+        rejected(withUnanswered(false,Collections.singletonList("未答"),claim("矛盾",quote("K1","建立前缀和。"))));
+    }
+    @Test void unansweredQuestionCountAndIndividualAndTotalLengthsAreBounded()throws Exception{
+        Object paragraph=claim("说明",quote("K1","建立前缀和。"));
+        rejected(withUnanswered(true,Arrays.asList("1","2","3","4","5","6","7","8","9"),paragraph));
+        rejected(withUnanswered(true,Collections.singletonList(repeat("x",2001)),paragraph));
+        rejected(withUnanswered(true,Arrays.asList(repeat("x",2000),repeat("y",2000),"z"),paragraph));
+        Map<String,Object> accepted=parse(withUnanswered(true,Arrays.asList(repeat("x",2000),repeat("y",2000)),paragraph));
+        assertEquals(2,((List<?>)accepted.get("unansweredQuestions")).size());
     }
     @Test void knownCitationIdCannotBorrowAQuoteFromAnotherSource()throws Exception{
         rejected(reply(true,claim("内容",quote("K1","物理页号"))));rejected(reply(true,claim("内容",quote("K3","建立前缀和。"))));

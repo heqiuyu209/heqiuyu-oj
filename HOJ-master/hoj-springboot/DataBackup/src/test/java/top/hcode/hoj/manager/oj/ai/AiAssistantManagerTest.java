@@ -68,7 +68,7 @@ class AiAssistantManagerTest {
     @AfterEach void cleanup() { endpoints.close(); }
     AiDTO.Settings config(String base, String key) { AiDTO.Settings dto=new AiDTO.Settings();dto.setBaseUrl(base);dto.setApiKey(key);dto.setModel("my-chat-model");return dto; }
     AiDTO.Chat prompt(String role,String content) { AiDTO.Chat dto=new AiDTO.Chat();dto.setModelFingerprint(confirmedModel);AiDTO.Message message=new AiDTO.Message();message.setRole(role);message.setContent(content);dto.setMessages(Collections.singletonList(message));return dto; }
-    String knowledgeReply(String content)throws Exception {return "{\"answerable\":true,\"claims\":[{\"content\":"+json.writeValueAsString(content)+",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"区间和是两个前缀和之差\"}]}]}";}
+    String knowledgeReply(String content)throws Exception {return "{\"answerable\":true,\"unansweredQuestions\":[],\"claims\":[{\"content\":"+json.writeValueAsString(content)+",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"区间和是两个前缀和之差\"}]}]}";}
     void configured() { confirmedModel=(String)manager.save(config("https://models.example.com/v1","test-only-not-a-real-api-key")).get("fingerprint"); }
     KnowledgeDTO.Question knowledgeQuestion(boolean consent){KnowledgeDTO.Question dto=new KnowledgeDTO.Question();dto.setModelFingerprint(confirmedModel);KnowledgeDTO.Search search=new KnowledgeDTO.Search();search.setQuery("如何计算区间和");dto.setSearch(search);dto.setAllowModelExcerpts(consent);return dto;}
     KnowledgeManager.Context knowledgeContext() throws Exception {
@@ -91,6 +91,27 @@ class AiAssistantManagerTest {
     @Test void knowledgeEmptyRetrievalNeverCallsModelEvenWithConsent() throws Exception {
         configured();KnowledgeManager.Context context=knowledgeContext();when(knowledge.view(context)).thenAnswer(call->{Map<String,Object> result=new LinkedHashMap<>();result.put("items",Collections.emptyList());result.put("modelUsed",false);return result;});
         Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));assertEquals(false,result.get("modelUsed"));assertTrue(((String)result.get("content")).contains("没有足够依据"));verifyNoInteractions(provider);assertEquals(1,released);
+        assertEquals("insufficient",result.get("answerCoverage"));assertEquals(Collections.singletonList(context.query),result.get("unansweredQuestions"));
+    }
+    @Test void knowledgePartialAnswerRetainsSupportedClaimsAndAsksForTheMissingMaterial() throws Exception {
+        configured();KnowledgeManager.Context context=knowledgeContext();
+        com.fasterxml.jackson.databind.node.ObjectNode reply=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(knowledgeReply("静态区间先作差。"));
+        List<String> missing=Arrays.asList("数组修改后如何维护？","修改后的查询复杂度是多少？");reply.set("unansweredQuestions",json.valueToTree(missing));
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(json.writeValueAsString(reply));
+        Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));
+        assertEquals(true,result.get("modelUsed"));assertEquals("partial",result.get("answerCoverage"));assertEquals(missing,result.get("unansweredQuestions"));
+        assertEquals(1,((List<?>)result.get("claims")).size());assertEquals(1,((List<?>)result.get("citations")).size());
+        verify(knowledge,times(2)).verify(context);assertEquals(1,released);
+        verify(provider).chat(anyString(),anyString(),anyString(),argThat(messages->messages.get(1).get("content").contains("unansweredQuestions")&&messages.get(1).get("content").contains("不因一个子问缺依据而丢弃")),eq(2048));
+    }
+    @Test void invalidPartialReplyKeepsRetrievalWithoutPublishingUnverifiedMissingQuestions() throws Exception {
+        configured();knowledgeContext();
+        String reply=knowledgeReply("说明").replace("\"unansweredQuestions\":[]","\"unansweredQuestions\":[\"未核实的子问\"]").replace("区间和是两个前缀和之差","未检索到的文字");
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(reply);
+        Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));
+        assertEquals(true,result.get("generationFailed"));assertFalse(result.containsKey("answerCoverage"));assertFalse(result.containsKey("answerable"));
+        assertEquals(Collections.emptyList(),result.get("unansweredQuestions"));assertEquals(1,((List<?>)result.get("items")).size());
+        assertNull(result.get("content"));assertEquals(1,released);
     }
     @Test void knowledgeRejectsUnknownDuplicateOrMalformedCitations() throws Exception {
         configured();knowledgeContext();String valid=knowledgeReply("x");for(String reply:Arrays.asList(valid.replace("\"K1\"","\"invented\""),valid.replace("\"quote\":", "\"url\":\"https://invented.invalid\",\"quote\":"),valid.replace("区间和是两个前缀和之差","其他未检索的段落"),"not-json")){
@@ -100,7 +121,7 @@ class AiAssistantManagerTest {
         }assertEquals(4,released);
     }
     @Test void knowledgeWithoutSupportingCitationCannotReturnAnUncitedClaim() throws Exception {
-        configured();knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn("{\"answerable\":false,\"claims\":[]}");
+        configured();knowledgeContext();when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn("{\"answerable\":false,\"claims\":[],\"unansweredQuestions\":[\"所问内容缺少资料\"]}");
         Map<String,Object> result=manager.answerKnowledge(knowledgeQuestion(true));assertTrue(((String)result.get("content")).contains("没有足够依据"));assertFalse(((String)result.get("content")).contains("invented"));
     }
     @Test void knowledgeRevocationDuringModelCallSuppressesReplyAndReleasesLock() throws Exception {

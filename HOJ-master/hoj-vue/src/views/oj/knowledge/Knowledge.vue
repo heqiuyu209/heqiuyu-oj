@@ -30,10 +30,15 @@
           <el-alert v-if="result.generationFailed" title="模型回答未完成，已保留检索资料" :description="result.generationError" type="warning" :closable="false" show-icon />
           <p v-if="result.generationFailed && result.excerptsSent" class="knowledge-muted">本次已尝试向你选择的模型发送资料片段，未获得有效回答。可以继续阅读下方片段和原文。</p>
           <template v-if="result.content">
-            <h2>{{ result.answerable === false ? '资料依据不足' : result.modelUsed ? '结合资料的回答' : '检索结果' }}</h2>
+            <h2>{{ result.answerable === false ? '资料依据不足' : result.answerCoverage === 'partial' ? '部分问题的回答' : result.modelUsed ? '结合资料的回答' : '检索结果' }}</h2>
             <KnowledgeAnswer v-if="Array.isArray(result.claims) && result.claims.length" :claims="result.claims" :citations="result.citations" :citation-route="citationRoute" />
             <template v-else><KnowledgeText :content="result.content" :format="result.modelUsed ? 'markdown' : 'text'" /><div v-if="result.citations && result.citations.length" class="knowledge-cited"><span>回答依据</span><router-link v-for="item in result.citations" :key="item.citationId" :to="citationRoute(item)">{{ item.citationId }} · {{ item.title }}</router-link></div></template>
           </template>
+          <aside v-if="unansweredQuestions.length" class="knowledge-unanswered" aria-labelledby="knowledge-unanswered-title">
+            <h3 id="knowledge-unanswered-title">暂缺依据的问题</h3>
+            <ul><li v-for="(question, index) in unansweredQuestions" :key="index">{{ question }}</li></ul>
+            <p>可以补充相关资料，或缩小问题范围后再问。</p>
+          </aside>
           <h2 class="knowledge-results-title">参考片段 <span>{{ result.items.length }}</span></h2>
           <div v-if="!result.items.length" class="knowledge-empty"><i class="el-icon-search" /><h3>当前没有可用的参考片段</h3><p>换个问题，或扩大所选资料范围。</p></div>
           <article v-for="item in result.items" :key="item.chunkId" class="knowledge-excerpt"><header><span class="knowledge-citation-id">{{ item.citationId }}</span><router-link :to="citationRoute(item)">{{ item.title }}</router-link><small>版本 {{ item.version }}</small></header><p v-if="item.headingPath" class="knowledge-muted">{{ item.headingPath }}</p><p class="knowledge-excerpt-body">{{ item.excerpt }}</p><router-link :to="citationRoute(item)" class="knowledge-original">查看原文 <i class="el-icon-arrow-right" /></router-link></article>
@@ -53,7 +58,14 @@ import '@/styles/knowledge.css';
 export default {
   name: 'Knowledge', mixins: [knowledgeAccess], components: { KnowledgeText, KnowledgeAnswer },
   data: () => ({ documents: [], total: 0, page: 1, keyword: '', directoryLoading: false, directoryError: '', directoryRequest: 0, indexConfigured: null, question: '', scope: 'all', selectedIds: [], allowModelExcerpts: false, pending: false, result: null, error: '', submittedQuestion: '', searchRequest: 0 }),
-  computed: { canMaintain() { return (this.$store.getters.userInfo.roleList || []).some(role => role === 'root' || role === 'admin'); } },
+  computed: {
+    canMaintain() { return (this.$store.getters.userInfo.roleList || []).some(role => role === 'root' || role === 'admin'); },
+    unansweredQuestions() {
+      if (!this.result || this.result.generationFailed || !['partial', 'insufficient'].includes(this.result.answerCoverage)) return [];
+      const questions = this.result.unansweredQuestions;
+      return Array.isArray(questions) && questions.every(question => typeof question === 'string' && question.trim()) ? questions : [];
+    },
+  },
   methods: {
     clearResult() { this.searchRequest++; this.pending = false; this.result = null; this.error = ''; this.submittedQuestion = ''; },
     clearKnowledgeData() { this.clearResult(); this.directoryRequest++; this.documents = []; this.total = 0; this.directoryLoading = false; this.directoryError = ''; this.indexConfigured = null; this.question = ''; this.allowModelExcerpts = false; this.scope = 'all'; this.selectedIds = []; this.page = 1; this.keyword = ''; },
@@ -117,6 +129,10 @@ h2 { font-size: 19px; margin: 0 0 18px; color: var(--text); }
 .knowledge-submitted { padding-bottom: 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .knowledge-results-title { margin: 28px 0 0; }
 .knowledge-results-title span { font-size: 13px; color: var(--muted); padding-left: 8px; }
+.knowledge-unanswered { margin-top: 22px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); overflow-wrap: anywhere; }
+.knowledge-unanswered h3 { margin: 0 0 10px; font-size: 15px; color: var(--text); }
+.knowledge-unanswered ul { margin: 0; padding-left: 22px; line-height: 1.9; }
+.knowledge-unanswered p { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
 .knowledge-excerpt { padding: 24px 0; border-bottom: 1px solid var(--line); }
 .knowledge-excerpt:last-child { border: 0; padding-bottom: 0; }
 .knowledge-excerpt header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
