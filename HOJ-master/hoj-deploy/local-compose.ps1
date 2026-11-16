@@ -14,11 +14,21 @@ function Get-HojComposeArguments {
     $allowed = @('compose.yaml', 'compose.dev.yaml', 'compose.rag.yaml',
         'compose.video.yaml', 'compose.rag-rerank.yaml', 'compose.rag-context.yaml')
     # Existing services are the authority for enabled overlays, even when stopped.
-    $existing = Invoke-HojDocker -Capture -Arguments @('ps', '-a',
-        '--filter', 'label=com.docker.compose.project=hoj-master', '--format',
-        '{{.Label "com.docker.compose.project.config_files"}}')
+    # Read labels as JSON so Windows PowerShell 5.1 never has to pass embedded
+    # quote characters in a native Go-template argument.
+    $containers = Invoke-HojDocker -Capture -Arguments @('ps', '-a', '--quiet', '--no-trunc',
+        '--filter', 'label=com.docker.compose.project=hoj-master')
+    $ids = @($containers -split '\r?\n' | Where-Object { ![string]::IsNullOrWhiteSpace($_) })
+    $existing = @()
+    if ($ids.Count) {
+        $labelRows = Invoke-HojDocker -Capture -Arguments (@('inspect', '--format', '{{json .Config.Labels}}') + $ids)
+        foreach ($line in ($labelRows -split '\r?\n')) {
+            $labels = $line | ConvertFrom-Json
+            $existing += $labels.'com.docker.compose.project.config_files'
+        }
+    }
     $enabled = @('compose.yaml', 'compose.dev.yaml')
-    foreach ($line in ($existing -split "`n")) {
+    foreach ($line in $existing) {
         foreach ($file in ($line -split ',')) {
             if ([string]::IsNullOrWhiteSpace($file)) { continue }
             $name = ($file.Trim() -split '[\\/]')[-1]
@@ -44,10 +54,21 @@ function Get-HojComposeArguments {
 
 function Get-HojContainer {
     param([string]$Service)
-    $format = '{"id":{{json .Id}},"image":{{json .Image}},"running":{{json .State.Running}},"mounts":{{json .Mounts}},"service":{{json (index .Config.Labels "com.docker.compose.service")}},"project":{{json (index .Config.Labels "com.docker.compose.project")}}}'
-    $row = (Invoke-HojDocker -Capture -Arguments @('inspect', '--format', $format, "hoj-master-$Service-1")) | ConvertFrom-Json
-    if ($row.service -ne $Service -or $row.project -ne 'hoj-master') { throw "Unexpected container ownership: $Service" }
-    return $row
+    # Capture privately: the full inspect result can contain credentials. Only
+    # the selected non-secret fields below leave this function.
+    $row = (Invoke-HojDocker -Capture -Arguments @('inspect', '--format', '{{json .}}', "hoj-master-$Service-1")) | ConvertFrom-Json
+    $labels = $row.Config.Labels
+    if ($labels.'com.docker.compose.service' -ne $Service -or
+        $labels.'com.docker.compose.project' -ne 'hoj-master') { throw "Unexpected container ownership: $Service" }
+    return [pscustomobject]@{
+        id = $row.Id
+        image = $row.Image
+        running = $row.State.Running
+        health = [string]$row.State.Health.Status
+        mounts = $row.Mounts
+        service = $labels.'com.docker.compose.service'
+        project = $labels.'com.docker.compose.project'
+    }
 }
 
 function Get-HojNamedMounts {

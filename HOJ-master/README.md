@@ -261,6 +261,20 @@
 
 ![评论区](https://cdn.jsdelivr.net/gh/HimitZH/HOJ/docs/docs/.vuepress/public/20210509233845230.png)
 
+## 本地开发按需启停
+
+在包含 compose.yaml 的应用目录执行：
+
+```powershell
+.\hoj-deploy\dev.ps1 start   # 顺序启动已有服务并等待就绪，保留容器和数据卷
+.\hoj-deploy\dev.ps1 status  # 查看状态
+.\hoj-deploy\dev.ps1 stop    # 用完停止整套 OJ，包含本地 RAG
+```
+
+本地服务统一按需启动；Docker Desktop 重开后不会单独拉起 RAG。日常使用 start / stop；首次部署或需要应用 Compose 配置变化时使用 dev.ps1 up。已有容器缺失时 start 会提示首次部署，不会自动重建；已完成的 RAG 身份初始化容器不会被日常 start 重新运行。
+
+代码镜像更新继续使用 hoj-deploy/update.ps1；启停入口会沿用已有容器记录的 RAG、视频和重排覆盖配置，不需要手动删减 Compose 文件列表。停止容器不会删除资料、模型或命名卷。
+
 ## 本地视频知识库
 
 管理员在“知识库资料 → 视频资料”上传 MP4 / WebM，等待本地转写后审阅字幕、保存入库，再选择版本发布。学生从前台知识库检索讲解并按引用时间回看。语音识别使用本地只读 Whisper small 权重，不需要聊天模型 Key；画面文字不参与检索。真实课堂字幕仍须核对。

@@ -30,7 +30,8 @@ services:
     depends_on:
       hoj-rag-identity:
         condition: service_completed_successfully
-    restart: unless-stopped
+    # Local development is started and stopped explicitly with dev.ps1.
+    restart: "no"
     healthcheck:
       test: ["CMD", "python", "scripts/hoj_healthcheck.py"]
       start_period: 240s

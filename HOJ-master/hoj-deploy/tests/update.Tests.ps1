@@ -22,8 +22,7 @@ function global:docker {
     $f = $global:Fixture
     if ($a[0] -eq 'info') { return '29.0.1' }
     if ($a[0] -eq 'ps') {
-        if ($f.mode -eq 'unknown-overlay') { return (Join-Path $app 'unknown.yaml') }
-        return (@('compose.yaml','compose.dev.yaml','compose.rag.yaml','compose.video.yaml','compose.rag-rerank.yaml','compose.rag-context.yaml') | ForEach-Object { Join-Path $app $_ }) -join ','
+        return ($f.rows.Values.id -join "`n")
     }
     if ($a[0] -eq 'inspect') {
         $row = @($f.rows.Values | Where-Object { $_.id -eq $a[-1] -or "hoj-master-$($_.service)-1" -eq $a[-1] })[0]
@@ -33,7 +32,14 @@ function global:docker {
             if ($f.mode -eq 'resume-fail' -and $f.resumed) { $global:LASTEXITCODE=1; return }
             return 'healthy'
         }
-        return $row | ConvertTo-Json -Depth 12 -Compress
+        if ($a[2] -eq '{{json .Config.Labels}}') {
+            $files = @('compose.yaml','compose.dev.yaml','compose.rag.yaml','compose.video.yaml','compose.rag-rerank.yaml','compose.rag-context.yaml')
+            if ($f.mode -eq 'unknown-overlay') { $files += 'unknown.yaml' }
+            return @{'com.docker.compose.project.config_files'=(($files | ForEach-Object { Join-Path $app $_ }) -join ',')} | ConvertTo-Json -Compress
+        }
+        Assert-Test ($a[2] -eq '{{json .}}') 'unexpected container inspect format'
+        return @{Id=$row.id;Image=$row.image;State=@{Running=$row.running;Health=@{Status='healthy'}};Mounts=$row.mounts;
+            Config=@{Labels=@{'com.docker.compose.service'=$row.service;'com.docker.compose.project'=$row.project}}} | ConvertTo-Json -Depth 12 -Compress
     }
     if ($a[0] -eq 'image') {
         if ($a[1] -eq 'tag') { $f.tags[$a[3]]=$f.tags[$a[2]]; return }
