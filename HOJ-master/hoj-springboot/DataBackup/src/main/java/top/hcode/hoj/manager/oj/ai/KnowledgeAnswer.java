@@ -23,6 +23,10 @@ final class KnowledgeAnswer {
     }
 
     static Map<String, Object> parse(String reply, List<Map<String, Object>> citations, ObjectMapper json) {
+        return parse(reply, citations, json, KnowledgeQuestionPlan.from(null));
+    }
+
+    static Map<String, Object> parse(String reply, List<Map<String, Object>> citations, ObjectMapper json, KnowledgeQuestionPlan plan) {
         try {
             if (reply == null || reply.length() > 24000 || citations.size() > 10) throw new IllegalArgumentException();
             String text = reply.trim();
@@ -50,12 +54,14 @@ final class KnowledgeAnswer {
             boolean answerable = root.path("answerable").asBoolean();
             if (answerable == (root.path("claims").size() == 0)) throw new IllegalArgumentException();
             List<String> unanswered = new ArrayList<>();
-            Set<String> questions = new HashSet<>();
+            Set<String> questions = new HashSet<>(), unansweredIds = new HashSet<>();
             int questionLength = 0;
             for (JsonNode question : root.path("unansweredQuestions")) {
                 if (!question.isTextual() || blank(question.asText()) || question.asText().length() > 2000)
                     throw new IllegalArgumentException();
-                String value = question.asText().trim();
+                String supplied = question.asText().trim();
+                String value = plan.structured() ? plan.text(supplied) : supplied;
+                if (value == null || plan.structured() && !unansweredIds.add(supplied)) throw new IllegalArgumentException();
                 questionLength += value.length();
                 if (questionLength > 4000 || !questions.add(value)) throw new IllegalArgumentException();
                 unanswered.add(value);
@@ -71,11 +77,22 @@ final class KnowledgeAnswer {
             Map<String, Map<String, Object>> used = new LinkedHashMap<>();
             StringBuilder content = new StringBuilder();
             int quoted = 0;
+            Set<String> answeredIds = new HashSet<>();
             for (JsonNode claim : root.path("claims")) {
-                if (!claim.isObject() || claim.size() != 2 || !claim.path("content").isTextual()
+                if (!claim.isObject() || claim.size() != (plan.structured() ? 3 : 2) || !claim.path("content").isTextual()
                         || blank(claim.path("content").asText()) || claim.path("content").asText().length() > 2000
                         || !claim.path("evidence").isArray() || claim.path("evidence").size() < 1 || claim.path("evidence").size() > 3)
                     throw new IllegalArgumentException();
+                if (plan.structured()) {
+                    JsonNode ids = claim.path("questionIds");
+                    if (!ids.isArray() || ids.size() == 0 || ids.size() > plan.ids().size()) throw new IllegalArgumentException();
+                    Set<String> localIds = new HashSet<>();
+                    for (JsonNode id : ids) {
+                        if (!id.isTextual() || !plan.ids().contains(id.asText()) || !localIds.add(id.asText())
+                                || unansweredIds.contains(id.asText())) throw new IllegalArgumentException();
+                        answeredIds.add(id.asText());
+                    }
+                }
                 String paragraph = claim.path("content").asText().trim();
                 if (content.length() != 0) content.append("\n\n");
                 content.append(paragraph);
@@ -95,6 +112,10 @@ final class KnowledgeAnswer {
                     evidence.add(verified); used.put(id, known.get(id));
                 }
                 Map<String, Object> verified = new LinkedHashMap<>(); verified.put("content", paragraph); verified.put("evidence", evidence); claims.add(verified);
+            }
+            if (plan.structured()) {
+                Set<String> covered = new HashSet<>(answeredIds); covered.addAll(unansweredIds);
+                if (!covered.equals(plan.ids())) throw new IllegalArgumentException();
             }
             Map<String, Object> result = new LinkedHashMap<>(); result.put("answerable", answerable);
             result.put("answerCoverage", !answerable ? "insufficient" : unanswered.isEmpty() ? "complete" : "partial");

@@ -71,9 +71,10 @@ class AiAssistantManagerTest {
     String knowledgeReply(String content)throws Exception {return "{\"answerable\":true,\"unansweredQuestions\":[],\"claims\":[{\"content\":"+json.writeValueAsString(content)+",\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"区间和是两个前缀和之差\"}]}]}";}
     void configured() { confirmedModel=(String)manager.save(config("https://models.example.com/v1","test-only-not-a-real-api-key")).get("fingerprint"); }
     KnowledgeDTO.Question knowledgeQuestion(boolean consent){KnowledgeDTO.Question dto=new KnowledgeDTO.Question();dto.setModelFingerprint(confirmedModel);KnowledgeDTO.Search search=new KnowledgeDTO.Search();search.setQuery("如何计算区间和");dto.setSearch(search);dto.setAllowModelExcerpts(consent);return dto;}
-    KnowledgeManager.Context knowledgeContext() throws Exception {
+    KnowledgeManager.Context knowledgeContext() throws Exception { return knowledgeContext("如何计算区间和"); }
+    KnowledgeManager.Context knowledgeContext(String question) throws Exception {
         java.lang.reflect.Constructor<KnowledgeManager.Context> ctor=KnowledgeManager.Context.class.getDeclaredConstructor(String.class,String.class,List.class,Map.class);ctor.setAccessible(true);
-        KnowledgeManager.Context context=ctor.newInstance("alice","如何计算区间和",Collections.emptyList(),Collections.emptyMap());
+        KnowledgeManager.Context context=ctor.newInstance("alice",question,Collections.emptyList(),Collections.emptyMap());
         Map<String,Object> citation=new LinkedHashMap<>();citation.put("citationId","K1");citation.put("title","前缀和讲义");citation.put("headingPath","前缀和");citation.put("excerpt","授权片段：区间和是两个前缀和之差");citation.put("url","/knowledge/server-generated-id?version=1");
         when(knowledge.retrieve(eq("alice"),any())).thenReturn(context);when(knowledge.view(context)).thenAnswer(call->{Map<String,Object> result=new LinkedHashMap<>();result.put("items",Collections.singletonList(citation));result.put("modelUsed",false);result.put("content",null);return result;});return context;
     }
@@ -401,4 +402,54 @@ class AiAssistantManagerTest {
         when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(8192))).thenThrow(new ObjectiveException(502,"upstream failed"));
         assertThrows(ObjectiveException.class,()->manager.generateTranslation(Collections.emptyList(),fingerprint,()->{}));assertEquals(1,acquired);assertEquals(1,released);
     }
+    KnowledgeDTO.Question numberedKnowledgeQuestion() {
+        KnowledgeDTO.Question dto=knowledgeQuestion(true);
+        dto.getSearch().setQuery("1. 如何计算区间和？\n2. 数组修改后怎样维护？");
+        return dto;
+    }
+    @Test void numberedKnowledgeQuestionsRejectReplyWithoutDeclaredCoverage() throws Exception {
+        configured();KnowledgeDTO.Question dto=numberedKnowledgeQuestion();knowledgeContext(dto.getSearch().getQuery());
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(knowledgeReply("区间和可用两个前缀值相减。"));
+        Map<String,Object> result=manager.answerKnowledge(dto);
+        assertEquals(true,result.get("generationFailed"));assertEquals(false,result.get("modelUsed"));
+        assertFalse(result.containsKey("answerCoverage"));assertEquals(1,((List<?>)result.get("items")).size());assertEquals(1,released);
+    }
+    @Test void numberedKnowledgeQuestionsNeverPublishAnInventedMissingQuestion() throws Exception {
+        configured();KnowledgeDTO.Question dto=numberedKnowledgeQuestion();knowledgeContext(dto.getSearch().getQuery());
+        com.fasterxml.jackson.databind.node.ObjectNode reply=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(knowledgeReply("先处理区间和。"));
+        reply.putArray("unansweredQuestions").add("并发垃圾回收器应该采用什么写屏障？");
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(reply.toString());
+        Map<String,Object> result=manager.answerKnowledge(dto);
+        assertEquals(true,result.get("generationFailed"));assertEquals(Collections.emptyList(),result.get("unansweredQuestions"));
+        assertNull(result.get("content"));assertEquals(1,((List<?>)result.get("items")).size());assertEquals(1,released);
+    }
+    @Test @SuppressWarnings({"unchecked","rawtypes"}) void numberedKnowledgeQuestionsKeepCanonicalMissingTextAndExplicitPromptIds() throws Exception {
+        configured();KnowledgeDTO.Question dto=numberedKnowledgeQuestion();KnowledgeManager.Context context=knowledgeContext(dto.getSearch().getQuery());
+        com.fasterxml.jackson.databind.node.ObjectNode reply=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(knowledgeReply("区间和可用两个前缀值相减。"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode)reply.path("claims").get(0)).putArray("questionIds").add("Q1");
+        reply.putArray("unansweredQuestions").add("Q2");
+        when(provider.chat(anyString(),anyString(),anyString(),anyList(),eq(2048))).thenReturn(reply.toString());
+        Map<String,Object> result=manager.answerKnowledge(dto);
+        assertEquals(true,result.get("modelUsed"));assertEquals("partial",result.get("answerCoverage"));
+        assertEquals(Collections.singletonList("2. 数组修改后怎样维护？"),result.get("unansweredQuestions"));
+        assertFalse(((Map<?,?>)((List<?>)result.get("claims")).get(0)).containsKey("questionIds"));
+        org.mockito.ArgumentCaptor<List> request=org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(provider).chat(anyString(),anyString(),anyString(),request.capture(),eq(2048));
+        List<Map<String,String>> messages=request.getValue();assertTrue(messages.get(1).get("content").contains("questionIds"));
+        com.fasterxml.jackson.databind.JsonNode material=json.readTree(messages.get(2).get("content"));
+        assertEquals(dto.getSearch().getQuery(),material.path("question").asText());
+        assertEquals("Q1",material.path("questions").get(0).path("id").asText());
+        assertEquals("2. 数组修改后怎样维护？",material.path("questions").get(1).path("text").asText());
+        verify(knowledge,times(2)).verify(context);assertEquals(1,released);
+    }
+
+    @Test void numberedKnowledgeQuestionsWithoutHitsListOriginalQuestionsWithoutCallingModel() throws Exception {
+        configured();KnowledgeDTO.Question dto=numberedKnowledgeQuestion();KnowledgeManager.Context context=knowledgeContext(dto.getSearch().getQuery());
+        Map<String,Object> empty=new LinkedHashMap<>();empty.put("items",Collections.emptyList());when(knowledge.view(context)).thenReturn(empty);
+        Map<String,Object> result=manager.answerKnowledge(dto);
+        assertEquals("insufficient",result.get("answerCoverage"));
+        assertEquals(Arrays.asList("1. 如何计算区间和？","2. 数组修改后怎样维护？"),result.get("unansweredQuestions"));
+        assertEquals(Collections.emptyList(),result.get("claims"));verifyNoInteractions(provider);assertEquals(1,released);
+    }
+
 }

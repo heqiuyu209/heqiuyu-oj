@@ -175,10 +175,12 @@ public class AiAssistantManager {
             KnowledgeManager.Context context=knowledge.retrieve(uid,dto.getSearch());
             Map<String,Object> result=knowledge.view(context);
             List<Map<String,Object>> citations=(List<Map<String,Object>>)result.get("items");
-            if(citations.isEmpty()){result.put("content",KnowledgeAnswer.INSUFFICIENT);result.put("answerable",false);result.put("answerCoverage","insufficient");result.put("unansweredQuestions",Collections.singletonList(context.query));result.put("claims",Collections.emptyList());result.put("citations",Collections.emptyList());return result;}
+            KnowledgeQuestionPlan questionPlan=KnowledgeQuestionPlan.from(context.query);
+            if(citations.isEmpty()){result.put("content",KnowledgeAnswer.INSUFFICIENT);result.put("answerable",false);result.put("answerCoverage","insufficient");result.put("unansweredQuestions",questionPlan.unanswered());result.put("claims",Collections.emptyList());result.put("citations",Collections.emptyList());return result;}
             List<Map<String,String>> messages=new ArrayList<>();messages.add(message("system",INSTRUCTION));
-            messages.add(message("system",KnowledgeAnswer.INSTRUCTION));
+            messages.add(message("system",KnowledgeAnswer.INSTRUCTION+(questionPlan.structured()?KnowledgeQuestionPlan.INSTRUCTION:"")));
             Map<String,Object> material=new LinkedHashMap<>();material.put("question",context.query);
+            if(questionPlan.structured())material.put("questions",questionPlan.material());
             List<Map<String,Object>> excerpts=new ArrayList<>();
             for(Map<String,Object> citation:citations){Map<String,Object> excerpt=new LinkedHashMap<>();for(String field:Arrays.asList("citationId","title","headingPath","excerpt"))excerpt.put(field,citation.get(field));excerpts.add(excerpt);}
             material.put("excerpts",excerpts);
@@ -191,7 +193,7 @@ public class AiAssistantManager {
             try{
                 // A syntactically valid JSON prefix is not proof that generation finished.
                 String reply=provider.chat((String)row.get("base_url"),(String)row.get("model"),key,messages,2048);
-                answer=KnowledgeAnswer.parse(reply,citations,json);
+                answer=KnowledgeAnswer.parse(reply,citations,json,questionPlan);
             }catch(ObjectiveException error){generationFailure=error;}
             // A generation error must not bypass current source, contest or model checks.
             knowledge.verify(context);access.requireChat(uid);verifyModel(uid,modelFingerprint);
