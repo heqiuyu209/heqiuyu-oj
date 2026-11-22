@@ -105,9 +105,57 @@ class KnowledgePdfManagerTest {
         fail(()->manager.adminVersion(id,1),503);
         KnowledgeDTO.Upload edit=metadata();edit.setSourceVersion(1);edit.setExpectedRevision(revision(id));fail(()->pdf.reuse(id,edit),503);
     }
+    private KnowledgeDTO.Hit pageHit(String id, int page, String excerpt) {
+        KnowledgeDTO.Hit hit = new KnowledgeDTO.Hit();
+        hit.setDocumentId(id);
+        hit.setVersion(1);
+        hit.setContentHash(RagServiceClient.hash(content));
+        hit.setTitle("PDF 算法讲义");
+        hit.setExcerpt(excerpt);
+        hit.setChunkHash(RagServiceClient.hash(excerpt));
+        hit.setChunkId(String.format("%064x", page));
+        hit.setChunkIndex(page - 1);
+        hit.setHeadingPath("第 " + page + " 页");
+        hit.setScore(.9);
+        return hit;
+    }
+
+    @Test void multiplePdfCitationsReadTheSourceOncePerVerification() {
+        String id = create();
+        publish(id);
+        administrator = false;
+        KnowledgeDTO.Hit third = pageHit(id, 3, "第三页的区间和公式。");
+        KnowledgeDTO.Hit first = pageHit(id, 1, "第一页的前缀和算法。");
+        when(index.retrieve(anyString(), anyList(), anyInt())).thenReturn(Arrays.asList(third, first));
+        AtomicInteger fullTextReads = new AtomicInteger();
+        JdbcTemplate countingJdbc = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override public List<Map<String, Object>> queryForList(String sql, Object... args) {
+                if (sql.contains("AS version_state") && sql.contains("v.content,")) {
+                    fullTextReads.incrementAndGet();
+                }
+                return super.queryForList(sql, args);
+            }
+        };
+        ReflectionTestUtils.setField(manager, "jdbc", countingJdbc);
+        KnowledgeDTO.Search query = new KnowledgeDTO.Search();
+        query.setQuery("前缀和与区间和");
+        KnowledgeManager.Context context = manager.retrieve("alice", query);
+        assertEquals(1, fullTextReads.get(), "One authoritative text read for two citations in a pass");
+        List<?> items = (List<?>) manager.view(context).get("items");
+        assertEquals(3, ((Map<?, ?>) items.get(0)).get("page"));
+        assertEquals(1, ((Map<?, ?>) items.get(1)).get("page"));
+        assertEquals(2, fullTextReads.get());
+
+        first.setHeadingPath("第 3 页");
+        fail(() -> manager.verify(context), 502);
+        first.setHeadingPath("第 1 页");
+        jdbc.update("UPDATE knowledge_document SET visibility='ADMIN',revision=revision+1 WHERE id=?", id);
+        fail(() -> manager.verify(context), 409);
+    }
+
     @Test void citationsDerivePhysicalPageAndRejectExcerptFromAnotherPage(){
         String id=create();publish(id);administrator=false;
-        KnowledgeDTO.Hit hit=new KnowledgeDTO.Hit();hit.setDocumentId(id);hit.setVersion(1);hit.setContentHash(RagServiceClient.hash(content));hit.setTitle("PDF 算法讲义");hit.setExcerpt("第三页的区间和公式。");hit.setChunkHash(RagServiceClient.hash(hit.getExcerpt()));hit.setChunkId(String.join("",Collections.nCopies(64,"a")));hit.setChunkIndex(1);hit.setHeadingPath("第 3 页");hit.setPage(99);hit.setScore(.9);
+        KnowledgeDTO.Hit hit=pageHit(id,3,"第三页的区间和公式。");hit.setPage(99);
         when(index.retrieve(anyString(),anyList(),anyInt())).thenReturn(Collections.singletonList(hit));KnowledgeDTO.Search query=new KnowledgeDTO.Search();query.setQuery("区间和");
         Map<?,?> item=(Map<?,?>)((List<?>)manager.search(query).get("items")).get(0);assertEquals(3,item.get("page"));assertTrue(item.get("url").toString().endsWith("&page=3"));
         hit.setHeadingPath("第 1 页");fail(()->manager.search(query),502);

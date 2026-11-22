@@ -262,32 +262,85 @@ public class KnowledgeManager {
         } finally {capacity.release();}
     }
     public void verify(Context context) {
-        access.requireChat(context.uid); if(!Objects.equals(context.uid,uid())) throw new ObjectiveException(403,"当前账号已变化，请重新检索");
-        boolean admin=maintainer();
-        for(KnowledgeDTO.Hit hit:context.hits){
-            Map<String,Object> expected=context.versions.get(hit.getDocumentId());
-            List<Map<String,Object>> rows=jdbc.queryForList("SELECT d.state,d.visibility,d.revision,d.published_version,v.state AS version_state,v.content_hash,v.title,v.content,v.format FROM knowledge_document d JOIN knowledge_version v ON v.document_id=d.id AND v.version=? WHERE d.id=?",hit.getVersion(),hit.getDocumentId());
-            if(expected==null || rows.isEmpty()) throw changed();Map<String,Object> row=rows.get(0);
-            if(!"ACTIVE".equals(row.get("state")) || !"INDEXED".equals(row.get("version_state")) || !admin&&!"PUBLIC".equals(row.get("visibility"))
-                    || row.get("published_version")==null || number(row.get("published_version"))!=hit.getVersion() || number(row.get("revision"))!=number(expected.get("revision"))
-                    || !Objects.equals(row.get("content_hash"),hit.getContentHash())) throw changed();
-            if(!Objects.equals(row.get("title"),hit.getTitle()) || hit.getExcerpt()==null || hit.getExcerpt().trim().isEmpty()) throw new ObjectiveException(502,"知识库引用正文校验失败，请重新检索");
-            hit.setStartMs(null);hit.setEndMs(null);
-            if("video".equals(row.get("format"))){
-                try{long[] bounds=VideoTranscript.parse((String)row.get("content")).citation(hit.getHeadingPath(),hit.getExcerpt());hit.setStartMs(bounds[0]);hit.setEndMs(bounds[1]);}
-                catch(IllegalArgumentException error){throw new ObjectiveException(502,"视频引用时间与正文不符，请重新检索");}
-            }else if(!((String)row.get("content")).contains(hit.getExcerpt()))throw new ObjectiveException(502,"知识库引用正文校验失败，请重新检索");
-            hit.setPage(null);
-            if ("pdf".equals(row.get("format"))) {
-                if (hit.getHeadingPath() == null || !hit.getHeadingPath().matches("第 [1-9][0-9]{0,2} 页")) throw new ObjectiveException(502,"PDF 引用页号无效");
-                int page = Integer.parseInt(hit.getHeadingPath().substring(2, hit.getHeadingPath().length() - 2));
-                String[] pages = ((String) row.get("content")).split("\n\f\n", -1);
-                if (page > pages.length || page > 200 || !pages[page - 1].contains(hit.getExcerpt())) throw new ObjectiveException(502,"PDF 引用页号与正文不符");
-                hit.setPage(page);
+        access.requireChat(context.uid);
+        if (!Objects.equals(context.uid, uid())) {
+            throw new ObjectiveException(403, "当前账号已变化，请重新检索");
+        }
+        boolean admin = maintainer();
+        Map<String, List<KnowledgeDTO.Hit>> citationsByDocument = new LinkedHashMap<>();
+        for (KnowledgeDTO.Hit hit : context.hits) {
+            Map<String, Object> expected = context.versions.get(hit.getDocumentId());
+            if (expected == null || number(expected.get("version")) != hit.getVersion()
+                    || !Objects.equals(expected.get("content_hash"), hit.getContentHash())) {
+                throw changed();
             }
+            citationsByDocument.computeIfAbsent(hit.getDocumentId(), id -> new ArrayList<>()).add(hit);
+        }
+        for (Map.Entry<String, List<KnowledgeDTO.Hit>> entry : citationsByDocument.entrySet()) {
+            Map<String, Object> expected = context.versions.get(entry.getKey());
+            long version = number(expected.get("version"));
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT d.state,d.visibility,d.revision,d.published_version,v.state AS version_state,"
+                            + "v.content_hash,v.title,v.content,v.format FROM knowledge_document d "
+                            + "JOIN knowledge_version v ON v.document_id=d.id AND v.version=? WHERE d.id=?",
+                    version, entry.getKey());
+            if (rows.isEmpty()) throw changed();
+            Map<String, Object> row = rows.get(0);
+            if (!"ACTIVE".equals(row.get("state")) || !"INDEXED".equals(row.get("version_state"))
+                    || !admin && !"PUBLIC".equals(row.get("visibility"))
+                    || row.get("published_version") == null || number(row.get("published_version")) != version
+                    || number(row.get("revision")) != number(expected.get("revision"))
+                    || !Objects.equals(row.get("content_hash"), expected.get("content_hash"))) {
+                throw changed();
+            }
+            verifyExcerpts(row, entry.getValue());
         }
         access.requireChat(context.uid);
     }
+
+    private void verifyExcerpts(Map<String, Object> source, List<KnowledgeDTO.Hit> citations) {
+        String content = (String) source.get("content");
+        String[] pages = "pdf".equals(source.get("format")) ? content.split("\n\f\n", -1) : null;
+        VideoTranscript transcript = null;
+        if ("video".equals(source.get("format"))) {
+            try {
+                transcript = VideoTranscript.parse(content);
+            } catch (IllegalArgumentException error) {
+                throw new ObjectiveException(502, "视频引用时间与正文不符，请重新检索");
+            }
+        }
+        for (KnowledgeDTO.Hit hit : citations) {
+            String excerpt = hit.getExcerpt();
+            if (!Objects.equals(source.get("title"), hit.getTitle()) || excerpt == null || excerpt.trim().isEmpty()) {
+                throw new ObjectiveException(502, "知识库引用正文校验失败，请重新检索");
+            }
+            hit.setStartMs(null);
+            hit.setEndMs(null);
+            hit.setPage(null);
+            if (transcript != null) {
+                try {
+                    long[] bounds = transcript.citation(hit.getHeadingPath(), excerpt);
+                    hit.setStartMs(bounds[0]);
+                    hit.setEndMs(bounds[1]);
+                } catch (IllegalArgumentException error) {
+                    throw new ObjectiveException(502, "视频引用时间与正文不符，请重新检索");
+                }
+            } else if (pages != null) {
+                String heading = hit.getHeadingPath();
+                if (heading == null || !heading.matches("第 [1-9][0-9]{0,2} 页")) {
+                    throw new ObjectiveException(502, "PDF 引用页号无效");
+                }
+                int page = Integer.parseInt(heading.substring(2, heading.length() - 2));
+                if (page > pages.length || page > 200 || !pages[page - 1].contains(excerpt)) {
+                    throw new ObjectiveException(502, "PDF 引用页号与正文不符");
+                }
+                hit.setPage(page);
+            } else if (!content.contains(excerpt)) {
+                throw new ObjectiveException(502, "知识库引用正文校验失败，请重新检索");
+            }
+        }
+    }
+
     private ObjectiveException changed(){return new ObjectiveException(409,"资料已更新或撤回，请重新检索");}
     public Map<String,Object> view(Context context) {
         verify(context);List<Map<String,Object>> items=new ArrayList<>();int i=0;
