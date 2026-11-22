@@ -720,7 +720,9 @@
           </el-card>
         </div>
         </template>
-        <template #learning><LearningPanel :tags="problemData.tags" :profile="$store.getters.userInfo" /></template>
+        <template #learning>
+          <LearningPanel :show-recommendations="!$route.params.contestID" />
+        </template>
       </WorkspaceLayout>
     </div>
     <ProblemHorizontalMenu

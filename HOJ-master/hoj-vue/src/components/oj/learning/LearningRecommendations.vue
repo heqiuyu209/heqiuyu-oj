@@ -1,14 +1,17 @@
 <template>
-  <section v-if="owner" class="learning-recommendations" aria-label="下一组训练">
+  <section v-if="owner" class="learning-recommendations" :class="{ 'is-compact': compact }" aria-label="下一组训练">
     <header><h2>下一组训练</h2><p>先看推荐依据，再选择要练的题目。更新列表不会调用模型。</p></header>
-    <form class="recommendation-filters" @submit.prevent="load">
-      <label class="recommendation-field">题源<el-select v-model="filters.source" :disabled="pending" @change="sourceChanged"><el-option v-for="item in sources" :key="item.value" :value="item.value" :label="item.label" /></el-select></label>
-      <label class="recommendation-field">知识方向<el-select v-model="filters.groupCode" :disabled="pending" @change="changed"><el-option value="" label="按画像选择" /><el-option v-for="(name, code) in groups" :key="code" :value="code" :label="name" /></el-select></label>
-      <label class="recommendation-field">最低 {{ ratingLabel }}<el-input-number v-model="filters.minRating" :min="0" :max="1000000" :controls="false" :disabled="pending" placeholder="留空按画像" @change="changed" /></label>
-      <label class="recommendation-field">最高 {{ ratingLabel }}<el-input-number v-model="filters.maxRating" :min="0" :max="1000000" :controls="false" :disabled="pending" placeholder="留空按画像" @change="changed" /></label>
-      <el-checkbox v-model="filters.includeUnrated" :disabled="pending" @change="changed">保留未评级题</el-checkbox>
-      <el-button native-type="submit" type="primary" :loading="loading" :disabled="pending">更新推荐</el-button>
-    </form>
+    <details :open="!compact">
+      <summary v-show="compact" class="recommendation-filter-summary">筛选推荐</summary>
+      <form class="recommendation-filters" @submit.prevent="load">
+        <label class="recommendation-field">题源<el-select v-model="filters.source" :disabled="pending" @change="sourceChanged"><el-option v-for="item in sources" :key="item.value" :value="item.value" :label="item.label" /></el-select></label>
+        <label class="recommendation-field">知识方向<el-select v-model="filters.groupCode" :disabled="pending" @change="changed"><el-option value="" label="按画像选择" /><el-option v-for="(name, code) in groups" :key="code" :value="code" :label="name" /></el-select></label>
+        <label class="recommendation-field">最低 {{ ratingLabel }}<el-input-number v-model="filters.minRating" :min="0" :max="1000000" :controls="false" :disabled="pending" placeholder="留空按画像" @change="changed" /></label>
+        <label class="recommendation-field">最高 {{ ratingLabel }}<el-input-number v-model="filters.maxRating" :min="0" :max="1000000" :controls="false" :disabled="pending" placeholder="留空按画像" @change="changed" /></label>
+        <el-checkbox v-model="filters.includeUnrated" :disabled="pending" @change="changed">保留未评级题</el-checkbox>
+        <el-button native-type="submit" type="primary" :loading="loading" :disabled="pending">更新推荐</el-button>
+      </form>
+    </details>
     <el-alert v-if="error" :title="error" type="info" :closable="false" />
     <div v-if="loading" class="recommendation-empty" role="status"><i class="el-icon-loading" /> 正在匹配训练记录与题目</div>
     <template v-else-if="plan">
@@ -16,6 +19,15 @@
       <p v-if="['ATCODER', 'NOWCODER'].includes(filters.source)" class="recommendation-basis">知识方向来自本站已公开同源题目的分类；暂无分类的题目可按当前题源难度选择。</p>
       <p v-if="!plan.items.length" class="recommendation-empty">本次未找到符合条件的新题。可以调整范围、切换题源，或先更新已关联账号的记录。</p>
       <template v-else>
+        <p v-if="explanation" class="recommendation-summary"><strong>AI 建议</strong> {{ explanation.summary }}</p>
+        <ol class="recommendation-list">
+          <li v-for="row in visibleItems" :key="row.id">
+            <div class="recommendation-title"><button v-if="row.kind === 'OBJECTIVE'" type="button" :disabled="starting !== null" @click="start(row)">{{ row.title }}</button><router-link v-else-if="row.kind === 'PROGRAMMING'" :to="row.url">{{ row.title }}</router-link><a v-else :href="row.url" target="_blank" rel="noopener noreferrer">{{ row.title }} <i class="el-icon-top-right" /></a><span class="recommendation-rating">{{ ratingLabel }} {{ row.rating === null ? '未评级' : row.rating }}</span></div>
+            <p class="recommendation-meta">{{ row.displayId }}<span v-if="row.kind === 'OBJECTIVE'"> · 客观题</span><span v-for="group in row.groups" :key="group.code"> · {{ group.name }}</span></p>
+            <p class="recommendation-reason">{{ row.reasons.join('；') }}。</p>
+            <p v-if="row.aiReason" class="recommendation-ai-reason">{{ row.aiReason }}</p>
+          </li>
+        </ol>
         <form class="recommendation-save" @submit.prevent="save">
           <label for="training-plan-name">保存这组训练</label>
           <el-input id="training-plan-name" v-model="saveName" maxlength="80" placeholder="给这组训练起个名字" :disabled="saving" @input="saveNonce = null" />
@@ -28,15 +40,6 @@
           <el-button :loading="pending" :disabled="loading" @click="explain">让 AI 解释推荐</el-button>
         </div>
         <el-alert v-if="aiError" :title="aiError" type="info" :closable="false" />
-        <p v-if="explanation" class="recommendation-summary"><strong>AI 建议</strong> {{ explanation.summary }}</p>
-        <ol class="recommendation-list">
-          <li v-for="row in visibleItems" :key="row.id">
-            <div class="recommendation-title"><button v-if="row.kind === 'OBJECTIVE'" type="button" :disabled="starting !== null" @click="start(row)">{{ row.title }}</button><router-link v-else-if="row.kind === 'PROGRAMMING'" :to="row.url">{{ row.title }}</router-link><a v-else :href="row.url" target="_blank" rel="noopener noreferrer">{{ row.title }} <i class="el-icon-top-right" /></a><span class="recommendation-rating">{{ ratingLabel }} {{ row.rating === null ? '未评级' : row.rating }}</span></div>
-            <p class="recommendation-meta">{{ row.displayId }}<span v-if="row.kind === 'OBJECTIVE'"> · 客观题</span><span v-for="group in row.groups" :key="group.code"> · {{ group.name }}</span></p>
-            <p class="recommendation-reason">{{ row.reasons.join('；') }}。</p>
-            <p v-if="row.aiReason" class="recommendation-ai-reason">{{ row.aiReason }}</p>
-          </li>
-        </ol>
       </template>
     </template>
     <SavedTrainingPlans :uid="uid" :refresh="savedRevision" />
@@ -51,7 +54,7 @@ const defaultFilters = () => ({ source: 'HOJ', groupCode: '', minRating: undefin
 // Keep read timing across profile remounts; never cache a user's recommendations or credentials.
 const nextReadAt = new Map();
 export default {
-  name: 'LearningRecommendations', props: { uid: { type: String, required: true } },
+  name: 'LearningRecommendations', props: { uid: { type: String, required: true }, compact: Boolean },
   components: { SavedTrainingPlans },
   data: () => ({ filters: defaultFilters(), plan: null, groups: {}, explanation: null, error: '', aiError: '', loading: false, pending: false, request: 0, explainRequest: 0, includeProfile: false, includeExternalProfile: false, starting: null, startIds: {}, saveName: '下一组训练', saveNonce: null, saving: false, saveError: '', savedRevision: 0, sources: [{ value: 'HOJ', label: '本站' }, { value: 'CODEFORCES', label: 'Codeforces' }, { value: 'ATCODER', label: 'AtCoder' }, { value: 'NOWCODER', label: '牛客' }] }),
   computed: {
@@ -93,9 +96,18 @@ export default {
       if (delay) await new Promise(resolve => setTimeout(resolve, delay));
       if (token !== this.request || identity !== this.identity || !this.owner) return;
       nextReadAt.set(uid, performance.now() + 5200);
-      try { const result = responseData(await api.aiRecommendations(params)); if (token !== this.request || !this.owner) return; this.plan = result; this.groups = result.groups; }
-      catch (error) { if (token === this.request) this.error = errorMessage(error); }
-      finally { nextReadAt.set(uid, Math.max(nextReadAt.get(uid) || 0, performance.now() + 5200)); if (token === this.request) this.loading = false; }
+      const isCurrent = () => token === this.request && identity === this.identity && this.owner;
+      try {
+        const result = responseData(await api.aiRecommendations(params));
+        if (!isCurrent()) return;
+        this.plan = result;
+        this.groups = result.groups;
+      } catch (error) {
+        if (isCurrent()) this.error = errorMessage(error);
+      } finally {
+        nextReadAt.set(uid, Math.max(nextReadAt.get(uid) || 0, performance.now() + 5200));
+        if (isCurrent()) this.loading = false;
+      }
     },
     async explain() {
       if (!this.owner || !this.plan || !this.plan.items.length || this.pending) return;
@@ -123,5 +135,15 @@ export default {
 <style scoped>
 .recommendation-save { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0; }.recommendation-save label { font-size: 13px; font-weight: 600; }.recommendation-save .el-input { flex: 1; min-width: 140px; max-width: 340px; }.recommendation-save p { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.8; }
 .learning-recommendations { margin: 24px 0; padding: 24px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); text-align: left; }.learning-recommendations h2 { margin: 0; font-size: 20px; }.learning-recommendations header p, .recommendation-basis, .recommendation-model p { color: var(--muted); font-size: 12px; line-height: 1.8; }.recommendation-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 20px 0; }.recommendation-filters .recommendation-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }.recommendation-filters .el-select { width: 160px; }.recommendation-filters .el-input-number { width: 145px; }.recommendation-filters .el-checkbox { margin: 0 8px 10px 0; }.recommendation-filters>.el-button { margin: 0; }.recommendation-model { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 18px; }.recommendation-model>div { min-width: 0; }.recommendation-model .el-checkbox { margin: 0 16px 8px 0; }.recommendation-model>.el-button { flex-shrink: 0; }.recommendation-model p { margin: 0 0 12px; max-width: 60em; }.recommendation-list { padding-left: 28px; margin: 10px 0 0; }.recommendation-list li { padding: 18px 0 18px 8px; border-top: 1px solid var(--line); }.recommendation-list li::marker { color: var(--muted); font-size: 13px; }.recommendation-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }.recommendation-title a, .recommendation-title button { color: var(--accent); font: inherit; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; text-align: left; }.recommendation-title button { border: 0; background: transparent; padding: 0; cursor: pointer; }.recommendation-rating { color: var(--muted); font-size: 12px; white-space: nowrap; }.recommendation-meta { color: var(--muted); font-size: 11px; margin: 7px 0; }.recommendation-reason, .recommendation-ai-reason, .recommendation-summary { font-size: 13px; line-height: 1.8; margin: 8px 0 0; overflow-wrap: anywhere; }.recommendation-ai-reason, .recommendation-summary { padding-left: 12px; border-left: 2px solid var(--accent); }.recommendation-summary { margin: 12px 0 20px; }.recommendation-empty { padding: 22px 0; color: var(--muted); font-size: 13px; line-height: 1.8; }.recommendation-title a:focus-visible, .recommendation-title button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.learning-recommendations.is-compact { margin: 0; padding: 0; border: 0; }
+.recommendation-filter-summary { margin: 10px 0; color: var(--accent); font-size: 13px; cursor: pointer; }
+.recommendation-filter-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.is-compact .recommendation-filters .recommendation-field { flex: 1 1 130px; width: auto; min-width: 0; }
+.is-compact .recommendation-filters .el-select,
+.is-compact .recommendation-filters .el-input-number { width: 100%; }
+.is-compact .recommendation-model { flex-wrap: wrap; gap: 8px; }
+.is-compact .el-checkbox { max-width: 100%; white-space: normal; line-height: 1.7; }
+.is-compact .recommendation-save .el-input { min-width: min(140px, 100%); }
+.is-compact .el-button { max-width: 100%; white-space: normal; line-height: 1.35; }
 @media(max-width:600px) { .learning-recommendations { padding: 18px 12px; }.recommendation-model { flex-direction: column; gap: 8px; }.recommendation-filters { gap: 12px 8px; }.recommendation-filters .recommendation-field { min-width: 0; width: calc(50% - 4px); }.recommendation-filters .el-select, .recommendation-filters .el-input-number { width: 100%; }.recommendation-model .el-checkbox { white-space: normal; line-height: 1.7; }.recommendation-list { padding-left: 22px; } }
 </style>

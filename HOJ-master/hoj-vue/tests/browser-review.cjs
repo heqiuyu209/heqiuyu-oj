@@ -8,6 +8,7 @@ const assert = require("assert").strict;
 const collectionFixtures = require('./collection-fixtures.cjs');
 const reviewCollections = require('./collection-review.cjs');
 const reviewAppearance = require('./appearance-review.cjs');
+const workspace = require('./learning-workspace-review.cjs');
 const root =
     process.env.UI_REVIEW_OUTPUT || path.join(os.tmpdir(), "cdutetc-ui-review"),
   profile = fs.mkdtempSync(path.join(os.tmpdir(), "cdutetc-source-"));
@@ -79,6 +80,8 @@ function fixture(req) {
   const u = new URL(req.url),
     p = u.pathname;
   requests.push({ path: p, method: req.method, data: req.postData });
+  const workspaceData = workspace.fixture(req);
+  if (workspaceData !== undefined) return workspaceData;
   const collectionData = collectionFixtures.fixture(req);
   if (collectionData !== undefined) return collectionData;
   if (p === "/api/get-website-config")
@@ -454,6 +457,7 @@ function fixture(req) {
     )}.problemData.languages,overflow:document.documentElement.scrollWidth>innerWidth})`
   );
   await shot("problem");
+  report.checks.learningWorkspace = await workspace.review({ ev, cdp, route, shot, component, requests });
   await ev(`${component("ProblemDetails")}.onChangeLang('C++ 17');`);
   await sleep(100);
   await ev(

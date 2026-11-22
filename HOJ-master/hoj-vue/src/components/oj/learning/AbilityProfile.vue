@@ -1,5 +1,5 @@
 <template>
-  <section class="ability-profile" v-loading="loading" aria-label="知识点能力分布">
+  <section class="ability-profile" :class="{ 'is-compact': compact }" v-loading="loading" aria-label="知识点能力分布">
     <header><div><h2>知识点能力分布</h2><p>从实际作答看训练覆盖与已通过难度</p></div><div class="ability-modes" role="group" aria-label="图表指标"><button v-for="item in modes" :key="item.value" type="button" :disabled="item.value === 'difficulty' && !!(profile && profile.coverageOnly)" :aria-pressed="mode === item.value" @click="mode = item.value">{{ item.label }}</button></div></header>
     <el-alert v-if="error" :title="error" type="error" :closable="false"><el-button type="text" @click="load">重新加载</el-button></el-alert>
     <template v-else-if="profile">
@@ -37,7 +37,7 @@ import api from '@/common/api';
 import { responseData, errorMessage } from '@/common/objective';
 export default {
   name: 'AbilityProfile',
-  props: { uid: { type: String, required: true } },
+  props: { uid: { type: String, required: true }, compact: Boolean },
   data: () => ({ bundle: null, source: 'ALL', loading: false, error: '', request: 0, mode: 'coverage', modes: [{ value: 'difficulty', label: '通过难度' }, { value: 'coverage', label: '编程覆盖' }] }),
   computed: {
     profile() { const view = this.bundle && (this.source === 'ALL' ? this.bundle.combined : this.bundle.sources.find(item => item.source === this.source)); return view ? { ...view, uid: this.bundle.uid } : null; },
@@ -88,6 +88,11 @@ export default {
 .ability-profile { margin: 24px 0; padding: 24px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); text-align: left; min-height: 150px; }.ability-profile header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.ability-profile h2 { margin: 0; font-size: 20px; }.ability-profile header p, figcaption, .ability-method { color: var(--muted); font-size: 12px; line-height: 1.8; }.ability-modes { display: flex; padding: 4px; background: var(--soft); border-radius: 8px; flex-shrink: 0; }.ability-modes button { font: inherit; font-size: 13px; color: var(--muted); border: 0; padding: 8px 12px; border-radius: 6px; background: transparent; cursor: pointer; }.ability-modes button[aria-pressed=true] { color: var(--accent); background: var(--panel, #fff); }.ability-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ability-overview { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 20px; font-size: 13px; color: var(--muted); }.ability-overview strong { color: var(--text); font-size: 18px; }.ability-content { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.3fr); gap: 20px; align-items: center; }.ability-content figure { margin: 0; }.ability-content svg { display: block; width: 100%; }.radar-ring { fill: none; stroke: var(--line); }.radar-spoke { stroke: var(--line); }.axis-label { fill: var(--text); font-size: 13px; }.axis-value, .scale-label { fill: var(--muted); font-size: 11px; }.radar-area { fill: rgba(33,126,157,.15); stroke: var(--accent); stroke-width: 2; }.radar-path { fill: none; stroke: var(--accent); stroke-width: 2; }.radar-point { fill: var(--accent); stroke: var(--panel, #fff); stroke-width: 2; }.ability-evidence h3 { font-size: 15px; margin: 0 0 12px; }.ability-table-wrap { overflow-x: auto; }table { width: 100%; border-collapse: collapse; font-size: 12px; }th, td { padding: 10px 6px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }thead th { color: var(--muted); font-weight: 500; }td small { display: block; color: var(--muted); margin-top: 5px; font-size: 11px; }.ability-method { margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--line); }.ability-empty { padding: 32px 0 24px; text-align: center; }.ability-empty i, .ability-empty strong { display: block; margin-bottom: 14px; }.ability-empty i { font-size: 30px; color: var(--accent); }.ability-empty p { line-height: 1.8; color: var(--muted); }.ability-empty a { color: var(--accent); }
 .ability-content, .ability-content figure, .ability-evidence { min-width: 0; }
+.ability-profile.is-compact { margin: 0; padding: 0; border: 0; }
+.is-compact header { flex-wrap: wrap; gap: 4px 12px; }
+.is-compact .ability-modes { flex-wrap: wrap; max-width: 100%; }
+.is-compact .ability-content { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.is-compact .ability-content figure { width: 100%; max-width: 480px; margin: auto; }
 @media(max-width:1050px) { .ability-content { grid-template-columns: minmax(0, 1fr); }.ability-content figure { max-width: 480px; width: 100%; margin: auto; } }
 @media(max-width:600px) { .ability-profile { padding: 16px 12px; }.ability-profile header { align-items: flex-start; flex-direction: column; }.ability-overview { gap: 12px; } }
 </style>

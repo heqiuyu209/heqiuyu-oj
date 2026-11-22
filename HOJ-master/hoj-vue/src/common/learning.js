@@ -22,13 +22,6 @@ export function taskRating(problem = {}) {
 export function safeSourceUrl(value) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch (_) { return ''; }
 }
-export const KNOWLEDGE_AREAS = [
-  { key: 'syntax', name: '语法', topics: '输入输出、控制结构、函数、语言特性' },
-  { key: 'algorithms', name: '算法', topics: '枚举、二分、贪心、搜索、分治、数学' },
-  { key: 'structures', name: '数据结构', topics: '栈、队列、并查集、树状数组、线段树' },
-  { key: 'graphs', name: '图论', topics: '遍历、最短路、最小生成树、网络流' },
-  { key: 'dp', name: 'DP', topics: '线性 DP、背包、区间 DP、树形 DP、状压 DP' },
-];
 export function draftKey(user, params = {}, language = '') {
   return 'draft:' + [user || 'guest', params.groupID || '-', params.contestID || '-', params.trainingID || '-', params.problemID || '-', language].map(encodeURIComponent).join(':');
 }
