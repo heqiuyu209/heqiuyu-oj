@@ -85,6 +85,46 @@ class NowCoderStatementLeaseMySqlTest extends RemoteSourceManagerTest {
         assertEquals("DONE",job.get("state"));assertNull(job.get("lease_token"));assertNull(job.get("lease_until"));
     }
 
+    @Test void rediscoveryTracksMetadataChangesAndIgnoresIdenticalRefreshes() {
+        NowCoderCatalogManager catalog = new NowCoderCatalogManager() {
+            @Override protected long now() { return clock; }
+        };
+        ReflectionTestUtils.setField(catalog, "jdbc", jdbc);
+        ReflectionTestUtils.setField(catalog, "transactions", new DataSourceTransactionManager(jdbc.getDataSource()));
+        NowCoderStatementClient.Statement original = new NowCoderStatementClient.Statement("8", "6", content("Graph paths"));
+        NowCoderStatementClient.Statement renamed = new NowCoderStatementClient.Statement("8", "6", content("Shortest paths"));
+        NowCoderStatementClient.Statement recased = new NowCoderStatementClient.Statement("8", "6", content("Shortest Paths"));
+
+        catalog.discovered(NC_KEY, original);
+        assertCatalogRevision(1, clock, clock);
+        clock += 1000;
+        catalog.discovered(NC_KEY, renamed);
+        long renamedAt = clock;
+        assertCatalogRevision(2, renamedAt, clock);
+        clock += 1000;
+        catalog.discovered(NC_KEY, renamed);
+        assertCatalogRevision(2, renamedAt, clock);
+        clock += 1000;
+        catalog.discovered(NC_KEY, recased);
+        assertCatalogRevision(3, clock, clock);
+
+        jdbc.update("UPDATE remote_nowcoder_problem SET available=0 WHERE problem_key=?", NC_KEY);
+        clock += 1000;
+        catalog.discovered(NC_KEY, recased);
+        assertCatalogRevision(4, clock, clock);
+    }
+
+    private void assertCatalogRevision(long revision, long changedAt, long lastSeenAt) {
+        jdbc.queryForObject("SELECT revision,changed_at,last_seen_at,available FROM remote_nowcoder_problem WHERE problem_key=?",
+                (row, index) -> {
+                    assertEquals(revision, row.getLong("revision"), "catalogue revision");
+                    assertEquals(changedAt, row.getTimestamp("changed_at").getTime(), "last metadata change");
+                    assertEquals(lastSeenAt, row.getTimestamp("last_seen_at").getTime(), "last observation");
+                    assertTrue(row.getBoolean("available"));
+                    return true;
+                }, NC_KEY);
+    }
+
     @ParameterizedTest @CsvSource({"90000,false","89999,true"})
     void waitsForJobLockBeforeNowCoderWriteback(long elapsed,boolean live) throws Exception {
         AtomicBoolean metadataWritten=new AtomicBoolean();

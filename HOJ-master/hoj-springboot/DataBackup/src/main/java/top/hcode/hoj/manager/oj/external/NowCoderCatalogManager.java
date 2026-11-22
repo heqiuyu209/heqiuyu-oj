@@ -79,9 +79,27 @@ public class NowCoderCatalogManager {
     public void defer(Map<String,Object> job){tx(()->{if(leased(job)!=null)release(3000);return null;});}
     public void failed(Map<String,Object> job,String reason){tx(()->{if(leased(job)==null)return null;int failures=Math.min(10,((Number)job.get("failures")).intValue()+1);jdbc.update("UPDATE remote_source_job SET failures=?,last_error=? WHERE source_name='NOWCODER_PROBLEMS'",failures,RemoteCatalogManager.limited(reason,200));release(Math.min(21600000L,60000L*(1L<<Math.min(9,failures-1))));return null;});}
     /** Only the fixed public client can supply the source title and IDs; never accepts an arbitrary URL. */
-    public void discovered(String key,NowCoderStatementClient.Statement statement){tx(()->{
-        RemoteProblemRef ref=NowCoderStatementClient.ref(key);List<Map<String,Object>> prior=jdbc.queryForList("SELECT source_rating FROM remote_nowcoder_problem WHERE problem_key=? FOR UPDATE",key);Integer rating=prior.isEmpty()?null:(Integer)prior.get(0).get("source_rating");jdbc.update("INSERT INTO remote_nowcoder_problem(problem_key,native_problem_id,contest_id,problem_index,question_id,title,content_hash,last_seen_at,changed_at) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE native_problem_id=VALUES(native_problem_id),question_id=VALUES(question_id),title=VALUES(title),revision=CASE WHEN title<>VALUES(title) OR available=0 THEN revision+1 ELSE revision END,changed_at=CASE WHEN title<>VALUES(title) OR available=0 THEN VALUES(changed_at) ELSE changed_at END,content_hash=VALUES(content_hash),available=1,last_seen_at=VALUES(last_seen_at)",key,Long.valueOf(statement.nativeProblemId),ref.contest.isEmpty()?null:Long.valueOf(ref.contest),ref.contest.isEmpty()?null:ref.task,statement.questionId,statement.content.getTitle(),hash(statement.content.getTitle(),rating),time(),time());return null;
-    });}
+    public void discovered(String key, NowCoderStatementClient.Statement statement) {
+        tx(() -> {
+            RemoteProblemRef ref = NowCoderStatementClient.ref(key);
+            List<Map<String, Object>> prior = jdbc.queryForList(
+                    "SELECT source_rating FROM remote_nowcoder_problem WHERE problem_key=? FOR UPDATE", key);
+            Integer rating = prior.isEmpty() ? null : (Integer) prior.get(0).get("source_rating");
+            String title = statement.content.getTitle();
+            Timestamp seenAt = time();
+            // Compare the stored hash before replacing it, as for catalogue page updates.
+            jdbc.update("INSERT INTO remote_nowcoder_problem(problem_key,native_problem_id,contest_id,problem_index,"
+                            + "question_id,title,content_hash,last_seen_at,changed_at) VALUES(?,?,?,?,?,?,?,?,?) "
+                            + "ON DUPLICATE KEY UPDATE revision=CASE WHEN content_hash<>VALUES(content_hash) OR available=0 "
+                            + "THEN revision+1 ELSE revision END,changed_at=CASE WHEN content_hash<>VALUES(content_hash) OR available=0 "
+                            + "THEN VALUES(changed_at) ELSE changed_at END,native_problem_id=VALUES(native_problem_id),"
+                            + "question_id=VALUES(question_id),title=VALUES(title),content_hash=VALUES(content_hash),"
+                            + "available=1,last_seen_at=VALUES(last_seen_at)",
+                    key, Long.valueOf(statement.nativeProblemId), ref.contest.isEmpty() ? null : Long.valueOf(ref.contest),
+                    ref.contest.isEmpty() ? null : ref.task, statement.questionId, title, hash(title, rating), seenAt, seenAt);
+            return null;
+        });
+    }
     public Map<String,Object> status(){Map<String,Object> job=jdbc.queryForMap("SELECT * FROM remote_source_job WHERE source_name='NOWCODER_PROBLEMS'"),scan=jdbc.queryForMap("SELECT * FROM remote_nowcoder_scan WHERE source_name='NOWCODER_PROBLEMS'"),result=new LinkedHashMap<>();
         result.put("lastSuccessAt",job.get("last_success_at"));result.put("lastError",job.get("last_error"));result.put("nextRunAt",job.get("next_run_at"));result.put("lastFullSuccessAt",scan.get("last_full_success_at"));result.put("total",jdbc.queryForObject("SELECT COUNT(*) FROM remote_nowcoder_problem WHERE available=1",Long.class));result.put("reportedTotal",scan.get("target_total")==null?job.get("total_count"):scan.get("target_total"));result.put("scanPage",scan.get("next_page"));result.put("state",job.get("lease_until")!=null && ((Timestamp)job.get("lease_until")).getTime()>now()?"RUNNING":number(job.get("failures"))>0?"BACKOFF":scan.get("scan_token")!=null?"RUNNING":job.get("last_success_at")==null?"QUEUED":"IDLE");for(String field:Arrays.asList("added","changed","removed"))result.put(field,job.get(field+"_count"));return result;
     }
