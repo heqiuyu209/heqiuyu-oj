@@ -295,7 +295,31 @@ public class KnowledgeManager {
             }
             verifyExcerpts(row, entry.getValue());
         }
+        verifyCitationPublications(context, citationsByDocument.keySet());
         access.requireChat(context.uid);
+    }
+
+    private void verifyCitationPublications(Context context, Set<String> documents) {
+        if (documents.isEmpty()) return;
+        List<String> matches = new ArrayList<>();
+        List<Object> args = new ArrayList<>();
+        for (String id : documents) {
+            Map<String, Object> expected = context.versions.get(id);
+            matches.add("(d.id=? AND d.revision=? AND v.version=? AND v.content_hash=?)");
+            args.add(id);
+            args.add(expected.get("revision"));
+            args.add(expected.get("version"));
+            args.add(expected.get("content_hash"));
+        }
+        String scope = maintainer() ? "" : " AND d.visibility='PUBLIC'";
+        // All returned sources must still match in the same database snapshot after excerpt checks.
+        Integer current = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM knowledge_document d JOIN knowledge_version v "
+                        + "ON v.document_id=d.id AND v.version=d.published_version "
+                        + "WHERE d.state='ACTIVE' AND v.state='INDEXED'" + scope
+                        + " AND (" + String.join(" OR ", matches) + ")",
+                Integer.class, args.toArray());
+        if (current == null || current != documents.size()) throw changed();
     }
 
     private void verifyExcerpts(Map<String, Object> source, List<KnowledgeDTO.Hit> citations) {

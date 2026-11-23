@@ -12,6 +12,7 @@ import top.hcode.hoj.pojo.dto.KnowledgeDTO;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -121,6 +122,35 @@ class KnowledgeManagerTest {
         when(index.retrieve(anyString(),anyList(),anyInt())).thenAnswer(call->{jdbc.update("UPDATE knowledge_document SET visibility='ADMIN',revision=revision+1 WHERE id=?",id);return Collections.singletonList(hit);});
         fail(()->manager.search(search()),409);fail(()->manager.read(id,1),404);
     }
+    @Test void rejectsWithdrawalOfAnEarlierSourceDuringTheFinalExcerptCheck() {
+        String earlier = create();
+        String later = create();
+        publish(earlier);
+        publish(later);
+        KnowledgeDTO.Hit first = hit(earlier, 1);
+        KnowledgeDTO.Hit second = hit(later, 1);
+        second.setChunkId(String.join("", Collections.nCopies(64, "b")));
+        when(index.retrieve(anyString(), anyList(), anyInt())).thenReturn(Arrays.asList(first, second));
+        administrator = false;
+
+        AtomicInteger readsOfLaterSource = new AtomicInteger();
+        JdbcTemplate verifyingJdbc = new JdbcTemplate(jdbc.getDataSource()) {
+            @Override public List<Map<String,Object>> queryForList(String sql, Object... args) {
+                List<Map<String,Object>> rows = super.queryForList(sql, args);
+                if (sql.contains("AS version_state") && sql.contains("v.content,")
+                        && later.equals(args[1]) && readsOfLaterSource.incrementAndGet() == 2) {
+                    // An independent connection commits a withdrawal after validation read the earlier source.
+                    assertEquals(1, jdbc.update("UPDATE knowledge_document "
+                            + "SET published_version=NULL,revision=revision+1 WHERE id=?", earlier));
+                }
+                return rows;
+            }
+        };
+        ReflectionTestUtils.setField(manager, "jdbc", verifyingJdbc);
+        fail(() -> manager.search(search()), 409);
+        assertEquals(2, readsOfLaterSource.get());
+    }
+
     @Test void unpublishOrPublishRoundTripInvalidatesAlreadyRetrievedContext(){
         String id=create();publish(id);when(index.retrieve(anyString(),anyList(),anyInt())).thenReturn(Collections.singletonList(hit(id,1)));
         KnowledgeManager.Context context=manager.retrieve(actor,search());manager.unpublish(id,change(id,1));manager.publish(id,change(id,1));fail(()->manager.verify(context),409);
