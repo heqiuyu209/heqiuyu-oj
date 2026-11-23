@@ -324,9 +324,10 @@ public class KnowledgeManager {
 
     private void verifyExcerpts(Map<String, Object> source, List<KnowledgeDTO.Hit> citations) {
         String content = (String) source.get("content");
-        String[] pages = "pdf".equals(source.get("format")) ? content.split("\n\f\n", -1) : null;
+        String format = (String) source.get("format");
+        String[] pages = "pdf".equals(format) ? content.split("\n\f\n", -1) : null;
         VideoTranscript transcript = null;
-        if ("video".equals(source.get("format"))) {
+        if ("video".equals(format)) {
             try {
                 transcript = VideoTranscript.parse(content);
             } catch (IllegalArgumentException error) {
@@ -341,6 +342,8 @@ public class KnowledgeManager {
             hit.setStartMs(null);
             hit.setEndMs(null);
             hit.setPage(null);
+            hit.setSourceStart(null);
+            hit.setSourceEnd(null);
             if (transcript != null) {
                 try {
                     long[] bounds = transcript.citation(hit.getHeadingPath(), excerpt);
@@ -359,8 +362,16 @@ public class KnowledgeManager {
                     throw new ObjectiveException(502, "PDF 引用页号与正文不符");
                 }
                 hit.setPage(page);
-            } else if (!content.contains(excerpt)) {
-                throw new ObjectiveException(502, "知识库引用正文校验失败，请重新检索");
+            } else {
+                int start = content.indexOf(excerpt);
+                if (start < 0) {
+                    throw new ObjectiveException(502, "知识库引用正文校验失败，请重新检索");
+                }
+                // Java and browser strings share UTF-16 offsets. Repeated excerpts have no unique target.
+                if (("markdown".equals(format) || "text".equals(format)) && content.indexOf(excerpt, start + 1) < 0) {
+                    hit.setSourceStart(start);
+                    hit.setSourceEnd(start + excerpt.length());
+                }
             }
         }
     }
@@ -371,6 +382,11 @@ public class KnowledgeManager {
         for(KnowledgeDTO.Hit hit:context.hits){Map<String,Object> item=new LinkedHashMap<>();item.put("citationId","K"+(++i));item.put("documentId",hit.getDocumentId());item.put("version",hit.getVersion());item.put("chunkId",hit.getChunkId());item.put("title",hit.getTitle());item.put("headingPath",hit.getHeadingPath());item.put("excerpt",hit.getExcerpt());item.put("score",hit.getScore());String url="/knowledge/"+hit.getDocumentId()+"?version="+hit.getVersion()+"&chunk="+hit.getChunkId();if(hit.getPage()!=null){item.put("page",hit.getPage());url+="&page="+hit.getPage();}item.put("url",url);items.add(item);}
         for(int position=0;position<items.size();position++){
             Map<String,Object> item=items.get(position);KnowledgeDTO.Hit hit=context.hits.get(position);
+            if (hit.getSourceStart() != null) {
+                item.put("sourceStart", hit.getSourceStart());
+                item.put("sourceEnd", hit.getSourceEnd());
+                item.put("url", item.get("url") + "&from=" + hit.getSourceStart() + "&to=" + hit.getSourceEnd());
+            }
             if(hit.getStartMs()!=null){item.put("startMs",hit.getStartMs());item.put("endMs",hit.getEndMs());item.put("url",item.get("url")+"&t="+java.math.BigDecimal.valueOf(hit.getStartMs(),3).stripTrailingZeros().toPlainString());}
         }
         Map<String,Object> result=new LinkedHashMap<>();result.put("items",items);result.put("modelUsed",false);result.put("content",null);return result;

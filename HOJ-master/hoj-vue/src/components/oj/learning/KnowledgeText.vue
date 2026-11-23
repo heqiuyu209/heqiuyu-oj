@@ -7,17 +7,23 @@
       <p v-else class="knowledge-muted">此页没有可提取文字。</p>
     </section>
   </div>
+  <pre v-else-if="sourceRange" class="knowledge-prose knowledge-plain">{{ content.slice(0, sourceRange.start) }}<mark data-knowledge-citation-target tabindex="-1">{{ content.slice(sourceRange.start, sourceRange.end) }}</mark>{{ content.slice(sourceRange.end) }}</pre>
   <pre v-else class="knowledge-prose knowledge-plain">{{ content }}</pre>
 </template>
 <script>
 import { renderKnowledgeMarkdown } from '@/common/knowledgeMarkdown';
 export default {
   name: 'KnowledgeText',
-  props: { content: { type: String, default: '' }, format: { type: String, default: 'text' }, allowLinks: { type: Boolean, default: false } },
+  props: {
+    content: { type: String, default: '' },
+    format: { type: String, default: 'text' },
+    allowLinks: Boolean,
+    sourceRange: { type: Object, default: null },
+  },
   computed: {
     pages() { return this.content.split('\n\f\n'); },
     rendered() {
-      return renderKnowledgeMarkdown(this.content, this.allowLinks);
+      return renderKnowledgeMarkdown(this.content, this.allowLinks, !!this.sourceRange);
     },
   },
 };
@@ -25,6 +31,9 @@ export default {
 <style scoped>
 .knowledge-prose { color: var(--text); font: inherit; line-height: 1.95; overflow-wrap: anywhere; }
 .knowledge-plain { white-space: pre-wrap; margin: 0; }
+.knowledge-plain mark { color: inherit; background: var(--soft); }
+.knowledge-prose /deep/ [data-knowledge-citation-target] { scroll-margin-top: 120px; background: var(--soft); box-shadow: -4px 0 0 var(--accent); }
+.knowledge-prose /deep/ [data-knowledge-citation-target]:focus { outline: 2px solid var(--accent); outline-offset: 4px; }
 .knowledge-pdf-page { padding: 22px 0 30px; border-bottom: 1px solid var(--line); scroll-margin-top: 120px; }
 .knowledge-pdf-page:last-child { border-bottom: 0; }
 .knowledge-pdf-page:focus { outline: 2px solid var(--accent); outline-offset: 8px; }

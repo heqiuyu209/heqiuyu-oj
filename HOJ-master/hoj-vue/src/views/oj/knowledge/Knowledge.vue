@@ -84,7 +84,19 @@ export default {
     },
     citationRoute(item) {
       if (!/^[a-f0-9]{32}$/.test(item.documentId) || !Number.isInteger(item.version) || item.version < 1 || !/^[a-f0-9]{64}$/.test(item.chunkId)) return { name: 'Knowledge' };
-      return { name: 'KnowledgeDocument', params: { documentID: item.documentId }, query: { version: item.version, chunk: item.chunkId, heading: item.headingPath || undefined, page: Number.isInteger(item.page) && item.page >= 1 && item.page <= 200 ? item.page : undefined, t: Number.isInteger(item.startMs) && item.startMs >= 0 && item.startMs <= 7200000 ? item.startMs / 1000 : undefined } };
+      const query = {
+        version: item.version,
+        chunk: item.chunkId,
+        heading: item.headingPath || undefined,
+        page: Number.isInteger(item.page) && item.page >= 1 && item.page <= 200 ? item.page : undefined,
+        t: Number.isInteger(item.startMs) && item.startMs >= 0 && item.startMs <= 7200000 ? item.startMs / 1000 : undefined,
+      };
+      if (Number.isInteger(item.sourceStart) && Number.isInteger(item.sourceEnd)
+          && item.sourceStart >= 0 && item.sourceEnd > item.sourceStart) {
+        query.from = item.sourceStart;
+        query.to = item.sourceEnd;
+      }
+      return { name: 'KnowledgeDocument', params: { documentID: item.documentId }, query };
     },
     openModelSettings() { window.dispatchEvent(new CustomEvent('hoj-ai-open-settings')); },
     handleDenied(error) {

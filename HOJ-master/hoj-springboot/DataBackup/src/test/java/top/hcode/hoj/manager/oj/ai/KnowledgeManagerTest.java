@@ -112,6 +112,45 @@ class KnowledgeManagerTest {
         assertEquals(1,refs.getValue().size());assertEquals(publicId,refs.getValue().get(0).getDocumentId());
         Map<?,?> item=(Map<?,?>)((List<?>)result.get("items")).get(0);assertEquals("K1",item.get("citationId"));assertTrue(((String)item.get("url")).startsWith("/knowledge/"+publicId));assertFalse(item.containsKey("contentHash"));
     }
+    @Test void uniqueTextAndMarkdownCitationsCarryUtf16OffsetsForThePublishedOriginal() {
+        String excerpt = "使用前缀和回答静态区间查询。";
+        String content = "# 开场 🚀\n\n## 区间查询\n\n" + excerpt + "\n\n结束。";
+        int start = content.indexOf(excerpt);
+        for (String format : Arrays.asList("text", "markdown")) {
+            KnowledgeDTO.Upload draft = upload(content);
+            draft.setFormat(format);
+            String id = (String) manager.create(draft).get("id");
+            publish(id);
+            KnowledgeDTO.Hit citation = hit(id, 1);
+            citation.setExcerpt(excerpt);
+            citation.setChunkHash(RagServiceClient.hash(excerpt));
+            when(index.retrieve(anyString(), anyList(), anyInt())).thenReturn(Collections.singletonList(citation));
+
+            Map<?,?> item = (Map<?,?>) ((List<?>) manager.search(search()).get("items")).get(0);
+            assertEquals(start, item.get("sourceStart"));
+            assertEquals(start + excerpt.length(), item.get("sourceEnd"));
+            assertTrue(item.get("url").toString().endsWith("&from=" + start + "&to=" + (start + excerpt.length())));
+            assertFalse(item.get("url").toString().contains(excerpt));
+        }
+    }
+
+    @Test void ambiguousExcerptKeepsTheDocumentLinkWithoutInventingAReadLocation() {
+        String excerpt = "重复的提醒";
+        String id = (String) manager.create(upload("# 第一节\n\n" + excerpt + "\n\n# 第二节\n\n" + excerpt)).get("id");
+        publish(id);
+        KnowledgeDTO.Hit citation = hit(id, 1);
+        citation.setExcerpt(excerpt);
+        citation.setChunkHash(RagServiceClient.hash(excerpt));
+        citation.setHeadingPath("第二节");
+        when(index.retrieve(anyString(), anyList(), anyInt())).thenReturn(Collections.singletonList(citation));
+
+        Map<?,?> item = (Map<?,?>) ((List<?>) manager.search(search()).get("items")).get(0);
+        assertEquals("第二节", item.get("headingPath"));
+        assertFalse(item.containsKey("sourceStart"));
+        assertFalse(item.containsKey("sourceEnd"));
+        assertFalse(item.get("url").toString().contains("&from="));
+    }
+
     @Test void explicitEmptyOrInvisibleDocumentSelectionNeverQueriesAll(){
         KnowledgeDTO.Upload hidden=upload("private");hidden.setVisibility("ADMIN");String id=(String)manager.create(hidden).get("id");publish(id);administrator=false;
         KnowledgeDTO.Search dto=search();dto.setDocumentIds(Collections.emptyList());assertEquals(0,((List<?>)manager.search(dto).get("items")).size());

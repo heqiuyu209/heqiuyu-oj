@@ -105,6 +105,39 @@ hold='/api/knowledge/answer';await ev(`${vm('Knowledge')}.allowModelExcerpts=tru
 hold='hold401=1';await ev(`window.oldSessionResult=${app}.$http.get('/api/knowledge/documents?hold401=1').then(()=>false).catch(e=>e.__CANCEL__===true);true`);for(let i=0;i<40&&!held.length;i++)await sleep(50);assert(held.length);await actorChange('charlie','default_user');held[0].result={status:401,msg:'old login expired'};await release([],401);assert(await ev(`window.oldSessionResult`));assert(await ev(`localStorage.getItem('token')==='session-charlie'`));
 const epoch=await ev(`${app}.$store.getters.authEpoch`);hold='holdRefresh=1';await ev(`window.refreshResults=Promise.all([${app}.$http.get('/api/knowledge/documents?holdRefresh=1'),${app}.$http.get('/api/knowledge/documents?holdRefresh=1')]).then(r=>r.length);true`);for(let i=0;i<40&&held.length<2;i++)await sleep(50);assert.equal(held.length,2);await release([{name:'refresh-token',value:'true'},{name:'authorization',value:'same-owner-refreshed'}]);assert.equal(await ev('window.refreshResults'),2);assert.equal(await ev(`${app}.$store.getters.authEpoch`),epoch);checks.push('A late 401 cannot log out a newer session; ordinary concurrent token renewals preserve the session and both responses remain valid.');
 await route('/knowledge/'+A+'?version=1&heading='+encodeURIComponent('算法基础 / 前缀和'));await wait(`!!(${vm('KnowledgeDocument')} && ${vm('KnowledgeDocument')}.document)`,'original');assert(await ev(`!window.knowledgeXss && !document.querySelector('.knowledge-prose img') && !document.querySelector('.knowledge-prose a[href^="javascript:"]')`));await shot('knowledge-original');await route('/knowledge/'+A+'?version=2');await wait(`${vm('KnowledgeDocument')}.error!==''`,'withdrawn version');assert(await ev(`!${vm('KnowledgeDocument')}.document`));checks.push('Original Markdown is escaped, remote images never load, headings locate actual sections, and a stale version displays an unavailable source instead of cached content.');
+
+await route('/knowledge');
+await wait(vm('Knowledge') + '?.accessReady', 'citation position result');
+const targetQuote = citation().excerpt;
+const markdownStart = docs.get(A).versions[0].content.indexOf(targetQuote);
+const located = { ...citation(), sourceStart: markdownStart, sourceEnd: markdownStart + targetQuote.length };
+await ev(vm('Knowledge') + '.result=' + JSON.stringify({ items: [located], modelUsed: false, content: null }) + ';true');
+const positionedLink = await ev('document.querySelector(".knowledge-excerpt .knowledge-original").href');
+assert.equal(new URL(positionedLink).searchParams.get('from'), String(markdownStart));
+assert(!positionedLink.includes(encodeURIComponent(targetQuote)));
+await ev('document.querySelector(".knowledge-excerpt .knowledge-original").click();true');
+const markdownFocused = 'document.activeElement.matches("p[data-knowledge-citation-target]")'
+  + ' && document.activeElement.textContent === ' + JSON.stringify(targetQuote);
+await wait(markdownFocused, 'Markdown citation focuses the matching paragraph');
+await cdp('Page.reload', { ignoreCache: true });
+await wait(markdownFocused, 'reloaded Markdown citation still focuses the matching paragraph');
+await ev('document.activeElement.blur();true');
+assert(await ev('getComputedStyle(document.querySelector(".knowledge-prose [data-knowledge-citation-target]")).boxShadow !== "none"'));
+await shot('knowledge-positioned-markdown');
+
+const plainDoc = docs.get(B).versions[0];
+const plainQuote = '满足单调性，才能使用';
+plainDoc.content = '先定义问题 🚀\n\n' + plainDoc.content;
+const plainStart = plainDoc.content.indexOf(plainQuote);
+await route('/knowledge/' + B + '?version=1&from=' + plainStart + '&to=' + (plainStart + plainQuote.length));
+await wait('document.activeElement.matches("mark[data-knowledge-citation-target]")'
+  + ' && document.activeElement.textContent === ' + JSON.stringify(plainQuote), 'plain citation marks the exact text');
+assert.equal(await ev('document.querySelector(".knowledge-plain").textContent'), plainDoc.content);
+await route('/knowledge/' + B + '?version=1&from=0&to=999999');
+await wait(vm('KnowledgeDocument') + '?.document?.id === ' + JSON.stringify(B), 'invalid-range original');
+assert(!await ev('document.querySelector("[data-knowledge-citation-target]") !== null'));
+checks.push('Versioned citation links focus the matching Markdown block across reload, highlight exactly the cited plain text after non-BMP characters, and ignore invalid ranges.');
+
 const MATH='d'.repeat(32),mathHeading='数学讲义 / 前缀和 $S_i$';
 const mathContent=['# 数学讲义','','## 前缀和 $S_i$','',String.raw`行内区间和 $S_r-S_{l-1}$，复杂度 \(O(n\log n)\)。`,'','$$',String.raw`\sum_{i=1}^{n}a_i = S_n`,'$$','',String.raw`\[`,String.raw`\begin{pmatrix}1&2\\3&4\end{pmatrix}`,String.raw`\]`,'','代码里的 `$literal$` 保留。','','```cpp',String.raw`cost = "$not_math$"; // \(literal\)`,'```','','$$'+Array(35).fill('a_i').join('+')+'$$','',String.raw`$\href{javascript:alert(1)}{blocked}$ $\includegraphics{https://private-leak.invalid/math-image}$`,'',String.raw`$\unknown{<img src=x onerror="window.mathXss=1">}$`,'',String.raw`后续正常公式 $a+b$。`].join('\n');
 docs.set(MATH,{id:MATH,title:'公式与代码原文',visibility:'PUBLIC',revision:1,latestVersion:1,publishedVersion:1,versions:[{version:1,title:'公式与代码原文',format:'markdown',state:'INDEXED',jobState:'DONE',content:mathContent}]});

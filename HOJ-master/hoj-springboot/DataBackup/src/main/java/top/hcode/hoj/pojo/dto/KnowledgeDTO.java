@@ -54,6 +54,8 @@ public final class KnowledgeDTO {
         private String headingPath;
         private Double score;
         private Integer page;
+        private Integer sourceStart;
+        private Integer sourceEnd;
         private Long startMs;
         private Long endMs;
     }

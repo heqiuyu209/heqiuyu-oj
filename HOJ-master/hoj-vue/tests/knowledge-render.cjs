@@ -123,6 +123,17 @@ $\htmlClass{bad}{x}$`, true);
     assert.equal(countMath(html), 1);
     assert(html.includes('data-knowledge-heading="前缀和 $S_i$ &quot;&lt;&amp;"'));
   });
+  check('Source line ranges are emitted only for a reader following a citation', () => {
+    const source = [
+      '# 引用', '', '带公式 $x$ 的段落。', '', '```txt', '原样显示', '```', '', '$$', 'x^2', '$$',
+    ].join('\n');
+    const html = render(source, true, true);
+    assert.match(html, /<h1 [^>]*data-knowledge-lines="0:1"/);
+    assert.match(html, /<p [^>]*data-knowledge-lines="2:3"/);
+    assert.match(html, /<(?:pre|code) [^>]*data-knowledge-lines="4:7"/);
+    assert.match(html, /<div [^>]*data-knowledge-lines="8:11"[^>]*knowledge-math-display/);
+    assert(!render(source, true).includes('data-knowledge-lines'));
+  });
   check('Oversized or deeply nested expressions retain their full source', () => {
     const long = '$' + 'x'.repeat(4097) + '$';
     assert.equal(countFallback(render(long)), 1);

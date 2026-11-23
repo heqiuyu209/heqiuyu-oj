@@ -71,15 +71,25 @@ function blockMath(state, start, end, silent) {
   return false;
 }
 
-export function renderKnowledgeMarkdown(content, allowLinks = false) {
+export function renderKnowledgeMarkdown(content, allowLinks = false, trackSourceLines = false) {
   const parser = new MarkdownIt({ html: false, breaks: true, linkify: false, maxNesting: 64 });
+  if (trackSourceLines) {
+    parser.core.ruler.after('inline', 'knowledge_source_lines', state => {
+      for (const token of state.tokens) {
+        if (token.map && !token.hidden && token.type !== 'inline') {
+          token.attrSet('data-knowledge-lines', token.map.join(':'));
+        }
+      }
+    });
+  }
   const macros = Object.create(null);
   let count = 0, characters = 0;
   parser.inline.ruler.before('escape', 'knowledge_math', inlineMath);
   parser.block.ruler.before('fence', 'knowledge_math', blockMath, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
   parser.renderer.rules.knowledge_math = (tokens, index) => {
     const token = tokens[index], body = token.content;
-    const fallback = () => '<code class="knowledge-math-fallback" title="公式未能排版，已保留原文">' + parser.utils.escapeHtml(token.meta.raw) + '</code>';
+    const attrs = parser.renderer.renderAttrs(token);
+    const fallback = () => '<code' + attrs + ' class="knowledge-math-fallback" title="公式未能排版，已保留原文">' + parser.utils.escapeHtml(token.meta.raw) + '</code>';
     if (body.length > 4096 || count >= 256 || characters + body.length > 32768) return fallback();
     count++; characters += body.length;
     let depth = 0;
@@ -87,7 +97,7 @@ export function renderKnowledgeMarkdown(content, allowLinks = false) {
     try {
       const math = katex.renderToString(body, { displayMode: token.meta.display, output: 'htmlAndMathml', throwOnError: true, trust: false, strict: 'ignore', maxExpand: 500, maxSize: 20, macros });
       const tag = token.block ? 'div' : 'span', mode = token.meta.display ? 'display' : 'inline';
-      return '<' + tag + ' class="knowledge-math-' + mode + '"' + (token.meta.display ? ' tabindex="0" role="group" aria-label="数学公式，可横向滚动"' : '') + '>' + math + '</' + tag + '>';
+      return '<' + tag + attrs + ' class="knowledge-math-' + mode + '"' + (token.meta.display ? ' tabindex="0" role="group" aria-label="数学公式，可横向滚动"' : '') + '>' + math + '</' + tag + '>';
     } catch (_) { return fallback(); }
   };
   const heading = parser.renderer.rules.heading_open;

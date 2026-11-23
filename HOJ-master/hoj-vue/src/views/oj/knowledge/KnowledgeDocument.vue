@@ -11,7 +11,7 @@
       <KnowledgeVideo v-if="document.format === 'video'" :key="knowledgeIdentity+':'+document.id+':'+document.version" :resource="{id:document.id,version:document.version}" :content="document.content" :source="document.source || {}" :allowed="knowledgeAllowed" :start-seconds="videoStart" />
       <div v-else :class="['knowledge-document-body', { 'pdf-comparison-layout': pdfPreviewOpen }]">
         <KnowledgePdfPreview v-if="document.format === 'pdf' && document.source" :key="knowledgeIdentity+':'+document.id+':'+document.version" :resource="{id:document.id,version:document.version}" :identity="knowledgeIdentity" :allowed="knowledgeAllowed" :pages="document.source.pages" :page="pdfPage" @page-change="selectPdfPage" @open-change="pdfPreviewOpen=$event" />
-        <KnowledgeText ref="body" :content="document.content" :format="document.format" allow-links />
+        <KnowledgeText ref="body" :content="document.content" :format="document.format" :source-range="citationRange" allow-links />
       </div>
     </article>
   </section>
@@ -25,9 +25,25 @@ import KnowledgeVideo from '@/components/oj/learning/KnowledgeVideo';
 import KnowledgePdfPreview from '@/components/oj/learning/KnowledgePdfPreview';
 import { knowledgePdfBlob, saveKnowledgePdf } from '@/common/knowledgeDownload';
 import '@/styles/knowledge.css';
+
+function citationOffset(value) {
+  if (typeof value === 'string' && /^(0|[1-9]\d{0,5})$/.test(value)) return Number(value);
+  return Number.isInteger(value) ? value : null;
+}
+
 export default {
   name: 'KnowledgeDocument', mixins: [knowledgeAccess], components: { KnowledgeText, KnowledgeVideo, KnowledgePdfPreview },
-  computed: { videoStart() { const raw = this.$route.query.t; const value = typeof raw === 'number' ? raw : typeof raw === 'string' && /^[0-9]{1,4}(\.[0-9]{1,3})?$/.test(raw) ? Number(raw) : 0; return Number.isFinite(value) && value >= 0 && value <= 7200 ? value : 0; } },
+  computed: {
+    videoStart() { const raw = this.$route.query.t; const value = typeof raw === 'number' ? raw : typeof raw === 'string' && /^[0-9]{1,4}(\.[0-9]{1,3})?$/.test(raw) ? Number(raw) : 0; return Number.isFinite(value) && value >= 0 && value <= 7200 ? value : 0; },
+    citationRange() {
+      const source = this.document, query = this.$route.query;
+      if (!source || !['markdown', 'text'].includes(source.format) || Number(query.version) !== source.version) return null;
+      const start = citationOffset(query.from), end = citationOffset(query.to);
+      if (start === null || end === null || start < 0 || end <= start || end > source.content.length) return null;
+      if (/[\uDC00-\uDFFF]/.test(source.content.charAt(start)) || /[\uDC00-\uDFFF]/.test(source.content.charAt(end))) return null;
+      return { start, end };
+    },
+  },
   data: () => ({ pdfPage: 1, pdfPreviewOpen: false, document: null, error: '', loading: false, documentRequest: 0, downloading: false, downloadError: '' }),
   watch: { '$route.fullPath'() { this.clearKnowledgeData(); if (this.knowledgeAllowed) this.loadDocument(); } },
   methods: {
@@ -35,20 +51,20 @@ export default {
     onKnowledgeReady() { this.loadDocument(); },
     onReaderEntered() {
       const epoch = this.knowledgeEpoch, request = this.documentRequest;
-      this.$nextTick(() => { if (this.document && request === this.documentRequest) this.locateHeading(epoch); });
+      this.$nextTick(() => this.locateCitation(epoch, request));
     },
     async loadDocument() {
       if (!this.knowledgeAllowed) return;
       const id = this.$route.params.documentID, raw = this.$route.query.version;
       if (!/^[a-f0-9]{32}$/.test(id) || raw != null && (!/^[1-9][0-9]{0,9}$/.test(raw) || Number(raw) > 2147483647)) { this.error = '资料标识或版本无效，请返回知识库重新检索。'; return; }
       const epoch = this.knowledgeEpoch, request = ++this.documentRequest; this.loading = true; this.document = null; this.error = '';
-      try { const data = responseData(await api.knowledgeDocument(id, raw == null ? undefined : Number(raw))); if (this.knowledgeCurrent(epoch) && request === this.documentRequest) { this.document = data; this.$nextTick(() => this.locateHeading(epoch)); } }
+      try { const data = responseData(await api.knowledgeDocument(id, raw == null ? undefined : Number(raw))); if (this.knowledgeCurrent(epoch) && request === this.documentRequest) { this.document = data; this.$nextTick(() => this.locateCitation(epoch, request)); } }
       catch (error) { if (this.knowledgeCurrent(epoch) && request === this.documentRequest) this.error = errorMessage(error); }
       finally { if (epoch === this.knowledgeEpoch && request === this.documentRequest) this.loading = false; }
     },
-    locateHeading(epoch) {
-      if (!this.knowledgeCurrent(epoch) || !this.$refs.body) return;
-      if (this.document && this.document.format === 'pdf') {
+    locateCitation(epoch, request) {
+      if (!this.knowledgeCurrent(epoch) || request !== this.documentRequest || !this.document || !this.$refs.body) return;
+      if (this.document.format === 'pdf') {
         const raw = this.$route.query.page;
         // Vue Router keeps numbers for in-app links; a page reload produces strings.
         const number = typeof raw === 'number' ? raw : typeof raw === 'string' && /^[1-9][0-9]{0,2}$/.test(raw) ? Number(raw) : null;
@@ -59,13 +75,39 @@ export default {
         }
         return;
       }
+      const root = this.$refs.body.$el;
+      const target = this.citationRange && (this.document.format === 'text'
+        ? root.querySelector('[data-knowledge-citation-target]')
+        : this.markdownCitationBlock(root, this.citationRange));
+      if (target) {
+        target.setAttribute('data-knowledge-citation-target', '');
+        if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: 'start' });
+        return;
+      }
       const wanted = this.$route.query.heading;
-      if (!this.knowledgeCurrent(epoch) || typeof wanted !== 'string' || wanted.length > 2000 || !this.$refs.body) return;
+      if (typeof wanted !== 'string' || wanted.length > 2000) return;
       let path = [];
-      for (const heading of this.$refs.body.$el.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+      for (const heading of root.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
         const level = Number(heading.tagName.slice(1)); path = path.filter(item => item.level < level); path.push({ level, text: heading.getAttribute('data-knowledge-heading') || heading.textContent });
         if (path.map(item => item.text).join(' / ') === wanted) { heading.style.scrollMarginTop = '120px'; heading.scrollIntoView({ block: 'start' }); break; }
       }
+    },
+    markdownCitationBlock(root, range) {
+      const text = this.document.content;
+      const first = text.slice(range.start, range.end).search(/\S/);
+      if (first < 0) return null;
+      const line = text.slice(0, range.start + first).split(/\r\n?|\n/).length - 1;
+      let target = null, smallest = Infinity;
+      for (const element of root.querySelectorAll('[data-knowledge-lines]')) {
+        const [start, end] = element.dataset.knowledgeLines.split(':').map(Number);
+        if (start <= line && line < end && end - start <= smallest) {
+          target = element.closest('pre') || element;
+          smallest = end - start;
+        }
+      }
+      return target;
     },
     selectPdfPage(page) {
       if (!this.document || !this.document.source || !Number.isInteger(page) || page < 1 || page > this.document.source.pages) return;
