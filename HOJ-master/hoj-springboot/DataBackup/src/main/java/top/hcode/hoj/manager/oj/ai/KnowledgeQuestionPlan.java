@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Only explicit top-level numbered lists; never infer implicit subquestions. */
+/** Exact original subquestions from explicit list or sentence boundaries. */
 final class KnowledgeQuestionPlan {
     static final String INSTRUCTION = "当下条数据包含questions时，按其中的id逐项作答。每个claims对象必须额外提供非空questionIds数组，只引用它实际回答的子问ID。"
             + "此时unansweredQuestions只填暂缺依据的子问ID，例如[\"Q2\"]，不要改写问题或添加新问题。"
@@ -12,6 +12,12 @@ final class KnowledgeQuestionPlan {
             + "例如{\"answerable\":true,\"claims\":[{\"content\":\"有依据的说明\",\"questionIds\":[\"Q1\"],\"evidence\":[{\"citationId\":\"K1\",\"quote\":\"连续原文\"}]}],\"unansweredQuestions\":[\"Q2\"]}。其余原文依据、数量和长度规则保持，服务端按原始问题恢复未答文字。";
     private static final Pattern MARKER = Pattern.compile("^([ \\t]{0,3})(?:([1-9][0-9]*)[.、．)）]|[（(]([1-9][0-9]*)[)）])(?=$|[^0-9])");
     private static final Pattern FENCE = Pattern.compile("^[ \\t]{0,3}(`{3,}|~{3,})(.*)$");
+    private static final Pattern MARKDOWN_BLOCK = Pattern.compile("^(?: {4}|[ \t]*\t|[ \t]{0,3}(?:[>|]|[-*+]\\s))");
+    private static final Pattern TERNARY_OPERAND = Pattern.compile("[ \t]*[A-Za-z_0-9]+[ \t]*:");
+    private static final String OPEN_GROUPS = "(（[［【{｛";
+    private static final String CLOSE_GROUPS = ")）]］】}｝";
+    private static final String OPEN_QUOTES = "\"'“‘「『《";
+    private static final String CLOSE_QUOTES = "\"'”’」』》";
     private final String original;
     private final Map<String, String> questions;
 
@@ -20,13 +26,22 @@ final class KnowledgeQuestionPlan {
         this.questions = Collections.unmodifiableMap(new LinkedHashMap<>(questions));
     }
 
+    private static boolean space(int point) {
+        return Character.isWhitespace(point) || Character.isSpaceChar(point) || point == 0xfeff;
+    }
+
     private static boolean blank(String text) {
-        return text.codePoints().allMatch(point -> Character.isWhitespace(point) || Character.isSpaceChar(point) || point == 0xfeff);
+        return text.codePoints().allMatch(KnowledgeQuestionPlan::space);
     }
 
     static KnowledgeQuestionPlan from(String query) {
         KnowledgeQuestionPlan plain = new KnowledgeQuestionPlan(query, Collections.emptyMap());
         if (query == null || query.length() > 4000) return plain;
+        KnowledgeQuestionPlan list = numbered(query, plain);
+        return list.structured() ? list : punctuated(query, plain);
+    }
+
+    private static KnowledgeQuestionPlan numbered(String query, KnowledgeQuestionPlan plain) {
         List<int[]> parts = new ArrayList<>();
         char fence = 0;
         int fenceLength = 0, indentation = -1, offset = 0;
@@ -75,6 +90,86 @@ final class KnowledgeQuestionPlan {
             questions.put("Q" + (i + 1), text);
         }
         return new KnowledgeQuestionPlan(query, questions);
+    }
+
+    private static KnowledgeQuestionPlan punctuated(String query, KnowledgeQuestionPlan plain) {
+        if (query.indexOf('？') < 0 && query.indexOf('?') < 0) return plain;
+        for (String line : query.split("\\R")) {
+            // Preserve free-form handling for mixed lists and block-level Markdown.
+            if (!blank(line) && (MARKER.matcher(line).find() || FENCE.matcher(line).matches()
+                    || MARKDOWN_BLOCK.matcher(line).find())) return plain;
+        }
+
+        Map<String, String> questions = new LinkedHashMap<>();
+        Set<String> seen = new HashSet<>();
+        Deque<Character> groups = new ArrayDeque<>();
+        int start = 0, wordStart = 0, codeTicks = 0;
+        char quote = 0;
+        for (int i = 0; i < query.length(); i++) {
+            char symbol = query.charAt(i);
+            if (space(symbol)) {
+                wordStart = i + 1;
+                continue;
+            }
+            if (symbol == '`' && quote == 0) {
+                int end = i + 1;
+                while (end < query.length() && query.charAt(end) == '`') end++;
+                int length = end - i;
+                if (codeTicks == 0) codeTicks = length;
+                else if (codeTicks == length) codeTicks = 0;
+                i = end - 1;
+                continue;
+            }
+            if (codeTicks != 0) continue;
+            if (symbol == '\\' && i + 1 < query.length()) {
+                i++;
+                continue;
+            }
+            if (quote != 0) {
+                if (symbol == quote) quote = 0;
+                continue;
+            }
+            int quoteIndex = OPEN_QUOTES.indexOf(symbol);
+            if (quoteIndex >= 0 && (symbol != '\'' || i == 0 || !Character.isLetterOrDigit(query.charAt(i - 1)))) {
+                quote = CLOSE_QUOTES.charAt(quoteIndex);
+                continue;
+            }
+            int groupIndex = OPEN_GROUPS.indexOf(symbol);
+            if (groupIndex >= 0) {
+                groups.push(CLOSE_GROUPS.charAt(groupIndex));
+                continue;
+            }
+            if (CLOSE_GROUPS.indexOf(symbol) >= 0) {
+                if (groups.isEmpty() || groups.pop() != symbol) return plain;
+                continue;
+            }
+            if (!groups.isEmpty() || (symbol != '？' && symbol != '?')) continue;
+
+            int mark = i, end = i + 1;
+            boolean fullwidth = symbol == '？';
+            while (end < query.length() && "？?！!".indexOf(query.charAt(end)) >= 0) {
+                fullwidth |= query.charAt(end) == '？';
+                end++;
+            }
+            i = end - 1;
+            if (!fullwidth && !asciiQuestionEnd(query, wordStart, mark, end)) continue;
+            String text = query.substring(start, end).trim();
+            if (questions.size() == 8 || text.length() > 2000
+                    || text.codePoints().noneMatch(Character::isLetterOrDigit) || !seen.add(text)) return plain;
+            questions.put("Q" + (questions.size() + 1), text);
+            start = end;
+            wordStart = end;
+        }
+        if (codeTicks != 0 || quote != 0 || !groups.isEmpty() || questions.size() < 2
+                || !blank(query.substring(start))) return plain;
+        return new KnowledgeQuestionPlan(query, questions);
+    }
+
+    private static boolean asciiQuestionEnd(String query, int wordStart, int mark, int end) {
+        if (mark == wordStart || (end < query.length() && !space(query.charAt(end)))) return false;
+        String prefix = query.substring(wordStart, mark);
+        return !prefix.contains("://") && !prefix.startsWith("/") && !prefix.startsWith("www.")
+                && !TERNARY_OPERAND.matcher(query).region(end, query.length()).lookingAt();
     }
 
     boolean structured() { return !questions.isEmpty(); }

@@ -443,6 +443,65 @@ class AiAssistantManagerTest {
         verify(knowledge,times(2)).verify(context);assertEquals(1,released);
     }
 
+
+    @Test void unnumberedQuestionsUseOriginalTextForOnlyTheMissingParts() throws Exception {
+        configured();
+        String question = "如何计算区间和？数组修改后怎样维护？";
+        KnowledgeDTO.Question dto = knowledgeQuestion(true);
+        dto.getSearch().setQuery(question);
+        KnowledgeManager.Context context = knowledgeContext(question);
+        com.fasterxml.jackson.databind.node.ObjectNode reply =
+                (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(knowledgeReply("区间和可用两个前缀值相减。"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) reply.path("claims").get(0)).putArray("questionIds").add("Q1");
+        reply.putArray("unansweredQuestions").add("Q2");
+        when(provider.chat(anyString(), anyString(), anyString(), anyList(), eq(2048))).thenAnswer(call -> {
+            List<Map<String,String>> messages = call.getArgument(3);
+            com.fasterxml.jackson.databind.JsonNode material = json.readTree(messages.get(2).get("content"));
+            assertEquals(question, material.path("question").asText());
+            assertEquals("如何计算区间和？", material.path("questions").path(0).path("text").asText());
+            assertEquals("数组修改后怎样维护？", material.path("questions").path(1).path("text").asText());
+            return reply.toString();
+        });
+
+        Map<String,Object> result = manager.answerKnowledge(dto);
+        assertEquals("partial", result.get("answerCoverage"));
+        assertEquals(Collections.singletonList("数组修改后怎样维护？"), result.get("unansweredQuestions"));
+        assertEquals(1, ((List<?>) result.get("citations")).size());
+        verify(knowledge).retrieve("alice", dto.getSearch());
+        verify(knowledge, times(2)).verify(context);
+    }
+
+    @Test void unnumberedQuestionsWithoutHitsReportAllOriginalPartsWithoutCallingModel() throws Exception {
+        configured();
+        KnowledgeDTO.Question dto = knowledgeQuestion(true);
+        dto.getSearch().setQuery("如何计算区间和？数组修改后怎样维护？");
+        KnowledgeManager.Context context = knowledgeContext(dto.getSearch().getQuery());
+        Map<String,Object> empty = new LinkedHashMap<>();
+        empty.put("items", Collections.emptyList());
+        when(knowledge.view(context)).thenReturn(empty);
+
+        Map<String,Object> result = manager.answerKnowledge(dto);
+        assertEquals("insufficient", result.get("answerCoverage"));
+        assertEquals(Arrays.asList("如何计算区间和？", "数组修改后怎样维护？"), result.get("unansweredQuestions"));
+        verifyNoInteractions(provider);
+    }
+
+    @Test void unnumberedQuestionsDoNotPublishInventedMissingTextEvenWithValidQuotes() throws Exception {
+        configured();
+        KnowledgeDTO.Question dto = knowledgeQuestion(true);
+        dto.getSearch().setQuery("如何计算区间和？数组修改后怎样维护？");
+        knowledgeContext(dto.getSearch().getQuery());
+        com.fasterxml.jackson.databind.node.ObjectNode reply =
+                (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(knowledgeReply("区间和可用两个前缀值相减。"));
+        reply.putArray("unansweredQuestions").add("并发垃圾回收器应该采用什么写屏障？");
+        when(provider.chat(anyString(), anyString(), anyString(), anyList(), eq(2048))).thenReturn(reply.toString());
+
+        Map<String,Object> result = manager.answerKnowledge(dto);
+        assertEquals(true, result.get("generationFailed"));
+        assertEquals(Collections.emptyList(), result.get("unansweredQuestions"));
+        assertEquals(1, ((List<?>) result.get("items")).size());
+    }
+
     @Test void numberedKnowledgeQuestionsWithoutHitsListOriginalQuestionsWithoutCallingModel() throws Exception {
         configured();KnowledgeDTO.Question dto=numberedKnowledgeQuestion();KnowledgeManager.Context context=knowledgeContext(dto.getSearch().getQuery());
         Map<String,Object> empty=new LinkedHashMap<>();empty.put("items",Collections.emptyList());when(knowledge.view(context)).thenReturn(empty);

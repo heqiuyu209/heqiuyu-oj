@@ -48,13 +48,54 @@ class KnowledgeQuestionPlanTest {
         KnowledgeQuestionPlan plan=KnowledgeQuestionPlan.from("1. 解释图\n  1. 顶点条件\n  2. 边的条件\n2. 解释复杂度");
         assertTrue(plan.structured());assertEquals(2,plan.ids().size());assertTrue(plan.text("Q1").contains("  2. 边的条件"));
     }
-    @Test void ambiguousOrNonNumberedQueriesKeepTheWholeExistingFlow() {
-        for(String text:Arrays.asList("如何计算区间和？数组修改后呢？","前提说明\n1. 问题甲\n2. 问题乙",
+    @Test void ambiguousQueriesKeepTheWholeExistingFlow() {
+        for(String text:Arrays.asList("如何计算区间和？请补充讨论修改。","前提说明\n1. 问题甲\n2. 问题乙",
                 "1. 问题甲\n3. 问题乙","1. 问题甲\n1. 问题乙","1.23与2.56的区别？",
                 "1. 问题甲\n```text\n2. 尚未闭合","    1. code\n    2. code","1.\u3000\n2. 问题乙")) {
             KnowledgeQuestionPlan plan=KnowledgeQuestionPlan.from(text);assertFalse(plan.structured(),text);assertEquals(Collections.singletonList(text),plan.unanswered());
         }
     }
+
+    @Test void punctuatedQuestionsPreserveTheirOriginalText() {
+        KnowledgeQuestionPlan plan = KnowledgeQuestionPlan.from("  如何计算区间和？数组修改后呢？\n");
+        assertTrue(plan.structured());
+        assertEquals(Arrays.asList("如何计算区间和？", "数组修改后呢？"), plan.unanswered());
+        assertEquals("数组修改后呢？", plan.text("Q2"));
+        assertEquals(Arrays.asList("What is BFS?", "What is its time complexity?"),
+                KnowledgeQuestionPlan.from("What is BFS?\nWhat is its time complexity?").unanswered());
+    }
+
+    @Test void questionMarksInsideCodeQuotationsGroupsAndUrlTokensDoNotSplit() {
+        String first = "如何检查 ``match?value``、问号字符串“继续？”和（例如：x？）？";
+        String second = "链接 https://example.invalid/index? 以及 /lookup?x=5 如何处理？";
+        String third = "Can I use \\? as a literal? ";
+        KnowledgeQuestionPlan plan = KnowledgeQuestionPlan.from(first + second + "\n" + third);
+        assertEquals(Arrays.asList(first, second, third.trim()), plan.unanswered());
+        for (String ternary : Arrays.asList("ready ? yes : no", "ready? yes : no")) {
+            String question = ternary + " 的作用是什么？求值顺序怎样？";
+            assertEquals(Arrays.asList(ternary + " 的作用是什么？", "求值顺序怎样？"),
+                    KnowledgeQuestionPlan.from(question).unanswered());
+        }
+        assertEquals(Arrays.asList("What does \"is it ready?\" mean?", "What's the response?"),
+                KnowledgeQuestionPlan.from("What does \"is it ready?\" mean? What's the response?").unanswered());
+    }
+
+    @Test void ambiguousPunctuationDoesNotDropInputOrManufactureSubquestions() {
+        for (String question : Arrays.asList(
+                "为什么？为什么？",
+                "第一问？第二问？最后请用表格总结。",
+                "第一问？[括号内的未闭合问题？",
+                "第一问？第二问里的 ``文本？",
+                "第一问？\n```js\nready ? 1 : 0\n```\n第二问？",
+                "1. 连续第一问？\n3. 缺少第二项？",
+                "为什么用 ```x``` 作为字符串？",
+                "问题甲？问题乙？问题丙？问题丁？问题戊？问题己？问题庚？问题辛？问题壬？")) {
+            KnowledgeQuestionPlan plan = KnowledgeQuestionPlan.from(question);
+            assertFalse(plan.structured(), question);
+            assertEquals(Collections.singletonList(question), plan.unanswered());
+        }
+    }
+
     @Test void eightQuestionsFitTheExistingBoundAndTheNinthIsNotSilentlyOmitted() {
         StringBuilder text=new StringBuilder();for(int i=1;i<=8;i++)text.append(i).append(". 问题").append(i).append('\n');
         assertEquals(8,KnowledgeQuestionPlan.from(text.toString()).ids().size());
@@ -95,7 +136,7 @@ class KnowledgeQuestionPlanTest {
     @Test void ordinaryQuestionsRetainTheExistingPartialAnswerContract() throws Exception {
         Map<String,Object> paragraph=claim(Collections.emptyList());paragraph.remove("questionIds");
         Map<String,Object> result=KnowledgeAnswer.parse(reply(true,Collections.singletonList("数组修改后呢？"),paragraph),sources(),json,
-                KnowledgeQuestionPlan.from("如何计算区间和？数组修改后呢？"));
+                KnowledgeQuestionPlan.from("如何计算区间和？也请介绍数组修改后的处理。"));
         assertEquals("partial",result.get("answerCoverage"));assertEquals(Collections.singletonList("数组修改后呢？"),result.get("unansweredQuestions"));
     }
 }
