@@ -1,0 +1,181 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "api": [],
+  "pages": [],
+  "errors": [],
+  "validated": true,
+  "checks": [
+    {
+      "mode": "light",
+      "selector": ".collection-primary-link",
+      "normal": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(33, 124, 158)",
+        "border": "rgb(255, 255, 255)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(27, 108, 139)",
+        "border": "rgb(255, 255, 255)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(23, 91, 118)",
+        "border": "rgb(255, 255, 255)",
+        "disabled": false
+      },
+      "focused": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(27, 108, 139)",
+        "border": "rgb(255, 255, 255)",
+        "disabled": false
+      },
+      "minimumContrast": 4.73
+    },
+    {
+      "mode": "light",
+      "selector": ".ai-launcher",
+      "normal": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(33, 124, 158)",
+        "border": "rgb(33, 124, 158)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(27, 108, 139)",
+        "border": "rgb(27, 108, 139)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(23, 91, 118)",
+        "border": "rgb(23, 91, 118)",
+        "disabled": false
+      },
+      "focused": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(27, 108, 139)",
+        "border": "rgb(27, 108, 139)",
+        "disabled": false
+      },
+      "minimumContrast": 4.73
+    },
+    {
+      "mode": "light",
+      "check": "disabled-send-retains-disabled-colors",
+      "passed": true
+    },
+    {
+      "mode": "light",
+      "selector": "status-refresh",
+      "normal": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(33, 124, 158)",
+        "border": "rgb(33, 124, 158)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(27, 108, 139)",
+        "border": "rgb(27, 108, 139)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(23, 91, 118)",
+        "border": "rgb(23, 91, 118)",
+        "disabled": false
+      },
+      "minimumContrast": 4.73
+    },
+    {
+      "mode": "dark",
+      "selector": ".collection-primary-link",
+      "normal": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(122, 203, 229)",
+        "border": "rgb(16, 45, 58)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(151, 217, 238)",
+        "border": "rgb(16, 45, 58)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(96, 182, 209)",
+        "border": "rgb(16, 45, 58)",
+        "disabled": false
+      },
+      "focused": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(151, 217, 238)",
+        "border": "rgb(16, 45, 58)",
+        "disabled": false
+      },
+      "minimumContrast": 6.25
+    },
+    {
+      "mode": "dark",
+      "selector": ".ai-launcher",
+      "normal": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(122, 203, 229)",
+        "border": "rgb(122, 203, 229)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(151, 217, 238)",
+        "border": "rgb(151, 217, 238)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(96, 182, 209)",
+        "border": "rgb(96, 182, 209)",
+        "disabled": false
+      },
+      "focused": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(151, 217, 238)",
+        "border": "rgb(151, 217, 238)",
+        "disabled": false
+      },
+      "minimumContrast": 6.25
+    },
+    {
+      "mode": "dark",
+      "check": "disabled-send-retains-disabled-colors",
+      "passed": true
+    },
+    {
+      "mode": "dark",
+      "selector": "status-refresh",
+      "normal": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(122, 203, 229)",
+        "border": "rgb(122, 203, 229)",
+        "disabled": false
+      },
+      "hover": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(151, 217, 238)",
+        "border": "rgb(151, 217, 238)",
+        "disabled": false
+      },
+      "pressed": {
+        "color": "rgb(16, 45, 58)",
+        "background": "rgb(96, 182, 209)",
+        "border": "rgb(96, 182, 209)",
+        "disabled": false
+      },
+      "minimumContrast": 6.25
+    }
+  ]
+}

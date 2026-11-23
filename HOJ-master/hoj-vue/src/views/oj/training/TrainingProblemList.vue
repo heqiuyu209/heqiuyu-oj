@@ -52,19 +52,7 @@
         show-overflow
       ></vxe-table-column>
 
-      <vxe-table-column
-        field="difficulty"
-        :title="$t('m.Level')"
-        min-width="100"
-      >
-        <template v-slot="{ row }">
-          <span
-            class="el-tag el-tag--small"
-            :style="getLevelColor(row.difficulty)"
-            >{{ getLevelName(row.difficulty) }}</span
-          >
-        </template>
-      </vxe-table-column>
+      <vxe-table-column title="Rating" min-width="100"><template v-slot="{ row }">{{ row.rating == null ? '未评级' : row.rating }}</template></vxe-table-column>
 
       <vxe-table-column field="tag" min-width="100">
         <template v-slot:header

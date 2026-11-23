@@ -1,4 +1,10 @@
 export const m = {
+  Knowledge: '知识库',
+  Knowledge_Admin: '知识库资料',
+  Paper_Practice: '套卷练习',
+  Paper_Admin: '题集与试卷',
+  Objective_Practice: '客观题练习',
+  Objective_Admin: '客观题与组卷',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: '查询错误，找不到要请求的资源！',
@@ -16,10 +22,8 @@ export const m = {
   NavBar_Problem: '题目',
   NavBar_Training: '训练',
   NavBar_Contest: '比赛',
-  NavBar_Status: '评测',
+  NavBar_Status: '测评',
   NavBar_Rank: '排名',
-  NavBar_ACM_Rank: 'ACM 排名',
-  NavBar_OI_Rank: 'OI 排名',
   NavBar_Discussion: '讨论',
   NavBar_Group: '团队',
   NavBar_About: '关于',
@@ -30,7 +34,7 @@ export const m = {
   NavBar_UserHome: '我的首页',
   NavBar_Submissions: '我的提交',
   NavBar_Setting: '我的设置',
-  NavBar_Management: '后台管理',
+  NavBar_Management: '管理后台',
   NavBar_Logout: '退出登录',
   Dialog_Login: '登录',
   Dialog_Register: '注册',

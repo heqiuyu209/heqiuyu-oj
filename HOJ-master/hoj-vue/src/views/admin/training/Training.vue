@@ -1,12 +1,15 @@
 <template>
   <div class="view">
-    <el-card>
+    <el-card v-loading="loading">
       <div slot="header">
         <span class="panel-title home-title">
           {{ title }}
         </span>
       </div>
-      <el-form label-position="top">
+      <el-alert v-if="loadError" :title="loadError" type="error" :closable="false">
+        <el-button type="text" @click="getTraining">重新加载</el-button>
+      </el-alert>
+      <el-form label-position="top" :disabled="loading || saving">
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item :label="$t('m.Training_rank')" required>
@@ -73,7 +76,7 @@
           </el-col>
         </el-row>
       </el-form>
-      <el-button type="primary" @click.native="saveTraining">{{
+      <el-button type="primary" :loading="saving" :disabled="!ready || loading" @click.native="saveTraining">{{
         $t('m.Save')
       }}</el-button>
     </el-card>
@@ -85,6 +88,13 @@ import api from '@/common/api';
 import { mapGetters } from 'vuex';
 import myMessage from '@/common/message';
 const Editor = () => import('@/components/admin/Editor.vue');
+const emptyTraining = () => ({
+  rank: 1000,
+  title: '',
+  description: '',
+  privatePwd: '',
+  auth: 'Public',
+});
 export default {
   name: 'CreateTraining',
   components: {
@@ -93,15 +103,15 @@ export default {
   data() {
     return {
       title: 'Create Training',
-      training: {
-        rank: 1000,
-        title: '',
-        description: '',
-        privatePwd: '',
-        auth: 'Public',
-      },
+      training: emptyTraining(),
       trainingCategoryId: null,
       trainingCategoryList: [],
+      loading: false,
+      saving: false,
+      ready: false,
+      loadError: '',
+      trainingRequest: 0,
+      formActive: true,
     };
   },
   mounted() {
@@ -109,27 +119,37 @@ export default {
   },
   watch: {
     $route() {
+      this.resetTraining();
       if (this.$route.name === 'admin-edit-training') {
         this.title = this.$i18n.t('m.Edit_Training');
         this.getTraining();
       } else {
         this.title = this.$i18n.t('m.Create_Training');
-        this.training = {
-          rank: 1000,
-          title: '',
-          description: '',
-          privatePwd: '',
-          auth: 'Public',
-        };
+        this.ready = true;
       }
     },
+  },
+  beforeDestroy() {
+    this.formActive = false;
+    this.trainingRequest++;
   },
   computed: {
     ...mapGetters(['userInfo']),
   },
   methods: {
+    resetTraining() {
+      this.trainingRequest++;
+      this.training = emptyTraining();
+      this.trainingCategoryId = null;
+      this.loading = false;
+      this.saving = false;
+      this.ready = false;
+      this.loadError = '';
+    },
     init() {
+      const request = this.trainingRequest;
       api.getTrainingCategoryList().then((res) => {
+        if (!this.formActive) return;
         let data = res.data.data;
         if (!data || !data.length) {
           this.$alert(
@@ -147,28 +167,44 @@ export default {
           );
         } else {
           this.trainingCategoryList = data;
+          if (request !== this.trainingRequest) return;
           if (this.$route.name === 'admin-edit-training') {
             this.title = this.$i18n.t('m.Edit_Training');
             this.getTraining();
           } else {
             this.title = this.$i18n.t('m.Create_Training');
+            this.ready = true;
           }
         }
       });
     },
 
     getTraining() {
+      if (this.$route.name !== 'admin-edit-training') return;
+      this.resetTraining();
+      const request = this.trainingRequest;
+      const trainingId = String(this.$route.params.trainingId);
+      this.loading = true;
       api
-        .admin_getTraining(this.$route.params.trainingId)
+        .admin_getTraining(trainingId)
         .then((res) => {
+          if (request !== this.trainingRequest || this.$route.name !== 'admin-edit-training' || String(this.$route.params.trainingId) !== trainingId) return;
           let data = res.data.data;
-          this.training = data.training || {};
-          this.trainingCategoryId = data.trainingCategory.id || null;
+          if (!data.training || String(data.training.id) !== trainingId) throw new Error('Unexpected training');
+          this.training = data.training;
+          this.trainingCategoryId = data.trainingCategory ? data.trainingCategory.id : null;
+          this.ready = true;
         })
-        .catch(() => {});
+        .catch(() => {
+          if (request === this.trainingRequest) this.loadError = '训练信息加载失败，请重新加载后再保存。';
+        })
+        .finally(() => {
+          if (request === this.trainingRequest) this.loading = false;
+        });
     },
 
     saveTraining() {
+      if (!this.ready || this.loading || this.saving) return;
       if (!this.training.rank && this.training.rank != 0) {
         myMessage.error(
           this.$i18n.t('m.Training_rank') + ' ' + this.$i18n.t('m.is_required')
@@ -225,15 +261,21 @@ export default {
         },
       };
 
+      const request = this.trainingRequest;
+      this.saving = true;
       api[funcName](trainingDto)
         .then((res) => {
+          if (request !== this.trainingRequest) return;
           myMessage.success('success');
           this.$router.push({
             name: 'admin-training-list',
             query: { refresh: 'true' },
           });
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (request === this.trainingRequest) this.saving = false;
+        });
     },
   },
 };

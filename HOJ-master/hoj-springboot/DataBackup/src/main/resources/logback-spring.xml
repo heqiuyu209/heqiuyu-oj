@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <configuration>
+    <!-- Provider Authorization headers and chat bodies must never enter wire logs. -->
+    <logger name="org.apache.http.wire" level="OFF"/>
+    <logger name="org.apache.http.headers" level="OFF"/>
     <!-- 属性文件:在properties文件中找到对应的配置项 -->
     <springProperty scope="context" name="logging.path" source="logging.file.path"/>
     <springProperty scope="context" name="logging.level.root" source="logging.level.root"/>

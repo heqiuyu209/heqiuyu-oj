@@ -1,0 +1,1111 @@
+[
+  {
+    "code": "basics.general",
+    "name": "算法基础",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 0,
+    "aliases": [
+      "implementation",
+      "基础与模拟"
+    ]
+  },
+  {
+    "code": "basics.complexity",
+    "name": "复杂度分析",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 1,
+    "aliases": [
+      "complexity"
+    ]
+  },
+  {
+    "code": "basics.simulation",
+    "name": "模拟",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 2,
+    "aliases": [
+      "simulation"
+    ]
+  },
+  {
+    "code": "basics.enumeration",
+    "name": "枚举",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 3,
+    "aliases": [
+      "brute force",
+      "枚举算法"
+    ]
+  },
+  {
+    "code": "basics.sorting",
+    "name": "排序",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 4,
+    "aliases": [
+      "sortings",
+      "sorting"
+    ]
+  },
+  {
+    "code": "basics.binary-search",
+    "name": "二分",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 5,
+    "aliases": [
+      "binary search"
+    ]
+  },
+  {
+    "code": "basics.prefix-sum",
+    "name": "前缀和与差分",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 6,
+    "aliases": [
+      "prefix sums",
+      "prefix sum",
+      "前缀和",
+      "差分"
+    ]
+  },
+  {
+    "code": "basics.two-pointers",
+    "name": "双指针",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 7,
+    "aliases": [
+      "two pointers",
+      "双指针与滑动窗口"
+    ]
+  },
+  {
+    "code": "basics.greedy",
+    "name": "贪心",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 8,
+    "aliases": [
+      "greedy"
+    ]
+  },
+  {
+    "code": "basics.divide-conquer",
+    "name": "分治",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 9,
+    "aliases": [
+      "divide and conquer"
+    ]
+  },
+  {
+    "code": "basics.constructive",
+    "name": "构造",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 10,
+    "aliases": [
+      "constructive algorithms"
+    ]
+  },
+  {
+    "code": "basics.bitmask",
+    "name": "位运算",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 11,
+    "aliases": [
+      "bitmasks",
+      "bit manipulation"
+    ]
+  },
+  {
+    "code": "basics.randomized",
+    "name": "随机化",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 12,
+    "aliases": [
+      "randomized",
+      "randomization"
+    ]
+  },
+  {
+    "code": "basics.meet-in-middle",
+    "name": "折半搜索",
+    "groupCode": "basics",
+    "groupName": "基础算法",
+    "color": "#217e9d",
+    "sortOrder": 13,
+    "aliases": [
+      "meet-in-the-middle"
+    ]
+  },
+  {
+    "code": "search.general",
+    "name": "搜索基础",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 100,
+    "aliases": [
+      "search"
+    ]
+  },
+  {
+    "code": "search.dfs",
+    "name": "深度优先搜索",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 101,
+    "aliases": [
+      "dfs",
+      "depth first search",
+      "深搜"
+    ]
+  },
+  {
+    "code": "search.bfs",
+    "name": "广度优先搜索",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 102,
+    "aliases": [
+      "bfs",
+      "breadth first search",
+      "广搜"
+    ]
+  },
+  {
+    "code": "search.backtracking",
+    "name": "回溯与剪枝",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 103,
+    "aliases": [
+      "backtracking"
+    ]
+  },
+  {
+    "code": "search.bidirectional",
+    "name": "双向搜索",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 104,
+    "aliases": []
+  },
+  {
+    "code": "search.iterative",
+    "name": "迭代加深",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 105,
+    "aliases": []
+  },
+  {
+    "code": "search.astar",
+    "name": "启发式搜索",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 106,
+    "aliases": [
+      "a*",
+      "astar"
+    ]
+  },
+  {
+    "code": "search.dancing-links",
+    "name": "精确覆盖与舞蹈链",
+    "groupCode": "search",
+    "groupName": "搜索",
+    "color": "#5278a5",
+    "sortOrder": 107,
+    "aliases": [
+      "dancing links",
+      "dlx"
+    ]
+  },
+  {
+    "code": "dp.general",
+    "name": "动态规划基础",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 200,
+    "aliases": [
+      "dp",
+      "dynamic programming",
+      "动态规划"
+    ]
+  },
+  {
+    "code": "dp.knapsack",
+    "name": "背包 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 201,
+    "aliases": [
+      "knapsack",
+      "背包问题",
+      "背包dp"
+    ]
+  },
+  {
+    "code": "dp.linear",
+    "name": "线性 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 202,
+    "aliases": [
+      "linear dp"
+    ]
+  },
+  {
+    "code": "dp.interval",
+    "name": "区间 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 203,
+    "aliases": [
+      "interval dp"
+    ]
+  },
+  {
+    "code": "dp.tree",
+    "name": "树形 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 204,
+    "aliases": [
+      "tree dp"
+    ]
+  },
+  {
+    "code": "dp.bitmask",
+    "name": "状态压缩 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 205,
+    "aliases": [
+      "bitmask dp",
+      "状压dp"
+    ]
+  },
+  {
+    "code": "dp.digit",
+    "name": "数位 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 206,
+    "aliases": [
+      "digit dp"
+    ]
+  },
+  {
+    "code": "dp.probability",
+    "name": "概率与期望 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 207,
+    "aliases": [
+      "probability dp"
+    ]
+  },
+  {
+    "code": "dp.counting",
+    "name": "计数 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 208,
+    "aliases": [
+      "counting dp"
+    ]
+  },
+  {
+    "code": "dp.dag",
+    "name": "DAG 上的 DP",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 209,
+    "aliases": [
+      "dag dp"
+    ]
+  },
+  {
+    "code": "dp.optimization",
+    "name": "DP 优化",
+    "groupCode": "dp",
+    "groupName": "动态规划",
+    "color": "#7b6eaa",
+    "sortOrder": 210,
+    "aliases": [
+      "dp optimization",
+      "斜率优化",
+      "四边形不等式优化"
+    ]
+  },
+  {
+    "code": "data-structure.general",
+    "name": "数据结构基础",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 300,
+    "aliases": [
+      "data structures",
+      "data structure"
+    ]
+  },
+  {
+    "code": "data-structure.stack-queue",
+    "name": "栈与队列",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 301,
+    "aliases": [
+      "stack",
+      "queue",
+      "stack and queue"
+    ]
+  },
+  {
+    "code": "data-structure.heap",
+    "name": "堆与优先队列",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 302,
+    "aliases": [
+      "heap",
+      "priority queue"
+    ]
+  },
+  {
+    "code": "data-structure.dsu",
+    "name": "并查集",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 303,
+    "aliases": [
+      "dsu",
+      "disjoint set union"
+    ]
+  },
+  {
+    "code": "data-structure.fenwick",
+    "name": "树状数组",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 304,
+    "aliases": [
+      "fenwick tree",
+      "bit"
+    ]
+  },
+  {
+    "code": "data-structure.segment-tree",
+    "name": "线段树",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 305,
+    "aliases": [
+      "segment tree"
+    ]
+  },
+  {
+    "code": "data-structure.sparse-table",
+    "name": "ST 表",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 306,
+    "aliases": [
+      "sparse table",
+      "rmq"
+    ]
+  },
+  {
+    "code": "data-structure.balanced-tree",
+    "name": "平衡树",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 307,
+    "aliases": [
+      "balanced tree",
+      "treap",
+      "splay"
+    ]
+  },
+  {
+    "code": "data-structure.persistent",
+    "name": "可持久化数据结构",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 308,
+    "aliases": [
+      "persistent data structures",
+      "主席树"
+    ]
+  },
+  {
+    "code": "data-structure.hld",
+    "name": "树链剖分",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 309,
+    "aliases": [
+      "heavy light decomposition",
+      "hld"
+    ]
+  },
+  {
+    "code": "data-structure.lct",
+    "name": "动态树",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 310,
+    "aliases": [
+      "link cut tree",
+      "lct"
+    ]
+  },
+  {
+    "code": "data-structure.mo",
+    "name": "莫队算法",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 311,
+    "aliases": [
+      "mo algorithm",
+      "mo's algorithm"
+    ]
+  },
+  {
+    "code": "data-structure.block",
+    "name": "分块",
+    "groupCode": "data-structure",
+    "groupName": "数据结构",
+    "color": "#398774",
+    "sortOrder": 312,
+    "aliases": [
+      "sqrt decomposition"
+    ]
+  },
+  {
+    "code": "graph.general",
+    "name": "图论基础",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 400,
+    "aliases": [
+      "graphs",
+      "graph theory",
+      "图论"
+    ]
+  },
+  {
+    "code": "graph.traversal",
+    "name": "图的遍历",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 401,
+    "aliases": [
+      "dfs and similar"
+    ]
+  },
+  {
+    "code": "graph.trees",
+    "name": "树与倍增",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 402,
+    "aliases": [
+      "trees",
+      "树",
+      "binary lifting"
+    ]
+  },
+  {
+    "code": "graph.shortest-path",
+    "name": "最短路",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 403,
+    "aliases": [
+      "shortest paths",
+      "shortest path",
+      "dijkstra",
+      "spfa"
+    ]
+  },
+  {
+    "code": "graph.mst",
+    "name": "最小生成树",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 404,
+    "aliases": [
+      "minimum spanning tree",
+      "mst"
+    ]
+  },
+  {
+    "code": "graph.topological",
+    "name": "拓扑排序",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 405,
+    "aliases": [
+      "topological sort"
+    ]
+  },
+  {
+    "code": "graph.scc",
+    "name": "强连通分量",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 406,
+    "aliases": [
+      "strongly connected components",
+      "scc",
+      "tarjan"
+    ]
+  },
+  {
+    "code": "graph.biconnected",
+    "name": "双连通分量",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 407,
+    "aliases": [
+      "biconnected components",
+      "割点",
+      "桥"
+    ]
+  },
+  {
+    "code": "graph.matching",
+    "name": "二分图匹配",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 408,
+    "aliases": [
+      "matchings",
+      "bipartite matching"
+    ]
+  },
+  {
+    "code": "graph.flow",
+    "name": "网络流",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 409,
+    "aliases": [
+      "flows",
+      "network flow",
+      "最大流",
+      "最小割",
+      "费用流"
+    ]
+  },
+  {
+    "code": "graph.lca",
+    "name": "最近公共祖先",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 410,
+    "aliases": [
+      "lca",
+      "lowest common ancestor"
+    ]
+  },
+  {
+    "code": "graph.sat",
+    "name": "2-SAT",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 411,
+    "aliases": [
+      "2-sat",
+      "2sat"
+    ]
+  },
+  {
+    "code": "graph.euler",
+    "name": "欧拉图",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 412,
+    "aliases": [
+      "eulerian path"
+    ]
+  },
+  {
+    "code": "graph.centroid",
+    "name": "点分治",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 413,
+    "aliases": [
+      "centroid decomposition"
+    ]
+  },
+  {
+    "code": "graph.virtual-tree",
+    "name": "虚树",
+    "groupCode": "graph",
+    "groupName": "图论",
+    "color": "#418bb0",
+    "sortOrder": 414,
+    "aliases": [
+      "virtual tree"
+    ]
+  },
+  {
+    "code": "math.general",
+    "name": "数学基础",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 500,
+    "aliases": [
+      "math",
+      "mathematics",
+      "数学"
+    ]
+  },
+  {
+    "code": "math.number-theory",
+    "name": "数论",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 501,
+    "aliases": [
+      "number theory"
+    ]
+  },
+  {
+    "code": "math.gcd",
+    "name": "最大公约数与扩展欧几里得",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 502,
+    "aliases": [
+      "gcd",
+      "extended euclid"
+    ]
+  },
+  {
+    "code": "math.sieve",
+    "name": "素数与筛法",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 503,
+    "aliases": [
+      "prime sieve",
+      "sieve",
+      "primes"
+    ]
+  },
+  {
+    "code": "math.modular",
+    "name": "模运算与逆元",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 504,
+    "aliases": [
+      "modular arithmetic",
+      "modular inverse"
+    ]
+  },
+  {
+    "code": "math.combinatorics",
+    "name": "组合数学",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 505,
+    "aliases": [
+      "combinatorics"
+    ]
+  },
+  {
+    "code": "math.probability",
+    "name": "概率与期望",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 506,
+    "aliases": [
+      "probabilities",
+      "probability"
+    ]
+  },
+  {
+    "code": "math.game",
+    "name": "博弈论",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 507,
+    "aliases": [
+      "games",
+      "game theory"
+    ]
+  },
+  {
+    "code": "math.linear-algebra",
+    "name": "线性代数",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 508,
+    "aliases": [
+      "linear algebra",
+      "gaussian elimination"
+    ]
+  },
+  {
+    "code": "math.matrix",
+    "name": "矩阵与快速幂",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 509,
+    "aliases": [
+      "matrices",
+      "matrix exponentiation"
+    ]
+  },
+  {
+    "code": "math.polynomial",
+    "name": "多项式与 FFT/NTT",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 510,
+    "aliases": [
+      "fft",
+      "ntt",
+      "polynomials"
+    ]
+  },
+  {
+    "code": "math.mobius",
+    "name": "莫比乌斯反演",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 511,
+    "aliases": [
+      "mobius inversion"
+    ]
+  },
+  {
+    "code": "math.crt",
+    "name": "中国剩余定理",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 512,
+    "aliases": [
+      "chinese remainder theorem",
+      "crt"
+    ]
+  },
+  {
+    "code": "math.numerical",
+    "name": "数值计算",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 513,
+    "aliases": [
+      "numerical methods"
+    ]
+  },
+  {
+    "code": "math.integration",
+    "name": "积分与数值积分",
+    "groupCode": "math",
+    "groupName": "数学",
+    "color": "#ac8351",
+    "sortOrder": 514,
+    "aliases": [
+      "integration"
+    ]
+  },
+  {
+    "code": "string.general",
+    "name": "字符串基础",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 600,
+    "aliases": [
+      "strings",
+      "string",
+      "字符串"
+    ]
+  },
+  {
+    "code": "string.hash",
+    "name": "字符串哈希",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 601,
+    "aliases": [
+      "hashing",
+      "string hashing"
+    ]
+  },
+  {
+    "code": "string.kmp",
+    "name": "KMP",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 602,
+    "aliases": [
+      "kmp",
+      "prefix function"
+    ]
+  },
+  {
+    "code": "string.z-function",
+    "name": "Z 函数",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 603,
+    "aliases": [
+      "z-function",
+      "extended kmp"
+    ]
+  },
+  {
+    "code": "string.trie",
+    "name": "字典树",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 604,
+    "aliases": [
+      "trie"
+    ]
+  },
+  {
+    "code": "string.aho-corasick",
+    "name": "AC 自动机",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 605,
+    "aliases": [
+      "aho-corasick",
+      "ac automaton"
+    ]
+  },
+  {
+    "code": "string.suffix-array",
+    "name": "后缀数组",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 606,
+    "aliases": [
+      "suffix array",
+      "sa"
+    ]
+  },
+  {
+    "code": "string.suffix-automaton",
+    "name": "后缀自动机",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 607,
+    "aliases": [
+      "suffix automaton",
+      "sam"
+    ]
+  },
+  {
+    "code": "string.palindrome",
+    "name": "回文算法",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 608,
+    "aliases": [
+      "manacher",
+      "palindromes",
+      "回文树"
+    ]
+  },
+  {
+    "code": "string.lyndon",
+    "name": "Lyndon 分解",
+    "groupCode": "string",
+    "groupName": "字符串",
+    "color": "#b06a86",
+    "sortOrder": 609,
+    "aliases": [
+      "lyndon factorization"
+    ]
+  },
+  {
+    "code": "geometry.general",
+    "name": "计算几何基础",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 700,
+    "aliases": [
+      "geometry",
+      "computational geometry",
+      "计算几何"
+    ]
+  },
+  {
+    "code": "geometry.vectors",
+    "name": "向量与点线位置关系",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 701,
+    "aliases": [
+      "vectors"
+    ]
+  },
+  {
+    "code": "geometry.convex-hull",
+    "name": "凸包",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 702,
+    "aliases": [
+      "convex hull"
+    ]
+  },
+  {
+    "code": "geometry.intersection",
+    "name": "扫描线与几何交",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 703,
+    "aliases": [
+      "sweep line"
+    ]
+  },
+  {
+    "code": "geometry.half-plane",
+    "name": "半平面交",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 704,
+    "aliases": [
+      "half plane intersection"
+    ]
+  },
+  {
+    "code": "geometry.circle",
+    "name": "圆与球",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 705,
+    "aliases": [
+      "circles"
+    ]
+  },
+  {
+    "code": "geometry.rotating-calipers",
+    "name": "旋转卡壳",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 706,
+    "aliases": [
+      "rotating calipers"
+    ]
+  },
+  {
+    "code": "geometry.closest-pair",
+    "name": "平面最近点对",
+    "groupCode": "geometry",
+    "groupName": "计算几何",
+    "color": "#718d4a",
+    "sortOrder": 707,
+    "aliases": [
+      "closest pair"
+    ]
+  }
+]

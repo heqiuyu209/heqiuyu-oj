@@ -1,11 +1,15 @@
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin') // 清除注释
 const CompressionWebpackPlugin = require('compression-webpack-plugin'); // 开启压缩
+const path = require('path');
 
 // 是否为生产环境
 const isProduction = process.env.NODE_ENV === 'production';
 
 // 本地环境是否需要使用cdn
 const devNeedCdn = true;
+// Optional self-contained build for local development and reproducible UI checks.
+const useCdn = process.env.CDUTETC_LOCAL_ASSETS !== '1' && (isProduction || devNeedCdn);
+process.env.VUE_APP_LOCAL_ASSETS = useCdn ? 'false' : 'true';
 
 // cdn链接
 const cdn = {
@@ -20,7 +24,7 @@ const cdn = {
     "moment": "moment",
     'vue-echarts': 'VueECharts',
     "echarts":"echarts",
-    katex:'katex',
+    // KaTeX stays bundled at the locked version, including in CDN builds.
     'muse-ui':'MuseUI',
     jquery:'$',
     // 'vxe-table':'VXETable',
@@ -40,7 +44,6 @@ const cdn = {
       // "https://cdn.jsdelivr.net/npm/vxe-table@2.9.26/lib/style.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.14.0/theme-chalk/index.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/4.0.0/github-markdown.min.css",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/katex.min.css",
       "https://cdnjs.cloudflare.com/ajax/libs/muse-ui/3.0.2/muse-ui.min.css"
   ],
   // cdn的js链接
@@ -70,9 +73,7 @@ const cdn = {
       // "https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/vuex/3.5.1/vuex.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/vuex/3.5.1/vuex.min.js",
       // "https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/KaTeX/0.12.0/katex.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/katex.min.js",
       // "https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/KaTeX/0.12.0/contrib/auto-render.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.12.0/contrib/auto-render.min.js",
       // 'https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/muse-ui/3.0.2/muse-ui.min.js',
       "https://cdnjs.cloudflare.com/ajax/libs/muse-ui/3.0.2/muse-ui.min.js",
       // 'https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.5.1/jquery.min.js',
@@ -88,13 +89,26 @@ const cdn = {
 module.exports={
   publicPath: '/',
   assetsDir: "assets",
+  // markdown-it uses entities' modern source; Webpack 4 needs Babel to parse it.
+  transpileDependencies: ['entities'],
   devServer: {
-    open: true,  // npm run serve后自动打开页面
+    open: false,
     host: '0.0.0.0',  // 匹配本机IP地址(默认是0.0.0.0)
     port: 8066, // 开发服务器运行端口号
+    watchOptions: {
+      // Enable polling only for Docker Desktop; host development keeps native watching.
+      poll: Number(process.env.HOJ_DEV_POLL) || undefined,
+      ignored: /node_modules/,
+    },
+    // webpack-dev-server 3 serves both the OJ assets and the separate scoreboard.
+    contentBase: [path.resolve(__dirname, 'public'), path.resolve(__dirname, '../hoj-scrollBoard')],
+    contentBasePublicPath: ['/', '/scrollBoard'],
+    before(app) {
+      app.get(/^\/scrollBoard$/, (req, res) => res.redirect(301, req.originalUrl.replace('/scrollBoard', '/scrollBoard/')));
+    },
     proxy: {
       '/api': {                                //   以'/api'开头的请求会被代理进行转发
-        target: 'http://localhost:6688',       //   要发向的后台服务器地址  如果后台ls服务跑在后台开发人员的机器上，就写成 `http://ip:port` 如 `http:192.168.12.213:8081`   ip为后台服务器的ip
+        target: process.env.HOJ_DEV_API_TARGET || 'http://localhost:6688',
         changeOrigin: true 
       }
     },
@@ -107,7 +121,7 @@ module.exports={
     // ============注入cdn start============
     config.plugin('html').tap(args => {
         // 生产环境或本地需要cdn时，才注入cdn
-        if (isProduction || devNeedCdn) args[0].cdn = cdn
+        if (useCdn) args[0].cdn = cdn
         return args
     })
       if (process.env.ANALYZE === 'true') {
@@ -120,7 +134,7 @@ module.exports={
   configureWebpack: (config) => {
     // 用cdn方式引入，则构建时要忽略相关资源
     const plugins = [];
-    if (isProduction || devNeedCdn){
+    if (useCdn){
       config.externals = cdn.externals
       config.mode = 'production';
       config["performance"] = {//打包文件大小配置

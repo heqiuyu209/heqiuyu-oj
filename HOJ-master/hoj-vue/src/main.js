@@ -3,12 +3,20 @@ import App from './App.vue'
 import store from './store'
 import Element from 'element-ui'
 import i18n from '@/i18n'
+import spotlight from '@/common/spotlight'
 
 // import "element-ui/lib/theme-chalk/index.css"
 import 'font-awesome/css/font-awesome.min.css'
 import Message from 'vue-m-message'
 import 'vue-m-message/dist/index.css'
 import axios from 'axios'
+
+if (process.env.VUE_APP_LOCAL_ASSETS === 'true') {
+  require('echarts');
+  require('element-ui/lib/theme-chalk/index.css');
+  require('muse-ui/dist/muse-ui.css');
+  require('katex/dist/katex.min.css');
+}
 
 import Md_Katex from '@iktakahiro/markdown-it-katex'
 
@@ -74,6 +82,8 @@ Vue.use(VXETable) // 表格组件
 Vue.use(VueClipboard) // 剪贴板
 Vue.use(highlight) // 代码高亮
 Vue.use(Element,{
+  // Modal masks and dialogs must cover the mobile navigation and its popovers.
+  zIndex: 4000,
   i18n: (key, value) => i18n.t(key, value)
 })
 
@@ -87,6 +97,12 @@ Vue.prototype.$axios = axios
 Vue.prototype.$markDown = mavonEditor.mavonEditor.getMarkdownIt().use(Md_Katex)  // 挂载到vue
 
 Vue.config.productionTip = false
+Vue.directive('spotlight', spotlight);
+// Keep the existing module initialization order; apply theme styles last.
+require('./styles/cdutetc.css');
+require('./styles/collections.css');
+require('./styles/admin-theme.css');
+require('./styles/appearance-effects.css');
 new Vue({
   router,
   store,

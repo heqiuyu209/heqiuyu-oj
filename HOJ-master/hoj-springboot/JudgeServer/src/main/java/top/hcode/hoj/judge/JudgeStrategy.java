@@ -64,7 +64,11 @@ public class JudgeStrategy {
             // 测试数据文件所在文件夹
             String testCasesDir = Constants.JudgeDir.TEST_CASE_DIR.getContent() + File.separator + "problem_" + problem.getId();
             // 从文件中加载测试数据json
-            JSONObject testCasesInfo = problemTestCaseUtils.loadTestCaseInfo(problem.getId(),
+            JSONObject testCasesInfo;
+            if (judge.getPaperSnapshotId() != null) {
+                testCasesDir = Constants.JudgeDir.TEST_CASE_DIR.getContent() + File.separator + "paper_" + judge.getPaperSnapshotId();
+                testCasesInfo = problemTestCaseUtils.loadPaperTestCaseInfo(judge.getPaperSnapshotId(), judge.getPaperSnapshot());
+            } else testCasesInfo = problemTestCaseUtils.loadTestCaseInfo(problem.getId(),
                     testCasesDir,
                     problem.getCaseVersion(),
                     problem.getJudgeMode(),

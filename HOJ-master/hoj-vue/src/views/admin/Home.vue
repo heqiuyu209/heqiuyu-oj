@@ -12,7 +12,7 @@
             effect="dark"
           >
           <div class="logo" @click="changeWebLanguage(webLanguage == 'zh-CN' ? 'en-US' : 'zh-CN')">
-            <img :src="imgUrl" alt="Online Judge Admin" />
+            <BrandLogo />
           </div>
         </el-tooltip>
         <el-menu-item index="/admin/">
@@ -46,10 +46,9 @@
             ><i class="fa fa-bars fa-size" aria-hidden="true"></i
             >{{ $t('m.Problem_Admin') }}</template
           >
-          <el-menu-item index="/admin/problems">{{
-            $t('m.Problem_List')
-          }}</el-menu-item>
-          <el-menu-item index="/admin/problem/create">{{
+          <el-menu-item index="/admin/problems">题库</el-menu-item>
+          <el-menu-item index="/admin/papers">题集与试卷</el-menu-item>
+          <el-menu-item index="/admin/questions/create">{{
             $t('m.Create_Problem')
           }}</el-menu-item>
           <el-menu-item index="/admin/problem/tag">{{
@@ -66,6 +65,7 @@
           >
         </el-submenu>
 
+        <el-menu-item v-if="canMaintainKnowledge" index="/admin/knowledge"><i class="el-icon-reading"></i>{{ $t('m.Knowledge_Admin') }}</el-menu-item>
         <el-submenu index="training">
           <template slot="title"
             ><i
@@ -109,8 +109,8 @@
           }}</el-menu-item>
         </el-submenu>
       </el-menu>
-      <div id="header">
-        <el-row>
+      <div id="admin-header">
+        <el-row class="admin-header-row">
           <el-col :span="18">
             <div class="breadcrumb-container">
               <el-breadcrumb separator-class="el-icon-arrow-right">
@@ -123,7 +123,8 @@
               </el-breadcrumb>
             </div>
           </el-col>
-          <el-col :span="6" v-show="isAuthenticated">
+          <el-col :span="6" v-show="isAuthenticated" class="admin-header-actions">
+            <AppearanceSettings theme-only />
             <i
               class="fa fa-font katex-editor fa-size"
               @click="katexVisible = true"
@@ -156,7 +157,7 @@
     </div>
 
     <div v-else>
-      <mu-appbar class="mobile-nav" color="primary">
+      <mu-appbar class="admin-mobile-nav">
         <mu-button icon slot="left" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
@@ -165,6 +166,7 @@
             ? websiteConfig.shortName + ' ADMIN'
             : 'ADMIN'
         }}
+        <AppearanceSettings slot="right" theme-only />
         <mu-menu slot="right" v-show="isAuthenticated">
           <mu-button flat @click="katexVisible = true">
             <i class="fa fa-font katex-editor"></i>
@@ -311,11 +313,14 @@
                 $t('m.Problem_List')
               }}</mu-list-item-title>
             </mu-list-item>
+            <mu-list-item button :ripple="false" slot="nested" to="/admin/papers" @click="opendrawer = !opendrawer" active-class="mobile-menu-active">
+              <mu-list-item-title>题集与试卷</mu-list-item-title>
+            </mu-list-item>
             <mu-list-item
               button
               :ripple="false"
               slot="nested"
-              to="/admin/problem/create"
+              to="/admin/questions/create"
               @click="opendrawer = !opendrawer"
               active-class="mobile-menu-active"
             >
@@ -362,6 +367,7 @@
             </mu-list-item>
           </mu-list-item>
 
+          <mu-list-item v-if="canMaintainKnowledge" button to="/admin/knowledge" @click="opendrawer = !opendrawer" active-class="mobile-menu-active"><mu-list-item-action><mu-icon value=":el-icon-reading" size="24"></mu-icon></mu-list-item-action><mu-list-item-title>{{ $t('m.Knowledge_Admin') }}</mu-list-item-title></mu-list-item>
           <mu-list-item
             button
             :ripple="false"
@@ -537,6 +543,8 @@
 </template>
 
 <script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
+import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
 import { mapGetters } from 'vuex';
 const KatexEditor = () => import('@/components/admin/KatexEditor.vue');
 import api from '@/common/api';
@@ -549,10 +557,11 @@ export default {
     this.languages = languages;
     this.currentPath = this.$route.path;
     this.getBreadcrumb();
-    window.onresize = () => {
-      this.page_width();
-    };
+    window.addEventListener('resize', this.page_width);
     this.page_width();
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.page_width);
   },
   data() {
     return {
@@ -563,11 +572,12 @@ export default {
       mobileNar: false,
       currentPath: '',
       routeList: [],
-      imgUrl: require('@/assets/backstage.png'),
       languages:[]
     };
   },
   components: {
+    BrandLogo,
+    AppearanceSettings,
     KatexEditor,
     Avatar,
   },
@@ -582,7 +592,7 @@ export default {
       }
     },
     page_width() {
-      let screenWidth = window.screen.width;
+      let screenWidth = window.innerWidth;
       if (screenWidth < 992) {
         this.mobileNar = true;
       } else {
@@ -601,6 +611,7 @@ export default {
     }
   },
   computed: {
+    canMaintainKnowledge() { return (this.userInfo.roleList || []).some(role => role === 'root' || role === 'admin'); },
     ...mapGetters([
       'userInfo',
       'isSuperAdmin',
@@ -609,16 +620,10 @@ export default {
       'websiteConfig',
       'webLanguage',
     ]),
-    'window.screen.width'(newVal, oldVal) {
-      if (newVal < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
-      }
-    },
   },
   watch: {
     $route() {
+      this.currentPath = this.$route.path;
       this.getBreadcrumb(); //监听路由变化
     },
   },
@@ -683,7 +688,7 @@ img {
   box-sizing: border-box;
 }
 
-#header {
+#admin-header {
   text-align: right;
   margin-left: 15%;
   padding-right: 30px;
@@ -711,7 +716,7 @@ img {
   .vertical_menu {
     width: 20%;
   }
-  #header {
+  #admin-header {
     margin-left: 20%;
   }
 }
@@ -724,7 +729,7 @@ img {
   .vertical_menu {
     width: 210px;
   }
-  #header {
+  #admin-header {
     margin-left: 210px;
   }
 }

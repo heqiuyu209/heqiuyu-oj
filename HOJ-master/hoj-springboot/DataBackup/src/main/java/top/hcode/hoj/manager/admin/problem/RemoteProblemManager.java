@@ -95,19 +95,28 @@ public class RemoteProblemManager {
 
     @Transactional(rollbackFor = Exception.class)
     public Problem adminAddOtherOJProblem(ProblemStrategy.RemoteProblemInfo remoteProblemInfo, String OJName) {
+        return adminAddOtherOJProblem(remoteProblemInfo, OJName, false);
+    }
+
+    /** Personal submissions select live source IDs separately; this flag only supplies editor languages. */
+    @Transactional(rollbackFor = Exception.class)
+    public Problem adminAddOtherOJProblem(ProblemStrategy.RemoteProblemInfo remoteProblemInfo, String OJName,
+                                         boolean localEditorLanguages) {
 
         Problem problem = remoteProblemInfo.getProblem();
         boolean addProblemResult = problemEntityService.save(problem);
         // 为新的其它oj题目添加对应的language
         QueryWrapper<Language> languageQueryWrapper = new QueryWrapper<>();
-        if (OJName.equals("GYM")) {
+        if (localEditorLanguages) {
+            languageQueryWrapper.eq("oj", "ME");
+        } else if (OJName.equals("GYM")) {
             languageQueryWrapper.eq("oj", "CF");
         } else {
             languageQueryWrapper.eq("oj", OJName);
         }
         List<Language> OJLanguageList = languageEntityService.list(languageQueryWrapper);
         List<ProblemLanguage> problemLanguageList = new LinkedList<>();
-        if (!CollectionUtil.isEmpty(remoteProblemInfo.getLangIdList())) {
+        if (!localEditorLanguages && !CollectionUtil.isEmpty(remoteProblemInfo.getLangIdList())) {
             LanguageContext languageContext = new LanguageContext(remoteProblemInfo.getRemoteOJ());
             List<Language> languageList = languageContext.buildLanguageListByIds(OJLanguageList, remoteProblemInfo.getLangIdList());
             for (Language language : languageList) {

@@ -1,3 +1,4 @@
+import { withBrand } from '@/common/brand'
 import Vue from 'vue'
 import Vuex from 'vuex'
 import user from '@/store/user'
@@ -14,8 +15,8 @@ const rootState = {
     mode: 'Login', // or 'register',
     visible: false
   },
-  websiteConfig:{
-    recordName:'© 2020-2022',
+  websiteConfig:withBrand({
+    recordName:'',
     projectName:'HOJ',
     shortName:'OJ',
     recordUrl:'#',
@@ -23,7 +24,7 @@ const rootState = {
     openPublicDiscussion: true,
     openGroupDiscussion: true,
     openContestComment: true
-  },
+  }),
   registerTimeOut: 60,
   resetTimeOut: 90,
   language:storage.get('Web_Language') || 'zh-CN',
@@ -84,7 +85,7 @@ const rootMutations = {
     setTimeout(() => {this.commit('startTimeOut', { name: name }) }, 1000);
   },
   changeWebsiteConfig(state, payload) {
-    state.websiteConfig = payload.websiteConfig
+    state.websiteConfig = withBrand(payload.websiteConfig)
   },
   changeWebLanguage (state, {language}) {
     if (language) {

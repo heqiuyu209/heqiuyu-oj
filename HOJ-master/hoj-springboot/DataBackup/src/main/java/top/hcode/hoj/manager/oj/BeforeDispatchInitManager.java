@@ -43,6 +43,7 @@ import java.util.Objects;
  */
 @Component
 public class BeforeDispatchInitManager {
+    @Autowired private MixedContestManager mixed;
 
     @Resource
     private ContestEntityService contestEntityService;
@@ -81,6 +82,12 @@ public class BeforeDispatchInitManager {
     private GroupValidator groupValidator;
 
     public void initCommonSubmission(String problemId, Long gid, Judge judge) throws StatusForbiddenException {
+        prepareCommonSubmission(problemId, gid, judge);
+        judgeEntityService.save(judge);
+        trainingManager.checkAndSyncTrainingRecord(judge.getPid(), judge.getSubmitId(), judge.getUid());
+    }
+
+    public void prepareCommonSubmission(String problemId, Long gid, Judge judge) throws StatusForbiddenException {
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
 
         QueryWrapper<Problem> problemQueryWrapper = new QueryWrapper<>();
@@ -112,15 +119,24 @@ public class BeforeDispatchInitManager {
                 .setPid(problem.getId())
                 .setDisplayPid(problem.getProblemId());
 
-        // 将新提交数据插入数据库
-        judgeEntityService.save(judge);
-
-        trainingManager.checkAndSyncTrainingRecord(problem.getId(), judge.getSubmitId(), judge.getUid());
     }
 
 
     @Transactional(rollbackFor = Exception.class)
     public void initContestSubmission(Long cid, String displayId, AccountProfile userRolesVo, Judge judge) throws StatusNotFoundException, StatusForbiddenException {
+        Contest contest = prepareContestSubmission(cid, displayId, userRolesVo, judge);
+        judgeEntityService.save(judge);
+        ContestRecord contestRecord = new ContestRecord();
+        contestRecord.setDisplayId(displayId).setCpid(judge.getCpid()).setSubmitId(judge.getSubmitId())
+                .setPid(judge.getPid()).setUsername(userRolesVo.getUsername()).setRealname(userRolesVo.getRealname())
+                .setUid(userRolesVo.getUid()).setCid(judge.getCid()).setSubmitTime(judge.getSubmitTime());
+        contestRecord.setTime(contest.getStatus().intValue() == Constants.Contest.STATUS_SCHEDULED.getCode()
+                ? 0L : DateUtil.between(contest.getStartTime(), judge.getSubmitTime(), DateUnit.SECOND));
+        contestRecordEntityService.save(contestRecord);
+    }
+
+    public Contest prepareContestSubmission(Long cid, String displayId, AccountProfile userRolesVo, Judge judge) throws StatusNotFoundException, StatusForbiddenException {
+        if (mixed.configuration(cid) != null) throw new StatusForbiddenException("混合比赛请从比赛答卷提交代码");
         Contest contest = contestEntityService.getById(cid);
         if (contest == null) {
             throw new StatusNotFoundException("对不起，该比赛不存在！");
@@ -153,6 +169,7 @@ public class BeforeDispatchInitManager {
         QueryWrapper<ContestProblem> contestProblemQueryWrapper = new QueryWrapper<>();
         contestProblemQueryWrapper.eq("cid", cid).eq("display_id", displayId);
         ContestProblem contestProblem = contestProblemEntityService.getOne(contestProblemQueryWrapper, false);
+        if (contestProblem == null) throw new StatusNotFoundException("该比赛内没有这道题目");
         judge.setCpid(contestProblem.getId())
                 .setPid(contestProblem.getPid())
                 .setGid(contest.getGid());
@@ -172,33 +189,26 @@ public class BeforeDispatchInitManager {
         }
 
         judge.setDisplayPid(problem.getProblemId());
-        // 将新提交数据插入数据库
-        judgeEntityService.save(judge);
-
-        // 同时初始化写入contest_record表
-        ContestRecord contestRecord = new ContestRecord();
-        contestRecord.setDisplayId(displayId)
-                .setCpid(contestProblem.getId())
-                .setSubmitId(judge.getSubmitId())
-                .setPid(judge.getPid())
-                .setUsername(userRolesVo.getUsername())
-                .setRealname(userRolesVo.getRealname())
-                .setUid(userRolesVo.getUid())
-                .setCid(judge.getCid())
-                .setSubmitTime(judge.getSubmitTime());
-
-        if (contest.getStatus().intValue() == Constants.Contest.STATUS_SCHEDULED.getCode()) {
-            contestRecord.setTime(0L);
-        } else {
-            // 设置比赛开始时间到提交时间之间的秒数
-            contestRecord.setTime(DateUtil.between(contest.getStartTime(), judge.getSubmitTime(), DateUnit.SECOND));
-        }
-        contestRecordEntityService.save(contestRecord);
+        return contest;
     }
 
 
     @Transactional(rollbackFor = Exception.class)
     public void initTrainingSubmission(Long tid, String displayId, AccountProfile userRolesVo, Judge judge) throws StatusForbiddenException, StatusFailException, StatusAccessDeniedException {
+        PreparedTraining prepared = prepareTrainingSubmission(tid, displayId, userRolesVo, judge);
+        judgeEntityService.save(judge);
+        if (!prepared.training.getAuth().equals(Constants.Training.AUTH_PRIVATE.getValue())) return;
+        trainingRecordEntityService.save(new TrainingRecord().setPid(judge.getPid()).setTid(tid)
+                .setTpid(prepared.problem.getId()).setSubmitId(judge.getSubmitId()).setUid(userRolesVo.getUid()));
+    }
+
+    public static final class PreparedTraining {
+        private final Training training;
+        private final TrainingProblem problem;
+        private PreparedTraining(Training training, TrainingProblem problem) { this.training = training; this.problem = problem; }
+    }
+
+    public PreparedTraining prepareTrainingSubmission(Long tid, String displayId, AccountProfile userRolesVo, Judge judge) throws StatusForbiddenException, StatusFailException, StatusAccessDeniedException {
 
         Training training = trainingEntityService.getById(tid);
         if (training == null || !training.getStatus()) {
@@ -212,6 +222,7 @@ public class BeforeDispatchInitManager {
         trainingProblemQueryWrapper.eq("tid", tid)
                 .eq("display_id", displayId);
         TrainingProblem trainingProblem = trainingProblemEntityService.getOne(trainingProblemQueryWrapper);
+        if (trainingProblem == null) throw new StatusFailException("该训练内没有这道题目");
         judge.setPid(trainingProblem.getPid());
 
         Problem problem = problemEntityService.getById(trainingProblem.getPid());
@@ -231,21 +242,7 @@ public class BeforeDispatchInitManager {
         judge.setDisplayPid(problem.getProblemId())
                 .setGid(training.getGid());
 
-        // 将新提交数据插入数据库
-        judgeEntityService.save(judge);
-
-        // 非私有训练不记录
-        if (!training.getAuth().equals(Constants.Training.AUTH_PRIVATE.getValue())) {
-            return;
-        }
-
-        TrainingRecord trainingRecord = new TrainingRecord();
-        trainingRecord.setPid(problem.getId())
-                .setTid(tid)
-                .setTpid(trainingProblem.getId())
-                .setSubmitId(judge.getSubmitId())
-                .setUid(userRolesVo.getUid());
-        trainingRecordEntityService.save(trainingRecord);
+        return new PreparedTraining(training, trainingProblem);
     }
 
 

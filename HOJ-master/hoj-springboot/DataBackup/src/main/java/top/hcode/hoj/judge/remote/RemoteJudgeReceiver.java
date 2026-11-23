@@ -39,6 +39,9 @@ public class RemoteJudgeReceiver extends AbstractReceiver {
     private JudgeEntityService judgeEntityService;
 
     @Autowired
+    private PersonalRemoteSubmissionGuard personalRemoteSubmissionGuard;
+
+    @Autowired
     private Dispatcher dispatcher;
 
     @Autowired
@@ -86,6 +89,7 @@ public class RemoteJudgeReceiver extends AbstractReceiver {
         String remoteOJName = remoteJudgeProblem.split("-")[0].toUpperCase();
         Long judgeId = task.getLong("judgeId");
         Judge judge = judgeEntityService.getById(judgeId);
+        if (personalRemoteSubmissionGuard.managed(judgeId)) return;
         if (judge != null) {
             if (Objects.equals(judge.getStatus(), Constants.Judge.STATUS_CANCELLED.getStatus())) {
                 if (judge.getCid() != 0) {
@@ -140,11 +144,7 @@ public class RemoteJudgeReceiver extends AbstractReceiver {
     private void commonJudge(String OJName, Boolean isHasSubmitIdRemoteReJudge, ToJudgeDTO toJudgeDTO, Judge judge) {
 
         if (isHasSubmitIdRemoteReJudge) {
-            toJudgeDTO.setIsHasSubmitIdRemoteReJudge(true);
-            toJudgeDTO.setUsername(judge.getVjudgeUsername());
-            toJudgeDTO.setPassword(judge.getVjudgePassword());
-            // 调用判题服务
-            dispatcher.dispatch(Constants.TaskType.REMOTE_JUDGE, toJudgeDTO);
+            dispatchResultLookup(toJudgeDTO, judge, OJName);
             return;
         }
 
@@ -254,11 +254,7 @@ public class RemoteJudgeReceiver extends AbstractReceiver {
     private void fixServerCFJudge(Boolean isHasSubmitIdRemoteReJudge, ToJudgeDTO toJudgeDTO, Judge judge) {
 
         if (isHasSubmitIdRemoteReJudge) {
-            toJudgeDTO.setIsHasSubmitIdRemoteReJudge(true);
-            toJudgeDTO.setUsername(judge.getVjudgeUsername());
-            toJudgeDTO.setPassword(judge.getVjudgePassword());
-            // 调用判题服务
-            dispatcher.dispatch(Constants.TaskType.REMOTE_JUDGE, toJudgeDTO);
+            dispatchResultLookup(toJudgeDTO, judge, Constants.RemoteOJ.CODEFORCES.getName());
             return;
         }
 
@@ -306,6 +302,41 @@ public class RemoteJudgeReceiver extends AbstractReceiver {
         };
         ScheduledFuture<?> scheduledFuture = scheduler.scheduleWithFixedDelay(getResultTask, 0, 3, TimeUnit.SECONDS);
         futureTaskMap.put(key, scheduledFuture);
+    }
+
+    private void dispatchResultLookup(ToJudgeDTO task, Judge judge, String oj) {
+        String password = configuredPassword(oj, judge.getVjudgeUsername());
+        if (password == null) {
+            judgeEntityService.updateById(new Judge().setSubmitId(judge.getSubmitId())
+                    .setStatus(Constants.Judge.STATUS_SUBMITTED_FAILED.getStatus())
+                    .setErrorMessage("原远程账号已移除或缺少当前凭据，无法重新获取结果；未重新提交代码。"));
+            return;
+        }
+        task.setIsHasSubmitIdRemoteReJudge(true).setUsername(judge.getVjudgeUsername()).setPassword(password);
+        dispatcher.dispatch(Constants.TaskType.REMOTE_JUDGE, task);
+    }
+
+    // Re-read current configuration; old submission rows must never be a password store.
+    protected String configuredPassword(String oj, String username) {
+        if (username == null) return null;
+        SwitchConfig config = nacosSwitchConfig.getSwitchConfig();
+        java.util.List<String> users, passwords;
+        Constants.RemoteOJ remote = Constants.RemoteOJ.getRemoteOJ(oj);
+        if (remote == null) return null;
+        switch (remote) {
+            case GYM:
+            case CODEFORCES: users = config.getCfUsernameList(); passwords = config.getCfPasswordList(); break;
+            case ATCODER: users = config.getAtcoderUsernameList(); passwords = config.getAtcoderPasswordList(); break;
+            case HDU: users = config.getHduUsernameList(); passwords = config.getHduPasswordList(); break;
+            case SPOJ: users = config.getSpojUsernameList(); passwords = config.getSpojPasswordList(); break;
+            case POJ: users = config.getPojUsernameList(); passwords = config.getPojPasswordList(); break;
+            case LIBRE: users = config.getLibreojUsernameList(); passwords = config.getLibreojPasswordList(); break;
+            default: return null;
+        }
+        if (users == null || passwords == null) return null;
+        for (int index = 0; index < users.size() && index < passwords.size(); index++)
+            if (username.equals(users.get(index)) && passwords.get(index) != null && !passwords.get(index).isEmpty()) return passwords.get(index);
+        return null;
     }
 
     private boolean checkExistedAccountByOJ(Constants.RemoteOJ remoteOJ) {

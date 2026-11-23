@@ -86,6 +86,11 @@ public class ProblemManager {
      */
     public Page<ProblemVO> getProblemList(Integer limit, Integer currentPage,
                                           String keyword, List<Long> tagId, Integer difficulty, String oj) {
+        return getProblemList(limit, currentPage, keyword, tagId, difficulty, oj, null, null);
+    }
+
+    public Page<ProblemVO> getProblemList(Integer limit, Integer currentPage, String keyword, List<Long> tagId,
+                                          Integer difficulty, String oj, Integer ratingMin, Integer ratingMax) {
         // 页数，每页题数若为空，设置默认值
         if (currentPage == null || currentPage < 1) currentPage = 1;
         if (limit == null || limit < 1) limit = 10;
@@ -98,7 +103,7 @@ public class ProblemManager {
             oj = "Mine";
         }
         return problemEntityService.getProblemList(limit, currentPage, null, keyword,
-                difficulty, tagId, oj);
+                difficulty, tagId, oj, ratingMin, ratingMax);
     }
 
     /**
@@ -134,6 +139,7 @@ public class ProblemManager {
         HashMap<Long, Object> result = new HashMap<>();
         // 先查询判断该用户对于这些题是否已经通过，若已通过，则无论后续再提交结果如何，该题都标记为通过
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.isNull("paper_run_id");
         queryWrapper.select("distinct pid,status,submit_time,score")
                 .in("pid", pidListDto.getPidList())
                 .eq("uid", userRolesVo.getUid())
@@ -330,6 +336,7 @@ public class ProblemManager {
             cid = 0L;
         }
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper.select("submit_id", "cid", "code", "username", "submit_time", "language")
                 .eq("uid", userRolesVo.getUid())
                 .eq("pid", pid)

@@ -2,6 +2,7 @@ package top.hcode.hoj.pojo.dto;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 
@@ -15,6 +16,7 @@ import java.io.Serializable;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
+@ToString(of = {"remoteJudgeProblem"})
 public class ToJudgeDTO implements Serializable {
 
     private static final long serialVersionUID = 999L;

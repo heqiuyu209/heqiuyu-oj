@@ -1,0 +1,132 @@
+{
+  "base": "http://localhost:8080",
+  "errors": [],
+  "checks": [
+    {
+      "check": "native-motion-preference-and-explicit-full",
+      "systemReduced": true,
+      "setting": "system",
+      "effective": "reduced",
+      "duration": "0s",
+      "fullDuration": 1400,
+      "persistsAfterReload": true
+    },
+    {
+      "check": "motion-modes-and-live-system-changes",
+      "passed": true
+    },
+    {
+      "check": "button-origin-parabolic-sweep",
+      "theme": "dark",
+      "point": {
+        "x": 1158.31689453125,
+        "y": 173.44583892822266
+      },
+      "duration": 1400
+    },
+    {
+      "check": "button-origin-parabolic-sweep",
+      "theme": "light",
+      "point": {
+        "x": 1102,
+        "y": 174
+      },
+      "duration": 1400
+    },
+    {
+      "check": "rapid-latest-theme-wins",
+      "passed": true
+    },
+    {
+      "check": "reduced-motion-fallback",
+      "passed": true
+    },
+    {
+      "check": "unsupported-browser-fallback",
+      "passed": true
+    },
+    {
+      "check": "snapshot-error-fallback",
+      "passed": true
+    },
+    {
+      "check": "keyboard-theme-selection",
+      "passed": true
+    },
+    {
+      "check": "same-resolved-theme-and-follow-system",
+      "passed": true
+    },
+    {
+      "check": "real-backdrop-blur",
+      "blurred": 0.5,
+      "clear": 92
+    },
+    {
+      "check": "nav-scroll-hover-focus-and-hysteresis",
+      "expanded": {
+        "width": 1430,
+        "height": 80,
+        "condensed": false,
+        "scrolled": false,
+        "glass": "0"
+      },
+      "condensed": {
+        "width": 1100,
+        "height": 56,
+        "condensed": true,
+        "scrolled": true,
+        "glass": "1"
+      }
+    },
+    {
+      "check": "reduced-motion-nav",
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 1920,
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 1200,
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 1024,
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 992,
+      "passed": true
+    },
+    {
+      "check": "responsive-nav",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "check": "touch-landscape-keeps-compact-spacing",
+      "padding": "7px",
+      "width": 960,
+      "expected": 960
+    },
+    {
+      "check": "mobile-theme-button",
+      "point": {
+        "x": 112.53864288330078,
+        "y": 171.96157836914062
+      },
+      "passed": true
+    }
+  ],
+  "validated": true
+}

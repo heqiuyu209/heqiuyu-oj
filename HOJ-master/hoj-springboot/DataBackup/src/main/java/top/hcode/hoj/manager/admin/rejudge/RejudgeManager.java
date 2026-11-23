@@ -54,6 +54,13 @@ public class RejudgeManager {
     @Resource
     private RemoteJudgeDispatcher remoteJudgeDispatcher;
 
+    @Resource
+    private top.hcode.hoj.judge.remote.PersonalRemoteSubmissionGuard personalRemoteSubmissionGuard;
+
+    private void requireLegacySubmission(Long submitId) throws StatusFailException {
+        if (personalRemoteSubmissionGuard.managed(submitId)) throw new StatusFailException("个人远程提交请从提交详情核对源站结果，不能通过旧重判入口重新投递");
+    }
+
     private static List<Integer> penaltyStatus = Arrays.asList(
             Constants.Judge.STATUS_PRESENTATION_ERROR.getStatus(),
             Constants.Judge.STATUS_WRONG_ANSWER.getStatus(),
@@ -63,7 +70,9 @@ public class RejudgeManager {
 
 
     public Judge rejudge(Long submitId) throws StatusFailException {
+        requireLegacySubmission(submitId);
         Judge judge = judgeEntityService.getById(submitId);
+        if (judge != null && judge.getPaperRunId() != null) throw new StatusFailException("套卷提交不参与题库重判");
 
         boolean isContestSubmission = judge.getCid() != 0;
 
@@ -85,6 +94,8 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public void rejudgeContestProblem(Long cid, Long pid) throws StatusFailException {
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.isNull("paper_run_id");
+        queryWrapper.notInSql("submit_id", "SELECT submit_id FROM personal_remote_task");
         queryWrapper.eq("cid", cid).eq("pid", pid);
         List<Judge> rejudgeList = judgeEntityService.list(queryWrapper);
 
@@ -119,6 +130,7 @@ public class RejudgeManager {
 
     @Transactional(rollbackFor = Exception.class)
     public boolean checkAndUpdateJudge(Boolean isContestSubmission, Judge judge, Long submitId) throws StatusFailException {
+        requireLegacySubmission(submitId);
         // 如果是非比赛题目
         boolean resetContestRecordResult = true;
         if (!isContestSubmission) {
@@ -163,6 +175,7 @@ public class RejudgeManager {
 
     @Transactional(rollbackFor = Exception.class)
     public void checkAndUpdateJudgeBatch(List<Judge> rejudgeList, HashMap<Long, Integer> idMapStatus) throws StatusFailException {
+        for (Judge judge : rejudgeList) requireLegacySubmission(judge.getSubmitId());
         List<Long> submitIdList = new LinkedList<>();
         // 全部设置默认值
         for (Judge judge : rejudgeList) {
@@ -208,7 +221,9 @@ public class RejudgeManager {
 
     @Transactional(rollbackFor = Exception.class)
     public Judge manualJudge(Long submitId, Integer status, Integer score) throws StatusFailException {
+        requireLegacySubmission(submitId);
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper
                 .select("submit_id", "status", "judger", "cid", "pid", "uid")
                 .eq("submit_id", submitId);
@@ -298,7 +313,9 @@ public class RejudgeManager {
 
     @Transactional(rollbackFor = Exception.class)
     public Judge cancelJudge(Long submitId) throws StatusFailException {
+        requireLegacySubmission(submitId);
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper
                 .select("submit_id", "status", "judger", "cid")
                 .eq("submit_id", submitId)

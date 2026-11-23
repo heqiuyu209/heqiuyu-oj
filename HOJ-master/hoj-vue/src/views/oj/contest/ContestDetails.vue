@@ -46,6 +46,7 @@
                 ></i
                 >x{{ contest.count }}
               </el-button>
+              <el-tag v-if="contest.mixedPaperId" effect="plain" style="margin-right:8px">混合赛</el-tag>
               <template v-if="contest.type == 0">
                 <el-button size="small" :type="'primary'">
                   <i class="fa fa-trophy"></i>
@@ -91,6 +92,8 @@
               </el-col>
             </el-row>
           </div>
+          <el-alert v-if="contest.auth === 0 && contest.status === 0" title="公开赛进行期间，打开比赛题目即进入参赛，AI 助教暂停至比赛结束；仅查看首页和榜单不受影响。" type="info" :closable="false" show-icon />
+          <VirtualPractice v-if="!contest.mixedPaperId" :contest-id="$route.params.contestID" :contest="contest" />
           <div class="slider">
             <el-slider
               v-model="progressValue"
@@ -133,7 +136,7 @@
       <!-- 判断是否需要密码验证 -->
 
       <el-tabs @tab-click="tabClick" v-model="route_name">
-        <el-tab-pane name="ContestDetails" lazy>
+        <el-tab-pane key="ContestDetails" name="ContestDetails" lazy>
           <span slot="label"
             ><i class="el-icon-s-home"></i>&nbsp;{{ $t('m.Overview') }}</span
           >
@@ -176,7 +179,7 @@
           </el-card>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestProblemList"
           name="ContestProblemList"
           lazy
           :disabled="contestMenuDisabled"
@@ -193,8 +196,9 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestSubmissionList"
           name="ContestSubmissionList"
+          v-if="!contest.mixedPaperId"
           lazy
           :disabled="contestMenuDisabled"
         >
@@ -208,7 +212,7 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane name="ContestRank" lazy :disabled="contestMenuDisabled">
+        <el-tab-pane key="ContestRank" name="ContestRank" lazy :disabled="contestMenuDisabled">
           <span slot="label"
             ><i class="fa fa-bar-chart" aria-hidden="true"></i>&nbsp;{{
               $t('m.NavBar_Rank')
@@ -219,7 +223,7 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestAnnouncementList"
           name="ContestAnnouncementList"
           lazy
           :disabled="contestMenuDisabled"
@@ -236,7 +240,7 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane 
+        <el-tab-pane key="ContestComment"
           name="ContestComment" 
           lazy 
           :disabled="contestMenuDisabled"
@@ -251,7 +255,7 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestPrint"
           name="ContestPrint"
           lazy
           :disabled="contestMenuDisabled"
@@ -265,11 +269,11 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestACInfo"
           name="ContestACInfo"
           lazy
           :disabled="contestMenuDisabled"
-          v-if="showAdminHelper"
+          v-if="showAdminHelper && !contest.mixedPaperId"
         >
           <span slot="label"
             ><i class="el-icon-s-help" aria-hidden="true"></i>&nbsp;{{
@@ -281,7 +285,7 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestAdminPrint"
           name="ContestAdminPrint"
           lazy
           :disabled="contestMenuDisabled"
@@ -299,11 +303,11 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ContestRejudgeAdmin"
           name="ContestRejudgeAdmin"
           lazy
           :disabled="contestMenuDisabled"
-          v-if="isSuperAdmin"
+          v-if="isSuperAdmin && !contest.mixedPaperId"
         >
           <span slot="label"
             ><i class="el-icon-refresh" aria-hidden="true"></i>&nbsp;{{
@@ -317,11 +321,11 @@
           </transition>
         </el-tab-pane>
 
-        <el-tab-pane
+        <el-tab-pane key="ScrollBoard"
           name="ScrollBoard"
           lazy
           :disabled="contestMenuDisabled"
-          v-if="showScrollBoard"
+          v-if="showScrollBoard && !contest.mixedPaperId"
         >
           <span slot="label"
             ><i class="el-icon-video-camera-solid" aria-hidden="true"></i>&nbsp;{{
@@ -355,10 +359,11 @@ import {
 import myMessage from '@/common/message';
 import storage from '@/common/storage';
 import Markdown from "@/components/oj/common/Markdown";
+import VirtualPractice from '@/components/oj/contest/VirtualPractice';
 export default {
   name: 'ContestDetails',
   components: {
-    Markdown
+    Markdown, VirtualPractice
   },
   data() {
     return {

@@ -44,6 +44,12 @@ public class ProblemTestCaseUtils {
                                    String version,
                                    String judgeMode,
                                    String judgeCaseMode) throws SystemError {
+        return initTestCase(testCases, problemId, version, judgeMode, judgeCaseMode,
+                Constants.JudgeDir.TEST_CASE_DIR.getContent() + "/problem_" + problemId);
+    }
+
+    private JSONObject initTestCase(List<HashMap<String, Object>> testCases, Long problemId,
+            String version, String judgeMode, String judgeCaseMode, String testCasesDir) throws SystemError {
 
         if (testCases == null || testCases.size() == 0) {
             throw new SystemError("题号为：" + problemId + "的评测数据为空！", null, "The test cases does not exist.");
@@ -59,8 +65,6 @@ public class ProblemTestCaseUtils {
         result.set("testCasesSize", testCases.size());
 
         JSONArray testCaseList = new JSONArray(testCases.size());
-
-        String testCasesDir = Constants.JudgeDir.TEST_CASE_DIR.getContent() + "/problem_" + problemId;
 
         // 无论有没有测试数据，一旦执行该函数，一律清空，重新生成该题目对应的测试数据文件
 
@@ -108,6 +112,27 @@ public class ProblemTestCaseUtils {
         // 写入记录文件
         infoFile.write(JSONUtil.toJsonStr(result));
         return result;
+    }
+
+    // Paper case data is immutable and never shares the editable problem cache directory.
+    public synchronized JSONObject loadPaperTestCaseInfo(Long snapshotId,
+            top.hcode.hoj.pojo.dto.PaperProgramSnapshotDTO snapshot) throws SystemError {
+        String dir = paperDirectory(snapshotId);
+        if (FileUtil.exist(dir + "/info")) {
+            return JSONUtil.parseObj(new FileReader(dir + "/info", CharsetUtil.UTF_8).readString());
+        }
+        List<HashMap<String, Object>> cases = new LinkedList<>();
+        for (ProblemCase test : snapshot.getCases()) {
+            HashMap<String, Object> row = new HashMap<>();
+            row.put("caseId", test.getId()); row.put("input", test.getInput()); row.put("output", test.getOutput());
+            row.put("score", test.getScore()); row.put("groupNum", test.getGroupNum()); cases.add(row);
+        }
+        return initTestCase(cases, snapshot.getProblem().getId(), "paper_" + snapshotId,
+                snapshot.getProblem().getJudgeMode(), snapshot.getProblem().getJudgeCaseMode(), dir);
+    }
+
+    protected String paperDirectory(Long snapshotId) {
+        return Constants.JudgeDir.TEST_CASE_DIR.getContent() + "/paper_" + snapshotId;
     }
 
     // 本地有文件，进行数据初始化 生成json文件

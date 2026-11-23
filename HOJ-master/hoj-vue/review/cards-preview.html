@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CDUTETC · 卡片布局预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { color-scheme: light; --page: #edf4f7; --surface: #fff; --text: #254454; --muted: #647f8d; --line: #d5e3eb; --accent: #2183a0; }
+    :root[data-theme="dark"] { color-scheme: dark; --page: #101f28; --surface: #192f3c; --text: #e5eef3; --muted: #a5bdc9; --line: #345260; --accent: #78cce1; }
+    body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+    header { padding: 24px max(20px,calc((100% - 1440px)/2)); background: var(--surface); border-bottom: 1px solid var(--line); }
+    h1 { font-size: 23px; margin: 0; letter-spacing: .2px; }
+    p { margin: 6px 0 18px; color: var(--muted); }
+    .controls, nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .controls { justify-content: space-between; gap: 16px; }
+    button, select { font: inherit; color: var(--text); background: var(--page); border: 1px solid var(--line); padding: 7px 14px; border-radius: 8px; }
+    button { cursor: pointer; }
+    button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .options { display: flex; gap: 12px; flex-wrap: wrap; }
+    label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    main { padding: 24px 18px 48px; }
+    figure { margin: 0 auto; max-width: 1440px; }
+    figure.mobile { max-width: 390px; }
+    figcaption { color: var(--muted); text-align: center; margin-bottom: 12px; }
+    img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 12px; }
+    .note { max-width: 1440px; margin: 20px auto 0; text-align: center; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CDUTETC · 卡片布局预览</h1>
+    <p>2026-10-14 · 当前 Vue 源码截图。页面中的题目、用户、比赛与成绩均为测试数据。</p>
+    <div class="controls">
+      <nav aria-label="选择预览页面">
+        <button type="button" data-page="home" aria-pressed="true">首页</button>
+        <button type="button" data-page="training" aria-pressed="false">训练</button>
+        <button type="button" data-page="contest" aria-pressed="false">比赛</button>
+        <button type="button" data-page="discussion" aria-pressed="false">讨论</button>
+        <button type="button" data-page="group" aria-pressed="false">团队</button>
+      </nav>
+      <div class="options">
+        <label>主题 <select id="theme"><option value="light">浅色</option><option value="dark">深色</option></select></label>
+        <label>设备 <select id="device"><option value="1440">桌面 · 1440px</option><option value="390">手机 · 390px</option></select></label>
+      </div>
+    </div>
+  </header>
+  <main>
+    <figure id="frame">
+      <figcaption id="caption" aria-live="polite">首页 · 浅色 · 桌面 · 完整页面</figcaption>
+      <img id="preview" src="source-cards-home-light-full.png" alt="首页浅色桌面完整截图">
+    </figure>
+    <p class="note">这是截图对照页，截图内按钮不能操作。完整交互请在本地启动 OJ 前端后体验；首页桌面截图包含全部七个模块。</p>
+  </main>
+  <script>
+    const names = { home: '首页', training: '训练', contest: '比赛', discussion: '讨论', group: '团队' };
+    const theme = document.getElementById('theme'), device = document.getElementById('device');
+    const buttons = Array.from(document.querySelectorAll('[data-page]'));
+    let page = 'home';
+    function render() {
+      const mobile = device.value === '390';
+      const full = page === 'home' && !mobile;
+      document.documentElement.dataset.theme = theme.value;
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.page === page)));
+      document.getElementById('frame').classList.toggle('mobile', mobile);
+      const caption = names[page] + ' · ' + (theme.value === 'dark' ? '深色' : '浅色') + ' · ' + (mobile ? '手机' : '桌面') + (full ? ' · 完整页面' : ' · 首屏');
+      document.getElementById('caption').textContent = caption;
+      document.getElementById('preview').alt = caption;
+      document.getElementById('preview').src = 'source-cards-' + page + '-' + theme.value + '-' + (full ? 'full' : device.value) + '.png';
+    }
+    buttons.forEach(button => button.addEventListener('click', () => { page = button.dataset.page; render(); }));
+    theme.addEventListener('change', render);
+    device.addEventListener('change', render);
+  </script>
+</body>
+</html>

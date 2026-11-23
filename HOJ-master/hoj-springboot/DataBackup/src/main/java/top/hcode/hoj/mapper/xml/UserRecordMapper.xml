@@ -5,7 +5,7 @@
         SELECT u.uuid as uid,u.nickname,u.username,left(u.signature,100) as signature,u.avatar,
         u.title_name,u.title_color,
         (SELECT COUNT( DISTINCT pid ) FROM user_acproblem WHERE uid = u.uuid) AS ac,
-        (SELECT COUNT(uid) FROM judge WHERE uid=u.uuid AND cid=0 AND gid is null) AS total
+        (SELECT COUNT(uid) FROM judge WHERE paper_run_id IS NULL AND uid=u.uuid AND cid=0 AND gid is null) AS total
         FROM user_info u
         <where>
             u.status = 0
@@ -38,14 +38,14 @@
             , (
                 SELECT COUNT(uid)
                 FROM judge
-                WHERE uid = ui.uuid
+                WHERE paper_run_id IS NULL AND uid = ui.uuid
             ) AS total, ss.score AS score
         FROM user_info ui, (
                 SELECT u.uuid AS uid, COALESCE(SUM(s.score),0) AS score
                 FROM user_info u left join (
                         SELECT MAX(oi_rank_score) AS score, uid, pid
                         FROM judge
-                        WHERE cid=0 AND gid is null
+                        WHERE paper_run_id IS NULL AND cid=0 AND gid is null
                         GROUP BY pid, uid
                     ) s
                 ON s.uid = u.uuid
@@ -76,6 +76,7 @@
         <result column="title_name" property="titleName"></result>
         <result column="title_color" property="titleColor"></result>
         <result column="rating" property="rating"></result>
+        <result column="contest_rating" property="contestRating"></result>
         <result column="total" property="total"></result>
         <collection property="scoreList" ofType="java.lang.Integer" select="getProblemScore" column="uid">
         </collection>
@@ -84,7 +85,8 @@
     <select id="getUserHomeInfo" resultMap="map_UserHomeVo">
         SELECT u.uuid as uid,u.username,u.nickname,u.gender,u.signature,u.school,u.github,u.blog,
         u.avatar,u.title_name,u.title_color,ur.rating,
-        (SELECT COUNT(uid) FROM judge WHERE uid=u.uuid AND cid=0 AND gid is null) AS total
+        (SELECT rating FROM site_rating_profile WHERE uid=u.uuid AND type='contest') AS contest_rating,
+        (SELECT COUNT(uid) FROM judge WHERE paper_run_id IS NULL AND uid=u.uuid AND cid=0 AND gid is null) AS total
         FROM user_info u,user_record ur
         <where>
          u.uuid = ur.uid AND u.status = 0
@@ -100,7 +102,7 @@
     <!-- 子查询-->
     <select id="getProblemScore" resultType="java.lang.Integer">
         SELECT MAX(oi_rank_score) AS sum_score FROM judge
-        WHERE uid=#{uid} AND cid=0 AND gid is null AND score IS NOT NULL GROUP BY pid
+        WHERE paper_run_id IS NULL AND uid=#{uid} AND cid=0 AND gid is null AND score IS NOT NULL GROUP BY pid
     </select>
 
 
@@ -110,12 +112,12 @@
         , (
         SELECT COUNT(DISTINCT pid)
         FROM judge
-        WHERE uid = ui.uuid and gid = #{gid} and status = 0
+        WHERE paper_run_id IS NULL AND uid = ui.uuid and gid = #{gid} and status = 0
         ) AS ac
         , (
         SELECT COUNT(uid)
         FROM judge
-        WHERE uid = ui.uuid and gid = #{gid}
+        WHERE paper_run_id IS NULL AND uid = ui.uuid and gid = #{gid}
         ) AS total, ss.score AS score
         FROM user_info ui
         right join
@@ -124,7 +126,7 @@
             FROM user_info u left join (
             SELECT MAX(oi_rank_score) AS score, uid, pid
             FROM judge
-            WHERE cid=0 AND gid = #{gid}
+            WHERE paper_run_id IS NULL AND cid=0 AND gid = #{gid}
             GROUP BY pid, uid
             ) s
             ON s.uid = u.uuid

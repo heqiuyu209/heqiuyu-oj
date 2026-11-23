@@ -1,0 +1,24 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "checks": [
+    {
+      "check": "real-admin-login",
+      "passed": true
+    },
+    {
+      "check": "uniform-rows-hover-only-no-sticky-selection",
+      "mode": "light",
+      "rowCount": 6,
+      "passed": true
+    },
+    {
+      "check": "uniform-rows-hover-only-no-sticky-selection",
+      "mode": "dark",
+      "rowCount": 6,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "blockedWrites": [],
+  "validated": true
+}

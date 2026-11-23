@@ -5,6 +5,7 @@ import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
@@ -21,6 +22,7 @@ import java.util.Date;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
+@ToString(of = {"submitId", "pid", "status", "cid", "vjudgeSubmitId"})
 @ApiModel(value="Judge对象", description="")
 public class Judge implements Serializable {
 
@@ -79,6 +81,14 @@ public class Judge implements Serializable {
     @ApiModelProperty(value = "比赛id，非比赛提交默认为0")
     private Long cid;
 
+    private Long paperRunId;
+
+    private Long paperSnapshotId;
+
+    @TableField(exist = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private top.hcode.hoj.pojo.dto.PaperProgramSnapshotDTO paperSnapshot;
+
     @ApiModelProperty(value = "比赛中题目排序id，非比赛提交默认为0")
     private Long cpid;
 
@@ -105,6 +115,7 @@ public class Judge implements Serializable {
     private String vjudgeUsername;
 
     @ApiModelProperty(value = "vjudge判题在其它oj的提交账号密码")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String vjudgePassword;
 
     @ApiModelProperty(value = "是否人工评测")

@@ -17,6 +17,8 @@ import java.util.Date;
 @ApiModel(value="比赛信息", description="")
 @Data
 public class ContestVO implements Serializable {
+    private Boolean rated;
+    private Long mixedPaperId;
 
     @TableId(value = "比赛id", type = IdType.AUTO)
     private Long id;

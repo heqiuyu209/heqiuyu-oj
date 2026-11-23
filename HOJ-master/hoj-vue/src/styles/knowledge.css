@@ -1,0 +1,30 @@
+.knowledge-page { --knowledge-danger: #b64141; max-width: 1320px; margin: 0 auto; padding: 12px 0 36px; color: var(--text); }
+:root[data-theme='dark'] .knowledge-page { --knowledge-danger: #ffaaaa; }
+.knowledge-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 26px; }
+.knowledge-heading h1, .knowledge-heading h2 { margin: 0 0 10px; color: var(--text); font-size: 29px; line-height: 1.35; }
+.knowledge-heading p { margin: 0; color: var(--muted); line-height: 1.8; max-width: 65ch; }
+.knowledge-surface { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 26px; min-width: 0; }
+.knowledge-page .el-alert { margin: 0 0 20px; }
+.knowledge-page .el-alert__title { line-height: 1.7; }
+.knowledge-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 22px; }
+.knowledge-toolbar .el-input { max-width: 340px; }
+.knowledge-muted { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.knowledge-error { color: var(--knowledge-danger); white-space: pre-wrap; line-height: 1.8; }
+.knowledge-empty { text-align: center; padding: 38px 20px; color: var(--muted); line-height: 1.9; }
+.knowledge-empty i { display: block; font-size: 30px; margin-bottom: 12px; color: var(--accent); }
+.knowledge-empty h3 { color: var(--text); font-size: 19px; margin: 0 0 8px; }
+.knowledge-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.knowledge-actions .el-button + .el-button { margin-left: 0; }
+.knowledge-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 13px; margin: 12px 0 0; line-height: 1.7; }
+.knowledge-page .el-pagination { margin-top: 20px; padding: 0; }
+.knowledge-page button:focus-visible, .knowledge-page a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.knowledge-page .el-checkbox__label { white-space: normal; line-height: 1.7; }
+.knowledge-page .el-checkbox { display: inline-flex; align-items: baseline; max-width: 100%; }
+@media (max-width: 760px) {
+  .knowledge-page { padding-top: 4px; }
+  .knowledge-heading { flex-direction: column; margin-bottom: 20px; }
+  .knowledge-heading h1, .knowledge-heading h2 { font-size: 25px; }
+  .knowledge-surface { padding: 20px 16px; border-radius: 12px; }
+  .knowledge-toolbar { gap: 10px; }
+  .knowledge-toolbar .el-input { max-width: none; flex: 1; min-width: 150px; }
+}

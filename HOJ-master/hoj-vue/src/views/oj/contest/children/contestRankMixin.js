@@ -3,13 +3,15 @@ import { mapGetters, mapState } from 'vuex'
 import { CONTEST_STATUS, buildContestRankConcernedKey } from '@/common/constants'
 import storage from '@/common/storage';
 export default {
+  data () { return { rankRequestGeneration: 0 } },
   methods: {
     initConcernedList(){
       let key = buildContestRankConcernedKey(this.$route.params.contestID);
       this.concernedList = storage.get(key) || [];
     },
     getContestRankData (page = 1, refresh = false) {
-      if (this.showChart && !refresh) {
+      const generation = ++this.rankRequestGeneration
+      if (this.showChart && !refresh && this.$refs.chart) {
         this.$refs.chart.showLoading({maskColor: 'rgba(250, 250, 250, 0.8)'})
       }
       let data = {
@@ -22,8 +24,10 @@ export default {
         keyword: this.keyword == null? null: this.keyword.trim(),
         containsEnd: this.isContainsAfterContestJudge,
       }
-      api.getContestRank(data).then(res => {
-        if (this.showChart && !refresh) {
+      const current = () => generation === this.rankRequestGeneration && String(this.$route.params.contestID) === String(data.cid)
+      return api.getContestRank(data).then(res => {
+        if (!current()) return
+        if (this.showChart && !refresh && this.$refs.chart) {
           this.$refs.chart.hideLoading()
         }
         this.total = res.data.data.total
@@ -31,6 +35,8 @@ export default {
           this.applyToChart(res.data.data.records)
         }
         this.applyToTable(res.data.data.records)
+      }, () => {
+        if (current() && this.showChart && !refresh && this.$refs.chart) this.$refs.chart.hideLoading()
       })
     },
     handleAutoRefresh (status) {
@@ -115,6 +121,7 @@ export default {
     }
   },
   beforeDestroy () {
+    this.rankRequestGeneration++
     clearInterval(this.refreshFunc)
   }
 }

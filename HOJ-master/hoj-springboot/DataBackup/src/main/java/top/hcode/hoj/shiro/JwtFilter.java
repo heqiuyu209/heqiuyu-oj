@@ -47,6 +47,9 @@ public class JwtFilter extends AuthenticatingFilter {
     @Autowired
     private RedisUtils redisUtils;
 
+    @Autowired
+    private KnowledgeVideoSession videoSessions;
+
     @Override
     protected boolean isAccessAllowed(ServletRequest request, ServletResponse response, Object mappedValue) {
         HttpServletRequest httpRequest = WebUtils.toHttp(request);
@@ -100,7 +103,7 @@ public class JwtFilter extends AuthenticatingFilter {
     protected AuthenticationToken createToken(ServletRequest servletRequest, ServletResponse servletResponse) throws Exception {
         // 获取 token
         HttpServletRequest request = (HttpServletRequest) servletRequest;
-        String jwt = request.getHeader("Authorization");
+        String jwt = videoSessions.credential(request);
         if (StrUtil.isBlank(jwt)) {
             return null;
         }
@@ -111,7 +114,7 @@ public class JwtFilter extends AuthenticatingFilter {
     @Override
     protected boolean onAccessDenied(ServletRequest servletRequest, ServletResponse servletResponse) throws Exception {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
-        String token = request.getHeader("Authorization");
+        String token = videoSessions.credential(request);
         if (StrUtil.isBlank(token)) {
             return true;
         } else {

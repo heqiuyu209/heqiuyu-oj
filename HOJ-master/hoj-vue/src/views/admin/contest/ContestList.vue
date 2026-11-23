@@ -273,7 +273,12 @@ export default {
         params: { contestId },
       });
     },
-    goContestProblemList(contestId) {
+    async goContestProblemList(contestId) {
+      const response = await api.admin_getContest(contestId);
+      if (response.data.data.mixed) {
+        this.$router.push({ name: 'admin-edit-contest', params: { contestId } });
+        return;
+      }
       this.$router.push({
         name: 'admin-contest-problem-list',
         params: { contestId },

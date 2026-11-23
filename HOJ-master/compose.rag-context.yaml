@@ -1,0 +1,14 @@
+# Optional context projection; include after compose.rag-rerank.yaml.
+# Enable for deployment only after the integrated image passes validation.
+# Existing raw vectors stay authoritative; reingest fills the separate r1 store.
+services:
+  hoj-rag:
+    environment:
+      HOJ_RAG_CONTEXT_PROJECTION: "1"
+      HOJ_RAG_RERANK_ENGINE: onnx
+      HOJ_RAG_RERANK_GRAPH_PATH: /models/mmarco-onnx/model_O2.onnx
+    volumes:
+      - type: bind
+        source: ${HOJ_RAG_RERANK_ONNX_DIR:?Set HOJ_RAG_RERANK_ONNX_DIR to the pinned FP32 graph directory}
+        target: /models/mmarco-onnx
+        read_only: true

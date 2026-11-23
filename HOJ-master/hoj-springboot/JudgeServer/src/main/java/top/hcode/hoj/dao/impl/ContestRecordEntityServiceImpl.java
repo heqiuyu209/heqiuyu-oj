@@ -42,6 +42,15 @@ public class ContestRecordEntityServiceImpl extends ServiceImpl<ContestRecordMap
             maxAttempts = 5,
             backoff = @Backoff(delay = 500, multiplier = 1.4))
     public void updateContestRecordWithRetry(Integer score, Integer status, Long submitId, Integer useTime) {
+        updateContestRecordOnce(score, status, submitId, useTime);
+    }
+
+    @Override
+    public void updateContestRecordStrict(Integer score, Integer status, Long submitId, Integer useTime) {
+        updateContestRecordOnce(score, status, submitId, useTime);
+    }
+
+    private void updateContestRecordOnce(Integer score, Integer status, Long submitId, Integer useTime) {
         UpdateWrapper<ContestRecord> updateWrapper = new UpdateWrapper<>();
         // 如果是AC
         if (status.intValue() == Constants.Judge.STATUS_ACCEPTED.getStatus()) {

@@ -1,0 +1,153 @@
+/* Public OJ pages: a shared card rhythm, with room for each kind of content. */
+#app .collection-page { max-width: 1440px; margin: 0 auto; min-width: 0; }
+#app .collection-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 24px; }
+#app .collection-heading h1 { margin: 0; font-size: 28px; line-height: 1.4; font-weight: 650; color: var(--text); }
+#app .collection-heading p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+#app .collection-count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+#app .collection-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#app .collection-actions .el-button { margin: 0; }
+#app .collection-primary-link { padding: 10px 18px; border-radius: 8px; background: var(--primary); color: var(--on-primary); white-space: nowrap; font-weight: 600; }
+#app .collection-primary-link:hover, #app .collection-primary-link:focus { background: var(--primary-hover); color: var(--on-primary) !important; }
+#app .collection-primary-link:active { background: var(--primary-active); color: var(--on-primary) !important; }
+#app .collection-filters { margin-bottom: 22px; }
+#app .collection-filters > .el-card__body { padding: 18px 22px; }
+#app .collection-search { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-width: 0; }
+#app .collection-search > span:first-child { font-size: 14px; font-weight: 600; }
+#app .collection-search .vxe-input { width: 270px; max-width: 100%; }
+#app .contest-page .collection-search .vxe-input, #app .collection-search .collection-count { margin-left: auto; }
+#app .collection-filter-row { display: flex; gap: 20px; align-items: baseline; margin-top: 14px; min-width: 0; }
+#app .collection-filter-row b { flex-shrink: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+#app .filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#app .filter-chip { padding: 6px 12px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1.5; }
+#app .filter-chip:hover { background: var(--soft); color: var(--text); }
+#app .filter-chip[aria-pressed='true'] { color: var(--accent); background: var(--soft); border-color: var(--line); font-weight: 600; }
+#app .collection-results { min-height: 150px; }
+#app .collection-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+#app .collection-card { display: flex; flex-direction: column; min-width: 0; min-height: 300px; gap: 16px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+#app .collection-card:hover { border-color: var(--accent); }
+#app .collection-card h2 { margin: 0; min-height: 52px; font-size: 18px; line-height: 1.45; }
+#app .collection-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; padding: 0; background: none; border: 0; color: var(--text); font-size: inherit; line-height: inherit; font-weight: 600; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+#app .collection-title:hover, #app .collection-text-link:hover { color: var(--accent); }
+#app .collection-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; }
+#app .collection-symbol, #app .team-avatar { width: 42px; height: 42px; border-radius: 11px; background: var(--soft); color: var(--accent); display: inline-grid; place-items: center; font-size: 21px; flex-shrink: 0; }
+#app .team-avatar { width: 46px; height: 46px; font-size: 15px; font-weight: 600; overflow: hidden; }
+#app .team-avatar .el-image { width: 46px; height: 46px; display: grid; place-items: center; }
+#app .collection-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; margin: 0; min-height: 70px; color: var(--muted); }
+#app .collection-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; color: var(--muted); font-size: 12px; min-width: 0; }
+#app .collection-tag { display: inline-block; background: var(--soft); color: var(--accent); border: 1px solid var(--line); border-radius: 5px; padding: 3px 8px; font-size: 12px; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
+#app button.collection-tag { cursor: pointer; }
+#app .collection-hint { font-size: 12px; line-height: 1.8; color: var(--muted); margin: 0; }
+#app .collection-card-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; margin-top: auto; background: transparent; color: var(--muted) !important; text-align: left; }
+#app .collection-card-footer .el-button { flex-shrink: 0; }
+#app .collection-text-link { padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; text-align: left; font-size: inherit; }
+#app .collection-author { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; }
+#app .collection-author small { font-size: 11px; color: var(--muted); }
+#app .collection-owner, #app .collection-author button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#app .training-progress { margin: 2px 0; }
+#app .training-progress > div:first-child { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+#app .training-progress .el-progress-bar__outer { background: var(--soft); }
+#app .training-progress .el-progress-bar__inner { background: var(--accent); transition: none; }
+#app .contest-collection-card.is-running { border-top: 3px solid var(--accent); padding-top: 20px; }
+#app .contest-state { display: inline-flex; align-items: center; gap: 7px; color: var(--text); font-size: 12px; white-space: nowrap; }
+#app .contest-state > i { width: 7px; height: 7px; border-radius: 50%; background: var(--contest-state, var(--accent)); }
+#app .contest-schedule { font-size: 13px; color: var(--muted); }
+#app .contest-schedule p { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 0 0 10px; }
+#app .contest-schedule p:last-child { margin-bottom: 0; }
+#app .contest-schedule span { margin-left: auto; }
+#app .collection-feedback { min-height: 240px; padding: 36px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; text-align: center; color: var(--muted); }
+#app .collection-feedback > i { font-size: 30px; }
+#app .collection-page > .page, #app .discussion-main > .page { float: none; display: flex; justify-content: flex-end; margin: 24px 0 0; }
+#app .collection-page .el-pagination { white-space: normal; display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+/* Home: one grid instead of two independent stacks, so card edges align. */
+#app .home-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+#app .home-grid > * { min-width: 0; margin: 0; }
+#app .home-photo, #app .home-latest { grid-column: span 8; }
+#app .home-rank, #app .home-contests { grid-column: span 4; }
+#app .home-announcements, #app .home-statistics { grid-column: span 6; }
+#app .home-remote { grid-column: 1 / -1; }
+#app .home-grid > .el-card > .el-card__header { padding: 18px 22px !important; min-height: 60px; }
+#app .home-grid .home-title { font-size: 16px; line-height: 1.5; }
+#app .home-grid .xcpc-placeholder { min-height: 288px; padding: 24px; }
+#app .home-grid .xcpc-placeholder h2 { font-size: 25px; }
+#app .home-grid .img-carousel { height: 288px; }
+#app .home-photo .el-carousel__container { height: 262px !important; }
+#app .home-photo .el-carousel__item .el-image { width: 100%; height: 100%; }
+#app .home-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#app .home-panel-heading > a { font-size: 12px; }
+#app .home-contest-item { padding: 16px 0; border-bottom: 1px solid var(--line); }
+#app .home-contest-item:first-child { padding-top: 0; }
+#app .home-contest-item:last-child { padding-bottom: 0; border-bottom: 0; }
+#app .home-contest-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 10px; }
+#app .home-contest-heading > button { font-size: 14px; font-weight: 600; line-height: 1.7; overflow-wrap: anywhere; }
+#app .home-contest-item > p { margin-top: 10px; }
+#app .home-announcements .announcements-container { padding: 0; margin: 0; }
+#app .home-announcements .announcements-container li { padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); margin: 0; }
+#app .home-announcements .announcements-container li:last-child { border-bottom: 0; }
+#app .home-announcements .flex-container { align-items: flex-start; text-align: left; padding: 0; }
+#app .home-announcements .title { font-size: 14px; font-style: normal; }
+#app .home-announcements .title a { color: var(--text); font-weight: 600; font-style: normal; }
+#app .home-announcements .date, #app .home-announcements .creator { width: auto; text-align: left; }
+#app .home-announcements .info { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+#app .home-statistics .echarts { width: 100%; height: 264px; }
+#app .home-remote-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
+#app .home-remote-grid::before, #app .home-remote-grid::after { display: none; }
+#app .home-remote-grid > .el-col { float: none; width: auto; min-width: 0; padding: 0 !important; }
+#app .home-remote-grid a { display: block; }
+#app .home-remote-grid .oj-logo { width: 100%; height: 58px; margin: 0; padding: 10px; border-color: var(--line); border-radius: 8px; }
+/* Discussion stays a reading list; filters and publishing tools share the card style. */
+#app .discussion-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 22px; }
+#app .discussion-layout::before, #app .discussion-layout::after { display: none; }
+#app .discussion-layout > .el-col { float: none; width: auto; padding: 0; min-width: 0; }
+#app .discussion-page .discussion-header { height: auto; min-height: 64px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; margin-bottom: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+#app .discussion-page .discussion-header > span { float: none !important; padding: 0 !important; margin: 0; min-width: 0; }
+#app .discussion-page .el-breadcrumb__inner { color: var(--muted); }
+#app .discussion-page .list-card { padding: 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
+#app .discussion-page .list-card > .el-card__body { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 0 !important; min-height: 130px; }
+#app .discussion-page .list-card h2 { margin: 0; line-height: 1.6; font-size: 18px; width: 100%; overflow-wrap: anywhere; }
+#app .discussion-page .article-hlink a { color: var(--text); font-size: 18px; }
+#app .discussion-page .article-hlink2 { width: 100%; }
+#app .discussion-page .article-hlink2 p { color: var(--muted); line-height: 1.9; font-size: 13px; min-height: 25px; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+#app .discussion-page .title-msg { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; margin-top: auto; border-top: 1px solid var(--line); color: var(--muted) !important; }
+#app .discussion-page .title-msg a { color: var(--muted); }
+#app .discussion-page .title-msg .el-dropdown { margin-left: auto; }
+#app .discussion-page .discussion-actions, #app .discussion-page .category-body { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: var(--shadow); }
+#app .discussion-page .category-body { margin-top: 18px; }
+#app .discussion-page .title-sidebar { color: var(--text); border-color: var(--line); }
+#app .discussion-page .category-body a { color: var(--text); }
+#app .discussion-page .category-item { height: auto; min-height: 34px; border-radius: 7px; }
+#app .discussion-page .category-item:hover { background: var(--soft) !important; color: var(--accent); }
+@media (max-width: 1100px) {
+  #app .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #app .home-photo, #app .home-latest, #app .home-rank, #app .home-contests { grid-column: span 6; }
+  #app .home-remote-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #app .discussion-layout { grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+}
+@media (max-width: 767px) {
+  #app .collection-heading { align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
+  #app .collection-heading h1 { font-size: 24px; }
+  #app .collection-heading p { font-size: 12px; }
+  #app .collection-filters > .el-card__body { padding: 16px; }
+  #app .collection-filter-row { flex-direction: column; gap: 8px; }
+  #app .collection-search { gap: 12px; }
+  #app .collection-search .vxe-input { width: 100%; }
+  #app .contest-page .collection-search .vxe-input { margin: 0; }
+  #app .home-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  #app .home-grid > * { grid-column: 1; }
+  #app .home-grid > .el-card > .el-card__header { padding: 16px !important; }
+  #app .home-remote-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #app .home-remote-grid .oj-logo { padding: 6px; height: 50px; }
+  #app .discussion-layout { grid-template-columns: minmax(0, 1fr); }
+  #app .discussion-sidebar { grid-row: 1; }
+  #app .discussion-page .discussion-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px; }
+  #app .discussion-page .discussion-actions .el-button { width: auto !important; margin: 0 !important; }
+  #app .discussion-page .category-body { margin-bottom: 0; padding: 16px; }
+  #app .discussion-page .category-body .el-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  #app .discussion-page .category-body .el-col { width: auto; max-width: 100%; }
+  #app .discussion-page .category-body .el-col:has(.el-input) { width: 100%; }
+  #app .discussion-page .list-card { padding: 18px; }
+}
+@media (max-width: 680px) {
+  #app .collection-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #app .collection-card { padding: 20px; gap: 14px; min-height: 280px; }
+  #app .collection-card h2 { min-height: 0; }
+}

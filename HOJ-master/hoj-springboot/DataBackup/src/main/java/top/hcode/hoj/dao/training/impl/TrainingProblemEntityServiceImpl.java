@@ -55,6 +55,7 @@ public class TrainingProblemEntityServiceImpl extends ServiceImpl<TrainingProble
             return 0;
         }
         QueryWrapper<Judge> judgeQueryWrapper = new QueryWrapper<>();
+        judgeQueryWrapper.isNull("paper_run_id");
         judgeQueryWrapper.select("DISTINCT pid")
                 .in("pid", pidList)
                 .eq("cid", 0)

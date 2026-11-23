@@ -1,29 +1,21 @@
 <template>
   <div>
     <template v-if="!mobileNar">
-      <div id="header">
-        <el-menu
+      <div id="header" aria-label="CDUTETC 导航栏" :class="['nav-' + runtime.navigation, { 'nav-scrolled': scrolled, 'nav-condensed': scrolled && !navEngaged }]" @mouseenter="onNavEnter" @mouseleave="onNavLeave" @focusin="navFocused = true" @focusout="onNavFocusOut">
+        <div class="nav-shell">
+          <router-link class="logo" to="/home" aria-label="CDUTETC · 成理工程在线测评平台首页"><BrandLogo compact /></router-link>
+          <el-menu
+          class="nav-links"
+          aria-label="主导航"
           :default-active="activeMenuName"
           mode="horizontal"
           router
-          active-text-color="#2196f3"
-          text-color="#495060"
+          active-text-color="var(--nav-menu-accent)"
+          text-color="var(--text)"
+          @open="onMenuOpen"
+          @close="onMenuClose"
         >
-          <div class="logo">
-            <el-tooltip
-              :content="$t('m.Click_To_Change_Web_Language')"
-              placement="bottom"
-              effect="dark"
-            >
-              <el-image
-                style="width: 139px; height: 50px"
-                :src="imgUrl"
-                fit="scale-down"
-                @click="changeWebLanguage"
-              ></el-image>
-            </el-tooltip>
-          </div>
-          <template v-if="mode == 'defalut'">
+          <template>
             <el-menu-item index="/home"
               ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Home') }}</el-menu-item
             >
@@ -35,6 +27,7 @@
               ><i class="el-icon-s-claim"></i
               >{{ $t('m.NavBar_Training') }}</el-menu-item
             >
+            <el-menu-item index="/knowledge"><i class="el-icon-reading"></i>{{ $t('m.Knowledge') }}</el-menu-item>
             <el-menu-item index="/contest"
               ><i class="el-icon-trophy"></i
               >{{ $t('m.NavBar_Contest') }}</el-menu-item
@@ -43,17 +36,9 @@
               ><i class="el-icon-s-marketing"></i
               >{{ $t('m.NavBar_Status') }}</el-menu-item
             >
-            <el-submenu index="rank">
-              <template slot="title"
-                ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</template
-              >
-              <el-menu-item index="/acm-rank">{{
-                $t('m.NavBar_ACM_Rank')
-              }}</el-menu-item>
-              <el-menu-item index="/oi-rank">{{
-                $t('m.NavBar_OI_Rank')
-              }}</el-menu-item>
-            </el-submenu>
+            <el-menu-item index="/rank/contest"
+              ><i class="el-icon-s-data"></i>{{ $t('m.NavBar_Rank') }}</el-menu-item
+            >
             <el-menu-item index="/discussion"
               v-if="websiteConfig.openPublicDiscussion"
               ><i class="el-icon-s-comment"></i
@@ -65,7 +50,7 @@
               ></i
               >{{ $t('m.NavBar_Group') }}</el-menu-item
             >
-            <el-submenu index="about">
+            <el-submenu index="about" popper-class="cdutetc-nav-popup">
               <template slot="title"
                 ><i class="el-icon-info"></i>{{ $t('m.NavBar_About') }}</template
               >
@@ -77,10 +62,9 @@
               }}</el-menu-item>
             </el-submenu>
         </template>
-        <template v-else-if="mode == 'training'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
+        <el-submenu v-if="mode != 'defalut'" index="context" class="nav-context" popper-class="cdutetc-nav-popup">
+          <template slot="title">{{ contextTitle }}</template>
+        <template v-if="mode == 'training'">
             <template v-if="$route.params.groupID">
               <el-menu-item :index="'/group/' + $route.params.groupID"
               ><i
@@ -96,9 +80,6 @@
             >
         </template>
         <template v-else-if="mode == 'contest'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
             <el-menu-item :index="'/contest/' + $route.params.contestID"
               ><i class="el-icon-trophy"></i>{{ $t('m.NavBar_Contest_Home') }}</el-menu-item
             >
@@ -113,9 +94,6 @@
             >
         </template>
         <template v-else-if="mode == 'group'">
-          <el-menu-item index="/home"
-              ><i class="el-icon-s-home"></i>{{ $t('m.NavBar_Back_Home') }}</el-menu-item
-            >
             <template v-if="$route.params.groupID">
               <el-menu-item :index="'/group/' + $route.params.groupID"
               ><i
@@ -127,7 +105,10 @@
               ><i class="fa fa-list navbar-icon"></i>{{ $t('m.Problem_List') }}</el-menu-item
             >
         </template>
-
+        </el-submenu>
+          </el-menu>
+          <div class="nav-actions">
+          <ThemeToggle v-if="!isAuthenticated" /><AppearanceSettings v-if="!isAuthenticated" class="nav-appearance" @visibility-change="onDropdownVisibility($event, 'appearance')" />
           <template v-if="!isAuthenticated">
             <div class="btn-menu">
               <el-button 
@@ -149,47 +130,13 @@
           </template>
           <template v-else>
             <el-dropdown
-              class="drop-menu"
-              @command="handleRoute"
-              placement="bottom"
-              trigger="hover"
-            >
-              <span class="el-dropdown-link">
-                {{ userInfo.username }}<i class="el-icon-caret-bottom"></i>
-              </span>
-
-              <el-dropdown-menu slot="dropdown">
-                <el-dropdown-item command="/user-home">{{
-                  $t('m.NavBar_UserHome')
-                }}</el-dropdown-item>
-                <el-dropdown-item command="/status?onlyMine=true">{{
-                  $t('m.NavBar_Submissions')
-                }}</el-dropdown-item>
-                <el-dropdown-item command="/setting">{{
-                  $t('m.NavBar_Setting')
-                }}</el-dropdown-item>
-                <el-dropdown-item v-if="isAdminRole" command="/admin">{{
-                  $t('m.NavBar_Management')
-                }}</el-dropdown-item>
-                <el-dropdown-item divided command="/logout">{{
-                  $t('m.NavBar_Logout')
-                }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </el-dropdown>
-            <avatar
-              :username="userInfo.username"
-              :inline="true"
-              :size="30"
-              color="#FFF"
-              :src="avatar"
-              class="drop-avatar"
-            ></avatar>
-            <el-dropdown
               class="drop-msg"
               @command="handleRoute"
               placement="bottom"
+              trigger="click"
+              @visible-change="onDropdownVisibility($event, 'notifications')"
             >
-              <span class="el-dropdown-link">
+              <button class="el-dropdown-link nav-notifications" type="button" aria-label="通知" @keydown.enter.prevent>
                 <i class="el-icon-message-solid"></i>
                 <svg
                   v-if="
@@ -205,9 +152,9 @@
                 >
                   <circle cx="5" cy="5" r="5" style="fill: red;"></circle>
                 </svg>
-              </span>
+              </button>
 
-              <el-dropdown-menu slot="dropdown">
+              <el-dropdown-menu slot="dropdown" class="cdutetc-nav-dropdown">
                 <el-dropdown-item command="/message/discuss">
                   <span>{{ $t('m.DiscussMsg') }}</span>
                   <span class="drop-msg-count" v-if="unreadMessage.comment > 0">
@@ -240,16 +187,20 @@
                 </el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
+            <ThemeToggle />
+            <ProfileMenu :user="userInfo" :avatar="avatar" :is-admin="isAdminRole" @command="handleRoute" @visibility-change="onDropdownVisibility($event, 'account')" />
           </template>
-        </el-menu>
+          </div>
+        </div>
       </div>
-      <div id="header-hidden" v-show="isScrolled">
+      <div id="header-hidden">
       </div>
     </template>
     <template v-else>
       <div style="top:0px;left:0px;">
-      <mu-appbar class="mobile-nav" color="primary">
-        <mu-button icon slot="left" @click="opendrawer = !opendrawer">
+      <mu-appbar class="mobile-nav" :class="['nav-' + runtime.navigation, { 'nav-scrolled': scrolled }]" color="primary">
+        <ThemeToggle slot="right" /><AppearanceSettings v-if="!isAuthenticated" slot="right" />
+        <mu-button icon slot="left" aria-label="打开导航菜单" @click="opendrawer = !opendrawer">
           <i class="el-icon-s-unfold"></i>
         </mu-button>
         <el-tooltip
@@ -257,15 +208,14 @@
             placement="bottom"
             effect="dark"
           >
-          <span @click="changeWebLanguage">
-          {{
-            websiteConfig.shortName ? websiteConfig.shortName : 'OJ'
-          }}
+          <span class="mobile-brand" @click="changeWebLanguage">
+            <BrandLogo compact />
           </span>
         </el-tooltip>
         <mu-button
           flat
           slot="right"
+          class="mobile-login"
           @click="handleBtnClick('Login')"
           v-show="!isAuthenticated"
           >{{ $t('m.NavBar_Login') }}</mu-button
@@ -273,13 +223,14 @@
         <mu-button
           flat
           slot="right"
+          class="mobile-register"
           @click="handleBtnClick('Register')"
           v-show="!isAuthenticated && websiteConfig.register"
           >{{ $t('m.NavBar_Register') }}</mu-button
         >
 
-        <mu-menu slot="right" v-show="isAuthenticated" :open.sync="openmsgmenu">
-          <mu-button flat>
+        <mu-menu slot="right" v-show="isAuthenticated" :open.sync="openmsgmenu" popover-class="cdutetc-mobile-popup">
+          <mu-button flat aria-label="通知">
             <mu-icon value=":el-icon-message-solid" size="24"></mu-icon>
             <svg
               v-if="
@@ -355,72 +306,12 @@
           </mu-list>
         </mu-menu>
 
-        <mu-menu
-          slot="right"
-          v-if="isAuthenticated"
-          :open.sync="openusermenu"
-        >
-          <mu-button flat>
-            <avatar
-              :username="userInfo.username"
-              :inline="true"
-              :size="30"
-              color="#FFF"
-              :src="avatar"
-              :title="userInfo.username"
-            ></avatar>
-            <i class="el-icon-caret-bottom"></i>
-          </mu-button>
-          <mu-list slot="content" @change="handleCommand">
-            <mu-list-item button value="/user-home">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_UserHome')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/status?onlyMine=true">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Submissions')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/setting">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Setting')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-            <mu-list-item button value="/admin" v-show="isAdminRole">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Management')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-            <mu-divider></mu-divider>
-
-            <mu-list-item button value="/logout">
-              <mu-list-item-content>
-                <mu-list-item-title>{{
-                  $t('m.NavBar_Logout')
-                }}</mu-list-item-title>
-              </mu-list-item-content>
-            </mu-list-item>
-          </mu-list>
-        </mu-menu>
+        <ProfileMenu v-if="isAuthenticated" slot="right" :user="userInfo" :avatar="avatar" :is-admin="isAdminRole" @command="handleCommand" />
       </mu-appbar>
 
-      <mu-appbar style="width: 100%;">
-        <!--占位，刚好占领导航栏的高度-->
-      </mu-appbar>
+      <div class="mobile-nav-spacer" aria-hidden="true"></div>
 
-      <mu-drawer :open.sync="opendrawer" :docked="false" :right="false">
+      <mu-drawer class="cdutetc-nav-drawer" :open.sync="opendrawer" :docked="false" :right="false">
         <mu-list toggle-nested>
           <mu-list-item
             button
@@ -462,6 +353,8 @@
             }}</mu-list-item-title>
           </mu-list-item>
 
+          <mu-list-item button to="/knowledge" @click="opendrawer = !opendrawer" active-class="mobile-menu-active"><mu-list-item-action><mu-icon value=":el-icon-reading" size="24"></mu-icon></mu-list-item-action><mu-list-item-title>{{ $t('m.Knowledge') }}</mu-list-item-title></mu-list-item>
+
           <mu-list-item
             button
             to="/contest"
@@ -491,45 +384,14 @@
           <mu-list-item
             button
             :ripple="false"
-            nested
-            :open="openSideMenu === 'rank'"
-            @toggle-nested="openSideMenu = arguments[0] ? 'rank' : ''"
+            to="/rank/contest"
+            @click="opendrawer = !opendrawer"
+            active-class="mobile-menu-active"
           >
             <mu-list-item-action>
               <mu-icon value=":el-icon-s-data" size="24"></mu-icon>
             </mu-list-item-action>
             <mu-list-item-title>{{ $t('m.NavBar_Rank') }}</mu-list-item-title>
-            <mu-list-item-action>
-              <mu-icon
-                class="toggle-icon"
-                size="24"
-                value=":el-icon-arrow-down"
-              ></mu-icon>
-            </mu-list-item-action>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/acm-rank"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_ACM_Rank')
-              }}</mu-list-item-title>
-            </mu-list-item>
-            <mu-list-item
-              button
-              :ripple="false"
-              slot="nested"
-              to="/oi-rank"
-              @click="opendrawer = !opendrawer"
-              active-class="mobile-menu-active"
-            >
-              <mu-list-item-title>{{
-                $t('m.NavBar_OI_Rank')
-              }}</mu-list-item-title>
-            </mu-list-item>
           </mu-list-item>
 
           <mu-list-item
@@ -620,30 +482,36 @@
   </div>
 </template>
 <script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
+import AppearanceSettings from '@/components/oj/common/AppearanceSettings';
+import { appearance, appearanceRuntime } from '@/common/appearance';
+import ThemeToggle from './ThemeToggle';
+import ProfileMenu from './ProfileMenu';
 import Login from '@/components/oj/common/Login';
 import Register from '@/components/oj/common/Register';
 import ResetPwd from '@/components/oj/common/ResetPassword';
 import MsgSvg from '@/components/oj/msg/msgSvg';
 import { mapGetters, mapActions } from 'vuex';
-import Avatar from 'vue-avatar';
 import api from '@/common/api';
 export default {
   components: {
+    BrandLogo,
+    AppearanceSettings,
+    ThemeToggle,
+    ProfileMenu,
     Login,
     Register,
     ResetPwd,
-    Avatar,
     MsgSvg,
   },
   created(){
     this.page_width();
-    window.onresize = () => {
-      this.page_width();
-      this.setHiddenHeaderHeight();
-    };
+    window.addEventListener('resize', this.onResize);
+    window.addEventListener('scroll', this.onScroll, { passive: true });
   },
   mounted() {
     this.switchMode();
+    this.onScroll();
     this.setHiddenHeaderHeight();
     if (this.isAuthenticated) {
       this.getUnreadMsgCount();
@@ -654,9 +522,19 @@ export default {
   },
   beforeDestroy() {
     clearInterval(this.msgTimer);
+    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('scroll', this.onScroll);
+    cancelAnimationFrame(this.scrollFrame);
+    clearTimeout(this.navLeaveTimer);
   },
   data() {
     return {
+      appearance,
+      runtime: appearanceRuntime,
+      scrolled: false,
+      navHovered: false,
+      navFocused: false,
+      openPopups: {},
       mode:'defalut',
       centerDialogVisible: false,
       mobileNar: false,
@@ -664,20 +542,48 @@ export default {
       openusermenu: false,
       openmsgmenu: false,
       openSideMenu: '',
-      imgUrl: require('@/assets/logo.png'),
       avatarStyle:
         'display: inline-flex;width: 30px;height: 30px;border-radius: 50%;align-items: center;justify-content: center;text-align: center;user-select: none;',
     };
   },
   methods: {
     ...mapActions(['changeModalStatus']),
+    onResize() { this.page_width(); },
+    onScroll() {
+      if (this.scrollFrame) return;
+      this.scrollFrame = requestAnimationFrame(() => {
+        // Separate thresholds prevent jitter when the scroll position hovers near the boundary.
+        if (window.scrollY > 64) this.scrolled = true;
+        else if (window.scrollY < 24) this.scrolled = false;
+        this.scrollFrame = null;
+      });
+    },
+    onNavEnter() {
+      clearTimeout(this.navLeaveTimer);
+      this.navHovered = true;
+    },
+    onNavLeave() {
+      clearTimeout(this.navLeaveTimer);
+      this.navLeaveTimer = setTimeout(() => { this.navHovered = false; }, 160);
+    },
+    onNavFocusOut(event) {
+      if (!event.currentTarget.contains(event.relatedTarget)) this.navFocused = false;
+    },
+    onDropdownVisibility(open, key) { this.$set(this.openPopups, key, open); },
+    onMenuOpen(index) { this.onDropdownVisibility(true, 'menu:' + index); },
+    onMenuClose(index) { this.onDropdownVisibility(false, 'menu:' + index); },
     page_width() {
-      let screenWidth = window.screen.width;
-      if (screenWidth < 992) {
-        this.mobileNar = true;
-      } else {
-        this.mobileNar = false;
+      const mobile = window.innerWidth < 992;
+      if (mobile !== this.mobileNar) {
+        clearTimeout(this.navLeaveTimer);
+        this.navHovered = false;
+        this.navFocused = false;
+        this.openPopups = {};
+        this.opendrawer = false;
+        this.openusermenu = false;
+        this.openmsgmenu = false;
       }
+      this.mobileNar = mobile;
     },
     handleBtnClick(mode) {
       this.changeModalStatus({
@@ -741,14 +647,7 @@ export default {
     changeWebLanguage() {
       this.$store.commit('changeWebLanguage', { language: this.webLanguage == 'zh-CN' ? 'en-US' : 'zh-CN' });
     },
-    setHiddenHeaderHeight(){
-      if(!this.mobileNar){
-        try {
-          let headerHeight = document.getElementById('header').offsetHeight;
-          document.getElementById('header-hidden').setAttribute('style','height:'+ headerHeight + 'px')
-        } catch (e) {}
-      }
-    },
+    setHiddenHeaderHeight() { this.onScroll(); },
     switchMode(){
       if(this.$route.meta.fullScreenSource){
         this.mode = this.$route.meta.fullScreenSource;
@@ -789,7 +688,15 @@ export default {
     avatar() {
       return this.$store.getters.userInfo.avatar;
     },
+    navEngaged() {
+      return this.navHovered || this.navFocused || Object.values(this.openPopups).some(Boolean);
+    },
+    contextTitle() {
+      return { training: '当前训练', contest: '当前比赛', group: '当前团队' }[this.mode];
+    },
     activeMenuName() {
+      if (this.$route.path.split('/')[1] === 'rank') return '/rank/contest';
+      if (['objective', 'papers'].includes(this.$route.path.split('/')[1])) return '/problem';
       if (this.$route.path.split('/')[1] == 'submission-detail') {
         return '/status';
       } else if (this.$route.path.split('/')[1] == 'discussion-detail') {
@@ -822,6 +729,7 @@ export default {
   },
   watch: {
     isAuthenticated() {
+      this.openPopups = {};
       if (this.isAuthenticated) {
         if (this.msgTimer) {
           clearInterval(this.msgTimer);
@@ -835,7 +743,17 @@ export default {
       }
     },
     $route(){
+      clearTimeout(this.navLeaveTimer);
+      this.navHovered = false;
+      this.navFocused = false;
+      this.openPopups = {};
       this.switchMode();
+      this.onScroll();
+      this.$nextTick(() => {
+        const header = this.$el.querySelector('#header');
+        this.navHovered = !!header && header.matches(':hover');
+        this.navFocused = !!header && header.contains(document.activeElement);
+      });
     }
   },
 };

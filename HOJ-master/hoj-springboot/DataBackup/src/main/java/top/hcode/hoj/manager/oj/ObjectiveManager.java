@@ -1,0 +1,716 @@
+package top.hcode.hoj.manager.oj;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.shiro.SecurityUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import top.hcode.hoj.common.exception.ObjectiveException;
+import top.hcode.hoj.mapper.*;
+import top.hcode.hoj.pojo.dto.ObjectiveDTO;
+import top.hcode.hoj.pojo.entity.objective.*;
+import top.hcode.hoj.pojo.entity.problem.Tag;
+import top.hcode.hoj.utils.ShiroUtils;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+/** Owns objective practice; never writes programming submissions or contest ranks. */
+@Component
+public class ObjectiveManager {
+    private static final Set<String> TYPES = new HashSet<>(Arrays.asList(
+            "SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE", "FILL_BLANK"));
+    private static final Set<String> POLICIES = new HashSet<>(Arrays.asList(
+            "AFTER_ANSWER", "AFTER_FINISH", "AT_TIME", "NEVER"));
+    private static final TypeReference<List<Long>> IDS = new TypeReference<List<Long>>() {};
+    private static final TypeReference<List<ObjectiveDTO.Question>> QUESTIONS =
+            new TypeReference<List<ObjectiveDTO.Question>>() {};
+    private static final TypeReference<Map<String, List<String>>> ANSWERS =
+            new TypeReference<Map<String, List<String>>>() {};
+
+    @Autowired private ObjectiveQuestionMapper questionMapper;
+    @Autowired private ObjectiveQuestionVersionMapper versionMapper;
+    @Autowired private ObjectiveSetMapper setMapper;
+    @Autowired private ObjectiveRunMapper runMapper;
+    @Autowired private TagMapper tagMapper;
+    @Autowired private ObjectMapper json;
+
+    protected String currentUid() {
+        if (ShiroUtils.getProfile() == null) {
+            throw new ObjectiveException(401, "请先登录");
+        }
+        return ShiroUtils.getProfile().getUid();
+    }
+
+    protected boolean canManageAll() {
+        return SecurityUtils.getSubject().hasRole("root")
+                || SecurityUtils.getSubject().hasRole("problem_admin");
+    }
+
+    protected long now() {
+        return System.currentTimeMillis();
+    }
+
+    private ObjectiveException fail(int status, String message) {
+        return new ObjectiveException(status, message);
+    }
+
+    private void require(boolean condition, String message) {
+        if (!condition) throw fail(400, message);
+    }
+
+    private String text(String value, int max, String name, boolean required) {
+        String result = value == null ? "" : value.trim();
+        require(!required || !result.isEmpty(), name + "不能为空");
+        require(result.length() <= max, name + "过长");
+        return result;
+    }
+
+    private String write(Object value) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalStateException("客观题数据序列化失败", e);
+        }
+    }
+
+    private <T> T read(String value, TypeReference<T> type) {
+        try {
+            return json.readValue(value, type);
+        } catch (Exception e) {
+            throw new IllegalStateException("客观题数据读取失败", e);
+        }
+    }
+
+    private ObjectiveDTO.Question content(ObjectiveQuestion question) {
+        try {
+            ObjectiveDTO.Question dto = json.readValue(question.getContentJson(), ObjectiveDTO.Question.class);
+            dto.setPracticeEnabled(question.getPracticeEnabled());
+            defaultPracticeRules(dto);
+            return dto;
+        } catch (Exception e) {
+            throw new IllegalStateException("客观题版本读取失败", e);
+        }
+    }
+
+    private void owner(String createdBy) {
+        if (!canManageAll() && !currentUid().equals(createdBy)) {
+            throw fail(403, "只能管理自己创建的客观题或题集");
+        }
+    }
+
+    private int pageSize(Integer limit) {
+        return limit == null ? 20 : Math.min(100, Math.max(1, limit));
+    }
+
+    private int pageNumber(Integer page) {
+        return page == null ? 1 : Math.max(1, page);
+    }
+
+    private Map<String, Object> page(List<?> records, long total) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("records", records);
+        result.put("total", total);
+        return result;
+    }
+
+    public Map<String, Object> questions(Integer currentPage, Integer limit, String keyword, String type) {
+        return questionList(currentPage, limit, keyword, type, true);
+    }
+
+    public Map<String, Object> practiceQuestions(Integer currentPage, Integer limit, String keyword, String type) {
+        return questionList(currentPage, limit, keyword, type, false);
+    }
+
+    /** Adjacent published practice questions in the same descending-ID order as the list. */
+    public Map<String, Object> neighbors(Long id, String keyword, String type) {
+        ObjectiveQuestion current = questionMapper.selectById(id);
+        if (current == null || !Boolean.TRUE.equals(current.getPublished())
+                || !Boolean.TRUE.equals(current.getPracticeEnabled())) throw fail(404, "客观题未开放单题练习");
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (boolean previous : Arrays.asList(true, false)) {
+            QueryWrapper<ObjectiveQuestion> query = new QueryWrapper<>();
+            query.select("id", "title", "question_type").eq("published", true).eq("practice_enabled", true)
+                    .like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
+                    .eq(type != null && !type.isEmpty(), "question_type", type);
+            if (previous) query.gt("id", id).orderByAsc("id");
+            else query.lt("id", id).orderByDesc("id");
+            ObjectiveQuestion adjacent = questionMapper.selectOne(query.last("LIMIT 1"));
+            Map<String, Object> row = null;
+            if (adjacent != null) {
+                row = new LinkedHashMap<>();
+                row.put("id", adjacent.getId());
+                row.put("title", adjacent.getTitle());
+                row.put("questionType", adjacent.getQuestionType());
+            }
+            result.put(previous ? "previous" : "next", row);
+        }
+        return result;
+    }
+
+    private Map<String, Object> questionList(Integer currentPage, Integer limit, String keyword, String type, boolean admin) {
+        QueryWrapper<ObjectiveQuestion> query = new QueryWrapper<>();
+        query.select("id", "title", "question_type", "version", "published", "practice_enabled", "content_json");
+        if (admin) query.eq(!canManageAll(), "created_by", currentUid());
+        else query.eq("published", true).eq("practice_enabled", true);
+        query.like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
+                .eq(type != null && !type.isEmpty(), "question_type", type)
+                .orderByDesc("id");
+        IPage<ObjectiveQuestion> result = questionMapper.selectPage(
+                new Page<>(pageNumber(currentPage), pageSize(limit)), query);
+        List<Map<String, Object>> rows = result.getRecords().stream().map(q -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", q.getId());
+            row.put("title", q.getTitle());
+            row.put("questionType", q.getQuestionType());
+            row.put("version", q.getVersion());
+            row.put("published", q.getPublished());
+            row.put("practiceEnabled", q.getPracticeEnabled());
+            row.put("rating", q.getContentJson() == null ? null : content(q).getRating());
+            return row;
+        }).collect(Collectors.toList());
+        return page(rows, result.getTotal());
+    }
+
+    public ObjectiveDTO.Question question(Long id) {
+        ObjectiveQuestion question = questionMapper.selectById(id);
+        if (question == null) throw fail(404, "客观题不存在");
+        owner(question.getCreatedBy());
+        return content(question);
+    }
+
+    public ObjectiveDTO.Question publishedQuestionSnapshot(Long id) {
+        ObjectiveQuestion question = questionMapper.selectById(id);
+        if (question == null || !Boolean.TRUE.equals(question.getPublished())) throw fail(403, "题目暂未发布");
+        return content(question);
+    }
+
+    // A published container grants access to its persisted references independently of standalone practice.
+    ObjectiveDTO.Question collectionQuestionSnapshot(Long id) {
+        ObjectiveQuestion question = questionMapper.selectById(id);
+        if (question == null) throw fail(404, "引用的客观题不存在");
+        return content(question);
+    }
+
+    void validateQuestion(ObjectiveDTO.Question dto) {
+        require(dto != null, "题目不能为空");
+        require(dto.getRating() == null || dto.getRating() >= 0 && dto.getRating() <= 5000, "题目rating必须在0到5000之间，或留空为未评级");
+        require(dto != null, "题目不能为空");
+        defaultPracticeRules(dto);
+        validatePolicy(dto.getAnswerPolicy(), dto.getAnswerReleaseAt());
+        validatePolicy(dto.getExplanationPolicy(), dto.getExplanationReleaseAt());
+        if (!"AT_TIME".equals(dto.getAnswerPolicy())) dto.setAnswerReleaseAt(null);
+        if (!"AT_TIME".equals(dto.getExplanationPolicy())) dto.setExplanationReleaseAt(null);
+        dto.setTitle(text(dto.getTitle(), 200, "标题", true));
+        dto.setStem(text(dto.getStem(), 30000, "题干", true));
+        dto.setSource(text(dto.getSource(), 200, "来源", false));
+        dto.setExplanation(text(dto.getExplanation(), 30000, "解析", false));
+        require(TYPES.contains(dto.getQuestionType()), "仅支持单选、多选、判断和结果填空题");
+        if ("FILL_BLANK".equals(dto.getQuestionType())) {
+            require(dto.getBlanks() != null && !dto.getBlanks().isEmpty() && dto.getBlanks().size() <= 20, "填空题须有 1 到 20 个空");
+            Set<String> blankIds = new HashSet<>();
+            for (ObjectiveDTO.Blank blank : dto.getBlanks()) {
+                require(blank != null && blank.getId() != null && blank.getId().matches("[A-Za-z0-9_]{1,32}")
+                        && blankIds.add(blank.getId()), "填空标识无效或重复");
+                blank.setLabel(text(blank.getLabel(), 100, "填空说明", false));
+                require(blank.getScore() != null && blank.getScore() > 0 && blank.getScore() <= 1000, "每空分值须为 1 到 1000");
+                if (blank.getTrim() == null) blank.setTrim(true);
+                if (blank.getCaseSensitive() == null) blank.setCaseSensitive(true);
+                require(blank.getAnswers() != null && !blank.getAnswers().isEmpty() && blank.getAnswers().size() <= 20, "每空须配置 1 到 20 个可接受答案");
+                List<String> accepted = new ArrayList<>();
+                for (String answer : blank.getAnswers()) {
+                    require(answer != null && answer.length() <= 2000 && !answer.trim().isEmpty(), "填空标准答案不能为空或超过 2000 字");
+                    accepted.add(Boolean.TRUE.equals(blank.getTrim()) ? answer.trim() : answer);
+                }
+                blank.setAnswers(accepted);
+            }
+            dto.setOptions(Collections.emptyList()); dto.setCorrectAnswers(Collections.emptyList());
+        } else {
+            dto.setBlanks(null);
+            if ("TRUE_FALSE".equals(dto.getQuestionType())) {
+                List<ObjectiveDTO.Option> options = new ArrayList<>();
+                for (String id : Arrays.asList("TRUE", "FALSE")) {
+                    ObjectiveDTO.Option option = new ObjectiveDTO.Option();
+                    option.setId(id);
+                    option.setText("TRUE".equals(id) ? "正确" : "错误");
+                    options.add(option);
+                }
+                dto.setOptions(options);
+            }
+            require(dto.getOptions() != null && dto.getOptions().size() >= 2
+                    && dto.getOptions().size() <= 10, "选项数量须为 2 到 10 个");
+            Set<String> ids = new HashSet<>();
+            for (ObjectiveDTO.Option option : dto.getOptions()) {
+                require(option != null && option.getId() != null
+                        && option.getId().matches("[A-Z]{1,5}"), "选项标识须为大写字母");
+                require(ids.add(option.getId()), "选项标识不能重复");
+                option.setText(text(option.getText(), 4000, "选项", true));
+            }
+            dto.setCorrectAnswers(normalize(dto, dto.getCorrectAnswers(), false));
+        }
+        dto.setPublished(Boolean.TRUE.equals(dto.getPublished()));
+        if (dto.getTagIds() == null) dto.setTagIds(new ArrayList<>());
+        require(dto.getTagIds().size() <= 20
+                && !dto.getTagIds().contains(null)
+                && new HashSet<>(dto.getTagIds()).size() == dto.getTagIds().size(), "知识点无效或重复");
+        if (!dto.getTagIds().isEmpty()) {
+            List<Tag> tags = tagMapper.selectBatchIds(dto.getTagIds());
+            require(tags.size() == dto.getTagIds().size()
+                    && tags.stream().allMatch(tag -> tag.getGid() == null), "只能选择现有公共知识点");
+        }
+    }
+
+    private void defaultPracticeRules(ObjectiveDTO.Question dto) {
+        if (dto.getPracticeEnabled() == null) dto.setPracticeEnabled(true);
+        if (dto.getAnswerPolicy() == null) dto.setAnswerPolicy("AFTER_ANSWER");
+        if (dto.getExplanationPolicy() == null) dto.setExplanationPolicy("AFTER_ANSWER");
+    }
+
+    List<String> normalize(ObjectiveDTO.Question question, List<String> selected, boolean allowEmpty) {
+        require(selected != null, "请选择答案");
+        if ("FILL_BLANK".equals(question.getQuestionType())) {
+            if (allowEmpty && selected.isEmpty()) return new ArrayList<>();
+            require(selected.size() == question.getBlanks().size(), "填空数量与题目不符");
+            require(selected.stream().allMatch(value -> value != null && value.length() <= 2000), "填空答案过长或无效");
+            require(allowEmpty || selected.stream().anyMatch(value -> !value.trim().isEmpty()), "请至少填写一个空");
+            return new ArrayList<>(selected);
+        }
+        Set<String> valid = question.getOptions().stream()
+                .map(ObjectiveDTO.Option::getId).collect(Collectors.toSet());
+        require(!selected.contains(null) && new HashSet<>(selected).size() == selected.size()
+                && valid.containsAll(selected), "答案包含非法或重复选项");
+        if (allowEmpty && selected.isEmpty()) return new ArrayList<>();
+        require(!selected.isEmpty(), "请选择答案");
+        if (!"MULTIPLE_CHOICE".equals(question.getQuestionType())) {
+            require(selected.size() == 1, "单选和判断题只能选择一个答案");
+        }
+        List<String> result = new ArrayList<>(selected);
+        Collections.sort(result);
+        return result;
+    }
+
+    int maxScore(ObjectiveDTO.Question question) {
+        return "FILL_BLANK".equals(question.getQuestionType()) ? question.getBlanks().stream().mapToInt(ObjectiveDTO.Blank::getScore).sum() : 1;
+    }
+
+    int score(ObjectiveDTO.Question question, List<String> selected) {
+        if (!"FILL_BLANK".equals(question.getQuestionType())) return !selected.isEmpty() && selected.equals(question.getCorrectAnswers()) ? 1 : 0;
+        int score = 0;
+        for (int i = 0; i < question.getBlanks().size(); i++) {
+            ObjectiveDTO.Blank blank = question.getBlanks().get(i);
+            String answer = i < selected.size() ? selected.get(i) : "";
+            if (Boolean.TRUE.equals(blank.getTrim())) answer = answer.trim();
+            final String value = answer;
+            if (!value.isEmpty() && blank.getAnswers().stream().anyMatch(expected -> Boolean.FALSE.equals(blank.getCaseSensitive())
+                    ? expected.equalsIgnoreCase(value) : expected.equals(value))) score += blank.getScore();
+        }
+        return score;
+    }
+
+    List<Map<String, Object>> publicBlanks(ObjectiveDTO.Question question) {
+        if (question.getBlanks() == null) return Collections.emptyList();
+        return question.getBlanks().stream().map(blank -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", blank.getId()); row.put("label", blank.getLabel()); row.put("score", blank.getScore());
+            return row;
+        }).collect(Collectors.toList());
+    }
+
+    List<String> correctAnswers(ObjectiveDTO.Question question) {
+        return "FILL_BLANK".equals(question.getQuestionType()) ? question.getBlanks().stream()
+                .map(blank -> String.join(" / ", blank.getAnswers())).collect(Collectors.toList()) : question.getCorrectAnswers();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ObjectiveDTO.Question saveQuestion(ObjectiveDTO.Question dto) {
+        validateQuestion(dto);
+        ObjectiveQuestion question;
+        if (dto.getId() == null) {
+            question = new ObjectiveQuestion();
+            question.setCreatedBy(currentUid());
+            question.setGmtCreate(new Date(now()));
+            question.setVersion(1);
+        } else {
+            question = questionMapper.selectLocked(dto.getId());
+            if (question == null) throw fail(404, "客观题不存在");
+            owner(question.getCreatedBy());
+            if (!question.getVersion().equals(dto.getVersion())) throw fail(409, "题目已更新，请刷新后重试");
+            question.setVersion(question.getVersion() + 1);
+        }
+        question.setTitle(dto.getTitle());
+        question.setQuestionType(dto.getQuestionType());
+        question.setPublished(dto.getPublished());
+        question.setPracticeEnabled(dto.getPracticeEnabled());
+        question.setGmtModified(new Date(now()));
+        // Insert first to obtain the authoritative ID; the same transaction appends its immutable revision.
+        if (question.getId() == null) {
+            question.setContentJson("{}");
+            questionMapper.insert(question);
+        }
+        dto.setId(question.getId());
+        dto.setVersion(question.getVersion());
+        question.setContentJson(write(dto));
+        questionMapper.updateById(question);
+        ObjectiveQuestionVersion version = new ObjectiveQuestionVersion();
+        version.setQuestionId(question.getId());
+        version.setVersion(question.getVersion());
+        version.setContentJson(question.getContentJson());
+        version.setGmtCreate(new Date(now()));
+        versionMapper.insert(version);
+        return dto;
+    }
+
+    public Map<String, Object> sets(Integer currentPage, Integer limit, String keyword, String mode, boolean admin) {
+        QueryWrapper<ObjectiveSet> query = new QueryWrapper<>();
+        if (admin) query.eq(!canManageAll(), "created_by", currentUid());
+        else query.eq("published", true);
+        query.like(keyword != null && !keyword.trim().isEmpty(), "title", text(keyword, 100, "关键词", false))
+                .eq(mode != null && !mode.isEmpty(), "mode", mode).orderByDesc("id");
+        IPage<ObjectiveSet> result = setMapper.selectPage(
+                new Page<>(pageNumber(currentPage), pageSize(limit)), query);
+        return page(result.getRecords().stream().map(this::setView).collect(Collectors.toList()), result.getTotal());
+    }
+
+    private Map<String, Object> setView(ObjectiveSet set) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", set.getId());
+        result.put("title", set.getTitle());
+        result.put("description", set.getDescription());
+        result.put("mode", set.getMode());
+        result.put("version", set.getVersion());
+        result.put("published", set.getPublished());
+        List<Long> ids = read(set.getQuestionIdsJson(), IDS);
+        result.put("questionIds", ids);
+        result.put("questionCount", ids.size());
+        result.put("answerPolicy", set.getAnswerPolicy());
+        result.put("explanationPolicy", set.getExplanationPolicy());
+        result.put("answerReleaseAt", set.getAnswerReleaseAt());
+        result.put("explanationReleaseAt", set.getExplanationReleaseAt());
+        return result;
+    }
+
+    public Map<String, Object> set(Long id, boolean admin) {
+        ObjectiveSet set = setMapper.selectById(id);
+        if (set == null) throw fail(404, "题集不存在");
+        if (admin) owner(set.getCreatedBy());
+        else requirePublished(set);
+        return setView(set);
+    }
+
+    private void requirePublished(ObjectiveSet set) {
+        if (!Boolean.TRUE.equals(set.getPublished())) throw fail(403, "该题集暂未开放");
+    }
+
+    private void validatePolicy(String policy, Long time) {
+        require(POLICIES.contains(policy), "开放条件无效");
+        require(!"AT_TIME".equals(policy) || time != null && time > 0, "请设置有效的开放时间");
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> saveSet(ObjectiveDTO.ProblemSet dto) {
+        require(dto != null, "题集不能为空");
+        dto.setTitle(text(dto.getTitle(), 200, "标题", true));
+        dto.setDescription(text(dto.getDescription(), 5000, "说明", false));
+        require("PRACTICE".equals(dto.getMode()) || "PAPER".equals(dto.getMode()),
+                "仅开放练习和整卷答题；比赛使用独立规则");
+        validatePolicy(dto.getAnswerPolicy(), dto.getAnswerReleaseAt());
+        validatePolicy(dto.getExplanationPolicy(), dto.getExplanationReleaseAt());
+        require(dto.getQuestionIds() != null && !dto.getQuestionIds().isEmpty()
+                && dto.getQuestionIds().size() <= 50 && !dto.getQuestionIds().contains(null)
+                && new HashSet<>(dto.getQuestionIds()).size() == dto.getQuestionIds().size(),
+                "题集须包含 1 到 50 道不重复的题目");
+        List<ObjectiveQuestion> questions = questionMapper.selectBatchIds(dto.getQuestionIds());
+        require(questions.size() == dto.getQuestionIds().size(), "部分题目已不存在");
+        for (ObjectiveQuestion question : questions) {
+            owner(question.getCreatedBy());
+        }
+        ObjectiveSet set;
+        if (dto.getId() == null) {
+            set = new ObjectiveSet();
+            set.setCreatedBy(currentUid());
+            set.setGmtCreate(new Date(now()));
+            set.setVersion(1);
+        } else {
+            set = setMapper.selectLocked(dto.getId());
+            if (set == null) throw fail(404, "题集不存在");
+            owner(set.getCreatedBy());
+            if (!set.getVersion().equals(dto.getVersion())) throw fail(409, "题集已更新，请刷新后重试");
+            require(set.getMode().equals(dto.getMode())
+                    || runMapper.selectCount(new QueryWrapper<ObjectiveRun>().eq("set_id", set.getId())) == 0,
+                    "已有作答记录的题集不能更改模式，请另建题集");
+            set.setVersion(set.getVersion() + 1);
+        }
+        set.setTitle(dto.getTitle());
+        set.setDescription(dto.getDescription());
+        set.setMode(dto.getMode());
+        set.setQuestionIdsJson(write(dto.getQuestionIds()));
+        set.setPublished(Boolean.TRUE.equals(dto.getPublished()));
+        set.setAnswerPolicy(dto.getAnswerPolicy());
+        set.setExplanationPolicy(dto.getExplanationPolicy());
+        set.setAnswerReleaseAt("AT_TIME".equals(dto.getAnswerPolicy()) ? dto.getAnswerReleaseAt() : null);
+        set.setExplanationReleaseAt("AT_TIME".equals(dto.getExplanationPolicy()) ? dto.getExplanationReleaseAt() : null);
+        set.setGmtModified(new Date(now()));
+        if (set.getId() == null) setMapper.insert(set);
+        else setMapper.updateById(set);
+        return setView(set);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> start(ObjectiveDTO.StartRun dto) {
+        require(dto != null && (dto.getSetId() != null ^ dto.getQuestionId() != null), "请选择一份题集或一道客观题");
+        require(dto.getRequestId() != null && dto.getRequestId().matches("[A-Za-z0-9_-]{8,64}"),
+                "开卷请求标识无效");
+        String uid = currentUid();
+        ObjectiveRun run = new ObjectiveRun();
+        List<ObjectiveDTO.Question> snapshot = new ArrayList<>();
+        List<Long> setQuestionIds = null;
+        ReleaseRules rules;
+        // Lock the source against publication/policy changes; never create a synthetic set.
+        if (dto.getQuestionId() != null) {
+            ObjectiveQuestion question = questionMapper.selectLocked(dto.getQuestionId());
+            requirePracticeQuestion(question);
+            ObjectiveDTO.Question current = content(question);
+            snapshot.add(current);
+            run.setQuestionId(question.getId());
+            run.setMode("PRACTICE");
+            run.setTitle(question.getTitle());
+            rules = practiceRules(current);
+        } else {
+            ObjectiveSet set = setMapper.selectLocked(dto.getSetId());
+            if (set == null) throw fail(404, "题集不存在");
+            requirePublished(set);
+            setQuestionIds = read(set.getQuestionIdsJson(), IDS);
+            run.setSetId(set.getId());
+            run.setSetVersion(set.getVersion());
+            run.setMode(set.getMode());
+            run.setTitle(set.getTitle());
+            rules = setRules(set);
+        }
+        QueryWrapper<ObjectiveRun> duplicate = new QueryWrapper<ObjectiveRun>()
+                .eq("uid", uid).eq("request_id", dto.getRequestId());
+        ObjectiveRun existing = runMapper.selectOne(duplicate);
+        if (existing != null) {
+            requireSameSource(existing, dto);
+            return runView(existing, rules);
+        }
+        if (setQuestionIds != null) {
+            for (Long id : setQuestionIds) {
+                ObjectiveQuestion question = questionMapper.selectById(id);
+                require(question != null, "题集中有题目已不存在");
+                snapshot.add(content(question));
+            }
+        }
+        run.setUid(uid);
+        run.setRequestId(dto.getRequestId());
+        run.setState("IN_PROGRESS");
+        run.setSnapshotJson(write(snapshot));
+        run.setAnswersJson("{}");
+        run.setGmtCreate(new Date(now()));
+        run.setGmtModified(new Date(now()));
+        try {
+            runMapper.insert(run);
+        } catch (DuplicateKeyException e) {
+            ObjectiveRun retry = runMapper.selectOne(duplicate);
+            if (retry == null) throw fail(409, "请求标识已使用");
+            requireSameSource(retry, dto);
+            return runView(retry, rules);
+        }
+        return runView(run, rules);
+    }
+
+    private void requireSameSource(ObjectiveRun run, ObjectiveDTO.StartRun dto) {
+        if (!Objects.equals(run.getSetId(), dto.getSetId()) || !Objects.equals(run.getQuestionId(), dto.getQuestionId())) {
+            throw fail(409, "请求标识已用于其他题目或题集");
+        }
+    }
+
+    private void requirePracticeQuestion(ObjectiveQuestion question) {
+        if (question == null) throw fail(404, "客观题不存在");
+        if (!Boolean.TRUE.equals(question.getPublished()) || !Boolean.TRUE.equals(question.getPracticeEnabled())) {
+            throw fail(403, "该题暂不开放单题练习");
+        }
+    }
+
+    private ObjectiveRun ownedRun(Long id, boolean locked) {
+        ObjectiveRun run = locked ? runMapper.selectLocked(id) : runMapper.selectById(id);
+        if (run == null || !currentUid().equals(run.getUid())) throw fail(404, "答题记录不存在");
+        return run;
+    }
+
+    private ReleaseRules publishedRules(ObjectiveRun run) {
+        if (run.getQuestionId() != null) {
+            ObjectiveQuestion question = questionMapper.selectById(run.getQuestionId());
+            requirePracticeQuestion(question);
+            return practiceRules(content(question));
+        }
+        ObjectiveSet set = setMapper.selectById(run.getSetId());
+        if (set == null) throw fail(404, "题集不存在");
+        requirePublished(set);
+        return setRules(set);
+    }
+
+    private static class ReleaseRules {
+        final String answerPolicy;
+        final String explanationPolicy;
+        final Long answerReleaseAt;
+        final Long explanationReleaseAt;
+
+        ReleaseRules(String answerPolicy, String explanationPolicy, Long answerReleaseAt, Long explanationReleaseAt) {
+            this.answerPolicy = answerPolicy;
+            this.explanationPolicy = explanationPolicy;
+            this.answerReleaseAt = answerReleaseAt;
+            this.explanationReleaseAt = explanationReleaseAt;
+        }
+    }
+
+    private ReleaseRules setRules(ObjectiveSet set) {
+        return new ReleaseRules(set.getAnswerPolicy(), set.getExplanationPolicy(), set.getAnswerReleaseAt(), set.getExplanationReleaseAt());
+    }
+
+    private ReleaseRules practiceRules(ObjectiveDTO.Question question) {
+        return new ReleaseRules(question.getAnswerPolicy(), question.getExplanationPolicy(), question.getAnswerReleaseAt(), question.getExplanationReleaseAt());
+    }
+
+    public Map<String, Object> run(Long id) {
+        ObjectiveRun run = ownedRun(id, false);
+        return runView(run, publishedRules(run));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> answer(Long id, ObjectiveDTO.Answer dto) {
+        ObjectiveRun run = ownedRun(id, true);
+        ReleaseRules rules = publishedRules(run);
+        require(dto != null && dto.getQuestionId() != null, "请选择题目");
+        List<ObjectiveDTO.Question> questions = read(run.getSnapshotJson(), QUESTIONS);
+        ObjectiveDTO.Question question = questions.stream().filter(q -> q.getId().equals(dto.getQuestionId()))
+                .findFirst().orElseThrow(() -> fail(400, "题目不属于本次作答"));
+        boolean paper = "PAPER".equals(run.getMode());
+        List<String> selected = normalize(question, dto.getSelectedAnswers(), paper);
+        Map<String, List<String>> answers = read(run.getAnswersJson(), ANSWERS);
+        String key = question.getId().toString();
+        if (!paper && answers.containsKey(key)) {
+            if (!answers.get(key).equals(selected)) throw fail(409, "本题已提交，请新建练习后重答");
+            return runView(run, rules);
+        }
+        if (!"IN_PROGRESS".equals(run.getState())) throw fail(409, "已交卷，不能修改答案");
+        if (selected.isEmpty() || selected.stream().noneMatch(value -> !value.trim().isEmpty())) answers.remove(key);
+        else answers.put(key, selected);
+        run.setAnswersJson(write(answers));
+        if (run.getQuestionId() != null) run.setState("FINISHED");
+        run.setGmtModified(new Date(now()));
+        runMapper.updateById(run);
+        return runView(run, rules);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> finish(Long id) {
+        ObjectiveRun run = ownedRun(id, true);
+        ReleaseRules rules = publishedRules(run);
+        if (!"FINISHED".equals(run.getState())) {
+            run.setState("FINISHED");
+            run.setGmtModified(new Date(now()));
+            runMapper.updateById(run);
+        }
+        return runView(run, rules);
+    }
+
+    public Map<String, Object> runs(Integer currentPage, Integer limit) {
+        IPage<ObjectiveRun> result = runMapper.selectPage(
+                new Page<>(pageNumber(currentPage), pageSize(limit)),
+                new QueryWrapper<ObjectiveRun>().select("id", "set_id", "question_id", "title", "mode", "state", "gmt_create")
+                        .eq("uid", currentUid()).orderByDesc("id"));
+        List<Map<String, Object>> records = result.getRecords().stream().map(run -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", run.getId());
+            row.put("setId", run.getSetId());
+            row.put("questionId", run.getQuestionId());
+            row.put("title", run.getTitle());
+            row.put("mode", run.getMode());
+            row.put("state", run.getState());
+            row.put("createdAt", run.getGmtCreate().getTime());
+            // History summaries do not reveal correctness through counts or filters.
+            return row;
+        }).collect(Collectors.toList());
+        return page(records, result.getTotal());
+    }
+
+    boolean released(String policy, Long at, boolean submitted, boolean finished, long time) {
+        if (!submitted) return false;
+        if ("AFTER_ANSWER".equals(policy)) return true;
+        if ("AFTER_FINISH".equals(policy)) return finished;
+        return "AT_TIME".equals(policy) && at != null && time >= at;
+    }
+
+    private Map<String, Object> runView(ObjectiveRun run, ReleaseRules rules) {
+        List<ObjectiveDTO.Question> questions = read(run.getSnapshotJson(), QUESTIONS);
+        Map<String, List<String>> answers = read(run.getAnswersJson(), ANSWERS);
+        boolean finished = "FINISHED".equals(run.getState());
+        long time = now();
+        int correctCount = 0;
+        int totalScore = 0, totalMaxScore = 0;
+        boolean allResultsVisible = finished;
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (ObjectiveDTO.Question question : questions) {
+            List<String> selected = answers.getOrDefault(question.getId().toString(), Collections.emptyList());
+            boolean submitted = finished || "PRACTICE".equals(run.getMode()) && !selected.isEmpty();
+            boolean answerVisible = released(rules.answerPolicy, rules.answerReleaseAt, submitted, finished, time);
+            boolean explanationVisible = released(rules.explanationPolicy, rules.explanationReleaseAt,
+                    submitted, finished, time);
+            int questionScore = score(question, selected), questionMaxScore = maxScore(question);
+            boolean correct = questionScore == questionMaxScore;
+            totalScore += questionScore; totalMaxScore += questionMaxScore;
+            if (correct) correctCount++;
+            allResultsVisible &= answerVisible;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", question.getId());
+            row.put("version", question.getVersion());
+            row.put("rating", question.getRating());
+            row.put("title", question.getTitle());
+            row.put("questionType", question.getQuestionType());
+            row.put("stem", question.getStem());
+            row.put("source", question.getSource());
+            row.put("options", question.getOptions());
+            row.put("blanks", publicBlanks(question));
+            row.put("maxScore", questionMaxScore);
+            row.put("tagIds", question.getTagIds());
+            row.put("selectedAnswers", selected);
+            row.put("submitted", submitted);
+            row.put("answerVisible", answerVisible);
+            row.put("explanationVisible", explanationVisible);
+            if (answerVisible) {
+                row.put("correctAnswers", correctAnswers(question));
+                row.put("correct", correct);
+                row.put("score", questionScore);
+            }
+            if (explanationVisible) row.put("explanation", question.getExplanation());
+            rows.add(row);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", run.getId());
+        result.put("setId", run.getSetId());
+        result.put("questionId", run.getQuestionId());
+        result.put("setVersion", run.getSetVersion());
+        result.put("title", run.getTitle());
+        result.put("mode", run.getMode());
+        result.put("state", run.getState());
+        result.put("questions", rows);
+        result.put("maxScore", totalMaxScore);
+        result.put("answeredCount", answers.size());
+        result.put("createdAt", run.getGmtCreate().getTime());
+        result.put("answerPolicy", rules.answerPolicy);
+        result.put("explanationPolicy", rules.explanationPolicy);
+        result.put("answerReleaseAt", rules.answerReleaseAt);
+        result.put("explanationReleaseAt", rules.explanationReleaseAt);
+        if (allResultsVisible) {
+            result.put("correctCount", correctCount);
+            result.put("score", totalScore);
+            result.put("maxScore", totalMaxScore);
+        }
+        return result;
+    }
+}

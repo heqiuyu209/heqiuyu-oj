@@ -125,14 +125,11 @@
         </div>
         <vxe-table
           border="inner"
-          stripe
           keep-source
           ref="xTable"
-          highlight-current-row
           highlight-hover-row
           align="center"
           auto-resize
-          :row-class-name="tableRowClassName"
           :data="submissions"
           :loading="loadingTable"
         >
@@ -285,14 +282,7 @@
                   <div slot="content">
                     {{ $t('m.Problem_Score') }}：{{
                       row.score != null ? row.score : $t('m.Unknown')
-                    }}<br />{{ $t('m.OI_Rank_Score') }}：{{
-                      row.oiRankScore != null
-                        ? row.oiRankScore
-                        : $t('m.Unknown')
-                    }}<br />
-                    {{
-                      $t('m.OI_Rank_Calculation_Rule')
-                    }}：(score*0.1+difficulty*2)
+                    }}
                   </div>
                   <el-tag
                     effect="plain"
@@ -936,11 +926,6 @@ export default {
     },
     getStatusColor(status) {
       return "el-tag el-tag--medium status-" + JUDGE_STATUS[status]["color"];
-    },
-    tableRowClassName({ row, rowIndex }) {
-      if (row.username == this.userInfo.username && this.isAuthenticated) {
-        return "own-submit-row";
-      }
     },
     disabledManualJudge(status){
       return !this.isSuperAdmin || status == JUDGE_STATUS_RESERVE['Judging'] 

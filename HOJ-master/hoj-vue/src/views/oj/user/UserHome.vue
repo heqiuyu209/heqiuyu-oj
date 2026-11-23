@@ -112,14 +112,19 @@
             <el-card shadow="always" class="rating">
               <p>
                 <i class="fa fa-user-secret" aria-hidden="true"></i>
-                {{ $t('m.UserHome_Rating') }}
+                Codeforces Rating
               </p>
               <p class="data-number">
-                {{ profile.rating ? profile.rating : '--' }}
+                {{ profile.rating == null ? '--' : profile.rating }}
               </p>
             </el-card>
           </el-col>
         </el-row>
+        <RatingSummary :profile="profile" />
+        <ExternalAccounts v-if="!loading && profile.uid" :uid="profile.uid" />
+        <AbilityProfile v-if="!loading && profile.uid" :uid="profile.uid" />
+        <LearningProblemHistory v-if="!loading && profile.uid" :uid="profile.uid" />
+        <LearningRecommendations v-if="!loading && profile.uid" :uid="profile.uid" />
         <el-card style="margin-top:1rem;" v-if="loadingCalendarHeatmap">
           <div class="card-title">
             <i class="el-icon-data-analysis" style="color:#409eff">
@@ -150,46 +155,6 @@
           </el-tab-pane>
           <el-tab-pane :label="$t('m.UserHome_Solved_Problems')"
             ><div id="problems">
-              <el-card class="level-card"
-                v-if="profile.solvedGroupByDifficulty != null">
-                <div class="card-title" style="font-size: 1rem;">
-                  <i class="el-icon-set-up" style="color:#409eff">
-                  </i>
-                  {{ $t('m.Difficulty_Statistics') }}
-                </div>
-                <el-collapse accordion>
-                  <el-collapse-item v-for="(level, key) in PROBLEM_LEVEL" :key="key">
-                    <template slot="title">
-                      <div style="width: 100%;text-align: left;">
-                        <el-tag
-                        effect="dark"
-                        :style="getLevelColor(key)"
-                        size="medium">
-                        {{ getLevelName(key) }}
-                        </el-tag>
-                        <span class="card-p-count">
-                          {{ getProblemListCount(profile.solvedGroupByDifficulty[key])}} {{$t('m.Problems')}}
-                        </span>
-                      </div>
-                    </template>
-                    <div class="btns">
-                      <div
-                        class="problem-btn"
-                        v-for="(value, index) in profile.solvedGroupByDifficulty[key]"
-                        :key="index"
-                      >
-                        <el-button 
-                          round
-                          :style="getLevelColor(key)"
-                          @click="goProblem(value.problemId)" 
-                          size="small">{{
-                          value.problemId
-                        }}</el-button>
-                      </div>
-                    </div>
-                  </el-collapse-item>
-                </el-collapse>
-              </el-card>
 
               <template v-if="profile.solvedList.length">
                   <el-divider><i class="el-icon-circle-check"></i></el-divider>
@@ -226,6 +191,11 @@
   </div>
 </template>
 <script>
+import RatingSummary from '@/components/oj/learning/RatingSummary';
+import AbilityProfile from '@/components/oj/learning/AbilityProfile';
+import LearningProblemHistory from '@/components/oj/learning/LearningProblemHistory';
+import ExternalAccounts from '@/components/oj/learning/ExternalAccounts';
+import LearningRecommendations from '@/components/oj/learning/LearningRecommendations';
 import { mapActions } from 'vuex';
 import api from '@/common/api';
 import myMessage from '@/common/message';
@@ -238,6 +208,11 @@ import utils from '@/common/utils';
 import Markdown from '@/components/oj/common/Markdown';
 export default {
   components: {
+    RatingSummary,
+    AbilityProfile,
+    LearningProblemHistory,
+    ExternalAccounts,
+    LearningRecommendations,
     Avatar,
     CalendarHeatmap,
     Markdown
@@ -256,12 +231,13 @@ export default {
         score: 0,
         solvedList: [],
         solvedGroupByDifficulty:null,
-        calendarHeatLocale:null,
-        calendarHeatmapValue:[],
-        calendarHeatmapEndDate:'',
-        loadingCalendarHeatmap:false,
-        loading:false,
       },
+      calendarHeatLocale:null,
+      calendarHeatmapValue:[],
+      calendarHeatmapEndDate:'',
+      loadingCalendarHeatmap:false,
+      loading:false,
+      profileRequest: 0,
       PROBLEM_LEVEL: {},
     };
   },
@@ -306,20 +282,24 @@ export default {
     }
     this.init();
   },
+  beforeDestroy() { this.profileRequest++; },
   methods: {
     ...mapActions(['changeDomTitle']),
     init() {
+      const request = ++this.profileRequest;
       const uid = this.$route.query.uid;
       const username = this.$route.query.username;
       this.loading = true;
       api.getUserInfo(uid, username).then((res) => {
-        this.changeDomTitle({ title: res.data.username });
+        if (request !== this.profileRequest) return;
+        this.changeDomTitle({ title: res.data.data.username });
         this.profile = res.data.data;
         this.$nextTick((_) => {
           addCodeBtn();
         });
         this.loading = false;
       },(_)=>{
+        if (request !== this.profileRequest) return;
         this.loading = false;
       });
 

@@ -1,4 +1,10 @@
 export const m = {
+  Knowledge: '知識庫',
+  Knowledge_Admin: '知識庫資料',
+  Paper_Practice: '套卷練習',
+  Paper_Admin: '整套試卷',
+  Objective_Practice: '客觀題練習',
+  Objective_Admin: '客觀題與組卷',
 
   // /src/common/api.js
   Query_error_unable_to_find_the_resource_to_request: '查詢錯誤，找不到要請求的資源！',
@@ -18,8 +24,6 @@ export const m = {
   NavBar_Contest: '比賽',
   NavBar_Status: '評測',
   NavBar_Rank: '排名',
-  NavBar_ACM_Rank: 'ACM 排名',
-  NavBar_OI_Rank: 'OI 排名',
   NavBar_Discussion: '討論',
   NavBar_Group: '團隊',
   NavBar_About: '關於',

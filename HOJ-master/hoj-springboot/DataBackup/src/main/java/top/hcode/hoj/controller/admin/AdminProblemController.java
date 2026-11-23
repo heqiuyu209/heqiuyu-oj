@@ -57,7 +57,7 @@ public class AdminProblemController {
     @PostMapping("")
     @RequiresAuthentication
     @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
-    public CommonResult<Void> addProblem(@RequestBody ProblemDTO problemDto) {
+    public CommonResult<Problem> addProblem(@RequestBody ProblemDTO problemDto) {
         return adminProblemService.addProblem(problemDto);
     }
 

@@ -2,6 +2,7 @@ package top.hcode.hoj.config;
 
 import cn.hutool.core.text.UnicodeUtil;
 import lombok.Data;
+import lombok.ToString;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.List;
  * @Date 2022/10/26
  */
 @Data
+@ToString(of = {"openPublicDiscussion", "openPublicJudge", "openContestJudge"})
 public class SwitchConfig {
 
     private List<String> hduUsernameList = new ArrayList<>();

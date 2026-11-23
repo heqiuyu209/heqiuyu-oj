@@ -1,6 +1,13 @@
-# Hcode Online Judge（HOJ）
+# CDUTETC · 成理工程在线测评平台
 
-![logo](./logo.png)
+本项目基于 HOJ，面向成理工程算法学习与 XCPC 集训。当前仓库：[heqiuyu209/heqiuyu-oj](https://github.com/heqiuyu209/heqiuyu-oj)。
+
+2026-10-19：本分支已迭代卡片 UI、混合题与比赛、站内 Rating、用户 AI、来源同步及本地知识库；各阶段的实际实现、验证、部署与未完成项以 [任务记录](./docs/docs/ai/TODO.md) 为准。知识库已接通管理员维护、用户检索 / 原文和可选模型问答页面，Markdown / TXT 真实本地索引链路已验证；真实本人模型与远程 AC / WA 仍按用户选择延后。页面运行见 [前端说明](./hoj-vue/README.md)，原 UI 设计边界保留在 [UI 实施记录](./hoj-vue/UI-IMPLEMENTATION.md)。
+
+以下保留 HOJ 上游功能介绍、历史文档和贡献者信息；其中 Demo、交流群和捐赠入口属于上游项目。部署本分支以仓库内 Compose 和当前运行说明为准。
+
+
+<img src="./hoj-vue/public/cdutetc.webp" width="100" alt="CDUTETC 校徽" style="border-radius:50%" />
 
 [![Java](https://img.shields.io/badge/Java-1.8-informational)](http://openjdk.java.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.2.6.RELEASE-success)](https://spring.io/projects/spring-boot)
@@ -11,7 +18,8 @@
 [![Vue](https://img.shields.io/badge/Vue-2.6.11-success)](https://cn.vuejs.org/)
 [![Github Star](https://img.shields.io/github/stars/HimitZH/HOJ?style=social)](https://github.com/HimitZH/HOJ)
 [![Gitee Star](https://gitee.com/himitzh0730/hoj/badge/star.svg)](https://gitee.com/himitzh0730/hoj)
-[![QQ Group 598587305](https://img.shields.io/badge/QQ%20Group-598587305-blue)](https://qm.qq.com/cgi-bin/qm/qr?k=WWGBZ5gfDiBZOcpNvM8xnZTfUq7BT4Rs&jump_from=webapi)
+
+[//]: # ([![QQ Group 598587305]&#40;https://img.shields.io/badge/QQ%20Group-598587305-blue&#41;]&#40;https://qm.qq.com/cgi-bin/qm/qr?k=WWGBZ5gfDiBZOcpNvM8xnZTfUq7BT4Rs&jump_from=webapi&#41;)
 
 简体中文 | [English](./README-EN.md)
 
@@ -25,9 +33,12 @@
 - **完善的评测功能：普通测评、特殊测评、交互测评、在线自测、子任务分组评测、文件IO**
 - **完善的比赛功能：打星队伍、关注队伍、外榜、滚榜**
 
-|               在线Demo               |                   在线文档                   |             Github&Gitee仓库地址             |           QQ群           |
-| :--------------------------------: | :--------------------------------------: | :--------------------------------------: | :---------------------: |
-| [https://hdoi.cn](https://hdoi.cn) | [https://docs.hdoi.cn](https://docs.hdoi.cn) | [https://github.com/HimitZH/HOJ](https://github.com/HimitZH/HOJ)  [https://gitee.com/himitzh0730/hoj](https://gitee.com/himitzh0730/hoj) | 598587305（已满）、743568562 |
+[//]: # ()
+[//]: # (|               在线Demo               |                   在线文档                   |             Github&Gitee仓库地址             |           QQ群           |)
+
+[//]: # (| :--------------------------------: | :--------------------------------------: | :--------------------------------------: | :---------------------: |)
+
+[//]: # (| [https://hdoi.cn]&#40;https://hdoi.cn&#41; | [https://docs.hdoi.cn]&#40;https://docs.hdoi.cn&#41; | [https://github.com/HimitZH/HOJ]&#40;https://github.com/HimitZH/HOJ&#41;  [https://gitee.com/himitzh0730/hoj]&#40;https://gitee.com/himitzh0730/hoj&#41; | 598587305（已满）、743568562 |)
 
 **注意：**
 
@@ -39,6 +50,8 @@
 6. **如果要对本项目进行商业化，请在页面底部的Powered by指向HOJ本仓库地址，顺便点上star收藏本项目对开发者的支持，谢谢。**
 
 ## 二、部署
+
+本仓库本地开发：运行 `hoj-deploy/dev.ps1 up`，在 `http://localhost:8080/home` 边改前端边预览，详见 [Docker 热更新开发说明](hoj-deploy/README.md)。该模式复用本机已初始化的 OJ 服务与数据；下方链接为 HOJ 上游部署资料。
 
 部署文档：[基于docker-compose部署](https://docs.hdoi.cn/deploy/docker)
 
@@ -247,3 +260,30 @@
 
 
 ![评论区](https://cdn.jsdelivr.net/gh/HimitZH/HOJ/docs/docs/.vuepress/public/20210509233845230.png)
+
+## 本地开发按需启停
+
+在包含 compose.yaml 的应用目录执行：
+
+```powershell
+.\hoj-deploy\dev.ps1 start   # 顺序启动已有服务并等待就绪，保留容器和数据卷
+.\hoj-deploy\dev.ps1 status  # 查看状态
+.\hoj-deploy\dev.ps1 stop    # 用完停止整套 OJ，包含本地 RAG
+```
+
+本地服务统一按需启动；Docker Desktop 重开后不会单独拉起 RAG。日常使用 start / stop；首次部署或需要应用 Compose 配置变化时使用 dev.ps1 up。已有容器缺失时 start 会提示首次部署，不会自动重建；已完成的 RAG 身份初始化容器不会被日常 start 重新运行。
+
+代码镜像更新继续使用 hoj-deploy/update.ps1；启停入口会沿用已有容器记录的 RAG、视频和重排覆盖配置，不需要手动删减 Compose 文件列表。停止容器不会删除资料、模型或命名卷。
+
+## 本地视频知识库
+
+管理员在“知识库资料 → 视频资料”上传 MP4 / WebM，等待本地转写后审阅字幕、保存入库，再选择版本发布。学生从前台知识库检索讲解并按引用时间回看。语音识别使用本地只读 Whisper small 权重，不需要聊天模型 Key；画面文字不参与检索。真实课堂字幕仍须核对。
+
+已有库先执行 sqlAndsetting/knowledge-video.sql。启用视频时，在本地 .env.rag.local 中配置 HOJ_VIDEO_MODEL_DIR 为完整 faster-whisper-small 权重目录，并在原有三个 Compose 文件后加入 compose.video.yaml。后续更新也须保留这四个文件，以持续挂载私有媒体卷与模型。
+
+```powershell
+docker compose --env-file .env.rag.local -p hoj-master `
+  -f compose.yaml -f compose.dev.yaml -f compose.rag.yaml -f compose.video.yaml up -d
+```
+
+接口、输入限制及授权播放见 [视频资料接口](docs/docs/ai/08-data-model-and-api.md#视频资料与授权播放2026-10-20)，实际实现、验证及待验收项以 [任务记录](docs/docs/ai/TODO.md) 为准。已有库只执行增量迁移，保留现有数据卷。

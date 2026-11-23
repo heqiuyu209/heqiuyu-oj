@@ -41,6 +41,9 @@ public class ProblemValidator {
     }
 
     private void defaultValidate(Problem problem) throws StatusFailException {
+        if (problem.getRating() != null && (problem.getRating() < 0 || problem.getRating() > 5000)) {
+            throw new StatusFailException("题目rating必须在0到5000之间，或留空为未评级");
+        }
         Constants.ProblemType type = Constants.ProblemType.getProblemType(problem.getType());
         if (type == null) {
             throw new StatusFailException("题目的类型必须为ACM(0), OI(1)！");

@@ -80,6 +80,12 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
     @Override
     public Page<ProblemVO> getProblemList(int limit, int currentPage, Long pid, String title, Integer difficulty,
                                           List<Long> tid, String oj) {
+        return getProblemList(limit, currentPage, pid, title, difficulty, tid, oj, null, null);
+    }
+
+    @Override
+    public Page<ProblemVO> getProblemList(int limit, int currentPage, Long pid, String title, Integer difficulty,
+                                          List<Long> tid, String oj, Integer ratingMin, Integer ratingMax) {
 
         //新建分页
         Page<ProblemVO> page = new Page<>(currentPage, limit);
@@ -89,7 +95,7 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
             tagListSize = tid.size();
         }
 
-        List<ProblemVO> problemList = problemMapper.getProblemList(page, pid, title, difficulty, tid, tagListSize, oj);
+        List<ProblemVO> problemList = problemMapper.getProblemList(page, pid, title, difficulty, tid, tagListSize, oj, ratingMin, ratingMax);
 
         if (problemList.size() > 0) {
             List<Long> pidList = problemList.stream().map(ProblemVO::getPid).collect(Collectors.toList());
@@ -379,6 +385,8 @@ public class ProblemEntityServiceImpl extends ServiceImpl<ProblemMapper, Problem
 
         // 更新problem表
         boolean problemUpdateResult = problemMapper.updateById(problem) == 1;
+        if (problemUpdateResult && problem.getRating() == null)
+            problemMapper.update(null, new UpdateWrapper<Problem>().eq("id", problem.getId()).set("rating", null));
 
         if (problemUpdateResult && checkProblemCase && deleteLanguagesFromProblemResult && deleteTagsFromProblemResult
                 && addLanguagesToProblemResult && addTagsToProblemResult && deleteTemplate && saveOrUpdateCodeTemplate) {

@@ -1,118 +1,28 @@
 <template>
-  <div>
-    <div class="intr-center">
-      <paper-card type="server">
-        <h1 class="text-darken">HOJ</h1>
-        <h1>
-          <a href="https://gitee.com/himitzh0730/hoj" target="_blank"
-            >Hcode Online Judge</a
-          >
-        </h1>
-        <p>
-          {{ $t('m.Leader_BackEnd_FrontEnd_Engineer') }} / Himit_ZH
-          <a href="https://github.com/HimitZH" class="icon" target="_blank"
-            ><i class="fa fa-github"></i>
-          </a>
-        </p>
-        <p>
-          {{ $t('m.Group_Function_Development_Contributor') }} / 冷蕴
-          <a href="https://github.com/IUaenaSong" class="icon" target="_blank"
-            ><i class="fa fa-github"></i>
-          </a>
-        </p>
-        <p class="teal-text">
-          <i class="el-icon-circle-check"></i> {{ $t('m.Open_Source') }}
-        </p>
-      </paper-card>
-    </div>
-    <el-row :gutter="20">
-      <el-col :xs="24" :md="12">
-        <paper-card type="server">
-          <h1>{{ $t('m.Distributed') }}</h1>
-          <p>
-            <small>{{ $t('m.Distributed_Desc') }}</small>
-          </p>
-          <p class="teal-text">
-            <i class="el-icon-circle-check"></i> {{ $t('m.Available') }}
-          </p>
-        </paper-card>
-      </el-col>
-      <el-col :xs="24" :md="12">
-        <paper-card type="server">
-          <h1>{{ $t('m.Customization') }}</h1>
-          <p>
-            <small>{{ $t('m.Customization_Desc') }}</small>
-          </p>
-          <p class="teal-text">
-            <i class="el-icon-circle-check"></i> {{ $t('m.Available') }}
-          </p>
-        </paper-card>
-      </el-col>
-      <el-col :xs="24" :md="12">
-        <paper-card type="server">
-          <h1>{{ $t('m.Security') }}</h1>
-          <p>
-            <small>{{ $t('m.Security_Desc') }}</small>
-          </p>
-          <p class="teal-text">
-            <i class="el-icon-circle-check"></i> {{ $t('m.Available') }}
-          </p>
-        </paper-card>
-      </el-col>
-      <el-col :xs="24" :md="12">
-        <paper-card type="server">
-          <h1>{{ $t('m.Diversity') }}</h1>
-          <p>
-            <small>{{ $t('m.Diversity_Desc') }}</small>
-          </p>
-          <p class="teal-text">
-            <i class="el-icon-circle-check"></i> {{ $t('m.Available') }}
-          </p>
-        </paper-card>
-      </el-col>
+  <div class="system-info">
+    <el-card>
+      <BrandLogo />
+      <h1>成理工程在线测评平台</h1>
+      <p>为算法学习、程序设计课程与 XCPC 集训提供题库、训练、比赛和程序测评。</p>
+      <div class="system-links"><a :href="brand.projectUrl" target="_blank" rel="noopener noreferrer"><i class="fa fa-github" /> 项目源码</a><a :href="brand.projectUrl + '/tree/master/HOJ-master/docs/docs'" target="_blank" rel="noopener noreferrer">项目文档</a><a :href="brand.projectUrl + '/tree/master/HOJ-master/hoj-springboot'" target="_blank" rel="noopener noreferrer">API 源码</a></div>
+    </el-card>
+    <el-row :gutter="20" class="system-details">
+      <el-col :md="12" :xs="24"><el-card><h2>学习与比赛</h2><p>题目、编程、自测与学习记录整合在同一个工作台。支持简洁双栏、学习模式，以及布局调整。</p><p>比赛 Rating 与练习 Rating 分开保留；分数尚未标定时显示“待定”。AI、能力统计与跨平台同步按实际接入状态显示。</p></el-card></el-col>
+      <el-col :md="12" :xs="24"><el-card><h2>开源致谢</h2><p>本项目基于 HOJ 开源项目开发，保留原有判题、比赛、权限与管理功能。</p><p><a href="https://github.com/HimitZH/HOJ" target="_blank" rel="noopener noreferrer">HOJ 上游项目</a> · Himit_ZH 与全部贡献者</p><p>团队功能贡献者：冷蕴。训练与多平台账号交互参考 <a href="https://github.com/Whalica/OJ_Insight" target="_blank" rel="noopener noreferrer">OJ Insight</a>。</p></el-card></el-col>
     </el-row>
   </div>
 </template>
-<script></script>
+<script>
+import BrandLogo from '@/components/oj/common/BrandLogo';
+import { BRAND } from '@/common/brand';
+export default { components: { BrandLogo }, data: () => ({ brand: BRAND }) };
+</script>
 <style scoped>
-.intr-center {
-  text-align: center;
-  max-width: 100%;
-  margin: 0 auto;
-}
-paper-card[type='server'] {
-  display: block;
-  text-align: center;
-  border-radius: 4px;
-  transition: 0.2s ease-out 0s;
-  color: rgba(0, 0, 0, 0.63);
-  background-image: linear-gradient(180deg, hsla(0, 0%, 100%, 0) 30%, #fff),
-    linear-gradient(70deg, #e0f1ff 32%, #fffae3);
-  padding: 1rem;
-  position: relative;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  margin-bottom: 2rem;
-}
-paper-card:hover {
-  box-shadow: rgb(0 0 0 / 15%) 0px 0px 40px;
-}
-.teal-text {
-  color: #009688 !important;
-}
-.text-darken {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  color: #2196f3 !important;
-  font-weight: 400;
-  font-size: 40px;
-}
-.icon {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #212529;
-}
-.intr-center p {
-  font-size: 1rem;
-  line-height: 1.5;
-}
+.system-info { max-width: 1160px; margin: auto; }
+.system-info h1 { font-size: 30px; }
+.system-info h2 { font-size: 20px; }
+.system-info p { line-height: 1.9; color: var(--muted); max-width: 65em; }
+.system-links { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 24px; }
+.system-details { margin-top: 22px; }
+.system-details .el-card { margin-bottom: 20px; }
 </style>

@@ -1,8 +1,9 @@
 <template>
   <div id="app">
-    <el-backtop :right="10"></el-backtop>
+    <el-backtop class="site-backtop" :right="24" :bottom="24" aria-label="返回顶部" title="返回顶部"></el-backtop>
     <div v-if="!isAdminView" class="full-height flex-column">
       <NavBar></NavBar>
+      <AiAssistant />
       <div id="oj-content">
         <transition name="el-zoom-in-bottom">
           <router-view></router-view>
@@ -49,13 +50,13 @@
               <h1>{{ $t('m.Development') }}</h1>
               <p class="mb-1">
                 <a
-                  href="https://gitee.com/himitzh0730/hoj"
+                  :href="brand.projectUrl"
                   target="_blank"
                 >{{
                   $t('m.Open_Source')
                 }}</a>
               </p>
-              <p class="mb-1"><a @click="goRoute('/#')">API</a></p>
+              <p class="mb-1"><a :href="brand.projectUrl + '/tree/master/HOJ-master/hoj-springboot'" target="_blank" rel="noopener noreferrer">API</a></p>
             </el-col>
             <el-col class="hr-none">
               <el-divider></el-divider>
@@ -74,7 +75,7 @@
               <p>
                 <i class="el-icon-document"></i>
                 <a
-                  href="https://docs.hdoi.cn"
+                  :href="brand.projectUrl + '/tree/master/HOJ-master/docs/docs'"
                   target="_blank"
                 > {{ $t('m.Help') }}</a>
               </p>
@@ -87,7 +88,7 @@
             :href="websiteConfig.recordUrl"
             target="_blank"
           >{{ websiteConfig.recordName }}</a>
-          Powered by
+          基于 HOJ 开源项目构建 ·
           <a
             :href="websiteConfig.projectUrl"
             style="color:#1E9FFF"
@@ -128,6 +129,9 @@
 </template>
 
 <script>
+import AiAssistant from '@/components/oj/ai/AiAssistant';
+import { BRAND } from '@/common/brand';
+import { applyAppearance, syncAppearanceRoute } from '@/common/appearance';
 import NavBar from "@/components/oj/common/NavBar";
 import { mapActions, mapState, mapGetters } from "vuex";
 import { LOGO, MOTTO } from "@/common/logo";
@@ -138,9 +142,11 @@ export default {
   name: "app-content",
   components: {
     NavBar,
+    AiAssistant,
   },
   data() {
     return {
+      brand: BRAND,
       isAdminView: false,
       showFooter: true,
       languages:[],
@@ -227,7 +233,15 @@ export default {
     }
   },
   watch: {
+    isAdminView: {
+      immediate: true,
+      handler(value) {
+        document.body.classList.toggle('admin-view', value);
+        document.documentElement.classList.toggle('admin-view', value);
+      },
+    },
     $route(newVal, oldVal) {
+      syncAppearanceRoute(newVal);
       this.changeDomTitle();
       if (newVal !== oldVal && newVal.path.split("/")[1] == "admin") {
         this.isAdminView = true;
@@ -249,6 +263,11 @@ export default {
     ...mapGetters(["webLanguage", "token", "isAuthenticated"]),
   },
   created: function () {
+    syncAppearanceRoute(this.$route);
+    this.themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    this.themeMedia.addEventListener('change', applyAppearance);
+    this.motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.motionMedia.addEventListener('change', applyAppearance);
     this.$nextTick(function () {
       try {
         document.body.removeChild(document.getElementById("app-loader"));
@@ -267,6 +286,13 @@ export default {
 
     this.showFooter = !(this.$route.name == 'ProblemDetails'|| utils.isFocusModePage(this.$route.name));
     window.addEventListener("visibilitychange", this.autoRefreshUserInfo);
+  },
+  beforeDestroy() {
+    document.body.classList.remove('admin-view');
+    document.documentElement.classList.remove('admin-view');
+    this.themeMedia.removeEventListener('change', applyAppearance);
+    this.motionMedia.removeEventListener('change', applyAppearance);
+    window.removeEventListener("visibilitychange", this.autoRefreshUserInfo);
   },
   mounted() {
     this.languages = languages;

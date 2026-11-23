@@ -102,10 +102,10 @@
           min-width="100"
         >
           <template v-slot="{ row }">
-            <el-tag effect="dark" color="#19be6b" v-if="row.status == 0">{{
+            <el-tag effect="light" type="success" v-if="row.status == 0">{{
               $t('m.Normal')
             }}</el-tag>
-            <el-tag effect="dark" color="#ed3f14" v-else>{{
+            <el-tag effect="light" type="danger" v-else>{{
               $t('m.Disable')
             }}</el-tag>
           </template>

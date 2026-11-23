@@ -3,8 +3,8 @@
 <mapper namespace="top.hcode.hoj.mapper.ContestMapper">
     <select id="getContestList" resultType="top.hcode.hoj.pojo.vo.ContestVO" useCache="true">
         select c.id,c.author,c.title,c.description,c.type,c.status,c.source,c.auth,c.start_time,
-        c.end_time,c.duration,c.open_rank,c.oi_rank_score_type,c.gid,c.allow_end_submit
-        from contest c
+        c.end_time,c.duration,c.open_rank,c.oi_rank_score_type,c.gid,c.allow_end_submit,c.rated,cp.paper_id AS mixed_paper_id
+        from contest c LEFT JOIN contest_paper cp ON cp.contest_id=c.id
         <where>
             c.visible = true and c.is_group = false
             <if test="keyword!=null and keyword!=''">
@@ -35,8 +35,8 @@
     <select id="getContestInfoById" resultType="top.hcode.hoj.pojo.vo.ContestVO" useCache="true">
         select c.id,c.author,c.open_print,c.title,c.type,c.status,c.description,c.seal_rank,
         c.seal_rank_time,c.source,c.auth,c.start_time,c.end_time,c.duration,c.rank_show_name,
-        c.open_rank,c.oi_rank_score_type,c.gid, c.allow_end_submit
-        from contest c where c.id = #{cid} and c.visible=true
+        c.open_rank,c.oi_rank_score_type,c.gid, c.allow_end_submit,c.rated,cp.paper_id AS mixed_paper_id
+        from contest c LEFT JOIN contest_paper cp ON cp.contest_id=c.id where c.id = #{cid} and c.visible=true
     </select>
 
     <select id="getWithinNext14DaysContests" resultType="top.hcode.hoj.pojo.vo.ContestVO">

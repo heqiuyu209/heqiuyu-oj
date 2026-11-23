@@ -85,7 +85,6 @@
               <el-switch
                 v-model="websiteConfig.register"
                 active-color="#13ce66"
-                inactive-color="#ff4949"
               >
               </el-switch>
             </el-form-item>

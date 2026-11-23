@@ -40,7 +40,9 @@
           </span>
         </div>
       </div>
-      <h3 style="margin: -5px;">{{ $t('m.Tag_Tips') }}</h3>
+      <h3 v-if="tagOj !== 'ME'" style="margin: -5px;">{{ $t('m.Tag_Tips') }}</h3>
+      <p class="catalog-help">XCPC 常用知识点按本站维护目录固定保留；可新增自定义标签，也可在预置分类中扩展。</p>
+      <el-alert v-if="catalogError" :title="catalogError" type="error" :closable="false"><el-button type="text" @click="loadCatalog">重试加载目录</el-button></el-alert>
     </el-card>
     <div v-loading = "getTagListLoading">
       <el-row :gutter="20">
@@ -54,8 +56,9 @@
                           tagsAndClassification.classification.name:$t('m.Unclassified')
                         }}
                         </span>
+                        <small v-if="tagsAndClassification.classification && presetClassification(tagsAndClassification.classification)" class="preset-label">预置</small>
                         <span style="margin-left:10px;"
-                          v-if="tagsAndClassification.classification!=null">
+                          v-if="catalogReady && tagsAndClassification.classification!=null && !presetClassification(tagsAndClassification.classification)">
                           <el-button type="primary" 
                             icon="el-icon-edit" 
                             circle
@@ -64,7 +67,7 @@
                           ></el-button>
                         </span>
                         <span style="margin-left:10px;"
-                          v-if="tagsAndClassification.classification!=null">
+                          v-if="catalogReady && tagsAndClassification.classification!=null && !presetClassification(tagsAndClassification.classification)">
                           <el-button type="danger" 
                             icon="el-icon-delete" 
                             circle
@@ -82,7 +85,9 @@
                       <el-tag
                         :key="index"
                         v-for="(tag, index) in tagsAndClassification.tagList"
-                        closable
+                        :closable="catalogReady && !presetTag(tag)"
+                        :title="presetTag(tag) ? 'XCPC 预置知识点，固定保留' : '自定义标签，点击编辑'"
+                        :class="{ 'preset-tag': presetTag(tag) }"
                         :color="tag.color ? tag.color : '#409eff'"
                         effect="dark"
                         :disable-transitions="false"
@@ -195,9 +200,11 @@ import myMessage from '@/common/message';
 import api from '@/common/api';
 import { REMOTE_OJ } from '@/common/constants';
 export default {
+  name: 'ProblemTag',
   data() {
     return {
       tagOj: 'ME',
+      catalogReady: false, catalogError: '', presetTopics: [],
       REMOTE_OJ: {},
       getTagListLoading: false,
       tagsAndClassificationList: [],
@@ -229,8 +236,16 @@ export default {
   mounted() {
     this.REMOTE_OJ = Object.assign({}, REMOTE_OJ);
     this.init();
+    this.loadCatalog();
   },
   methods: {
+    presetTag(tag) { return this.presetTopics.some(topic => topic.tagId === tag.id); },
+    presetClassification(classification) { return this.presetTopics.some(topic => topic.classificationId === classification.id); },
+    async loadCatalog() {
+      this.catalogReady = false; this.catalogError = '';
+      try { this.presetTopics = (await api.learningTopics()).data.data.topics; this.catalogReady = true; }
+      catch (_) { this.catalogError = '知识点目录加载失败，暂时不能修改已有标签。'; }
+    },
     init(){
       this.getTagClassification();
       this.getProblemTagsAndClassification();
@@ -249,6 +264,7 @@ export default {
     },
 
     deleteTag(tag) {
+      if (!this.catalogReady || this.presetTag(tag)) return;
       this.$confirm(this.$i18n.t('m.Delete_Tag_Tips'), 'Tips', {
         type: 'warning',
       }).then(
@@ -265,6 +281,7 @@ export default {
       );
     },
     openTagDialog(action, tag, classification = null) {
+      if (action !== 'add' && (!this.catalogReady || this.presetTag(tag))) return;
       if (action == 'add') {
         this.upsertTagTitle = 'Add_Tag';
         this.upsertTagBtn = 'To_Add';
@@ -356,6 +373,7 @@ export default {
     },
 
     deleteTagClassification(tagClassification) {
+      if (!this.catalogReady || this.presetClassification(tagClassification)) return;
       this.$confirm(this.$i18n.t('m.Delete_Tag_Classification_Tips'), 'Tips', {
         type: 'warning',
       }).then(
@@ -373,6 +391,7 @@ export default {
     },
 
     openTagClassificationDialog(action, tagClassification) {
+      if (action !== 'add' && (!this.catalogReady || this.presetClassification(tagClassification))) return;
       if (action == 'add') {
         this.upsertTagClassificationTitle = 'Add_Tag_Classification';
         this.upsertTagBtn = 'To_Add';
@@ -400,6 +419,7 @@ export default {
 };
 </script>
 <style scoped>
+.catalog-help { color: var(--muted); line-height: 1.8; margin: 16px 0 0; }.preset-label { margin-left: 12px; color: var(--muted); }.preset-tag { cursor: default !important; }
 .filter {
   margin-top: 10px;
 }

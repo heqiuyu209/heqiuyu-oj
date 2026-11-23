@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.shiro.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.common.exception.StatusForbiddenException;
@@ -38,6 +39,7 @@ import java.util.Objects;
 @Component
 @Slf4j(topic = "hoj")
 public class AdminContestManager {
+    @Autowired private top.hcode.hoj.manager.oj.MixedContestManager mixed;
 
     @Autowired
     private ContestEntityService contestEntityService;
@@ -106,6 +108,7 @@ public class AdminContestManager {
             adminContestVo.setAwardConfigList(new ArrayList<>());
         }
 
+        adminContestVo.setMixed(mixed.config(cid));
         return adminContestVo;
     }
 
@@ -122,8 +125,12 @@ public class AdminContestManager {
                 "Admin_Contest", "Delete", cid, userRolesVo.getUid(), userRolesVo.getUsername());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void addContest(AdminContestVO adminContestVo) throws StatusFailException {
         contestValidator.validateContest(adminContestVo);
+        normalizeMixed(adminContestVo);
+
+        validateRated(null, adminContestVo);
 
         Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class, "starAccount");
         JSONObject accountJson = new JSONObject();
@@ -146,8 +153,10 @@ public class AdminContestManager {
         if (!isOk) { // 删除成功
             throw new StatusFailException("添加失败");
         }
+        mixed.configure(null, contest, adminContestVo.getMixed());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void cloneContest(Long cid) throws StatusSystemErrorException {
         Contest contest = contestEntityService.getById(cid);
         if (contest == null) {
@@ -163,18 +172,24 @@ public class AdminContestManager {
                 .setGmtCreate(null)
                 .setGmtModified(null);
         contest.setTitle(contest.getTitle() + " [Cloned]");
+        contest.setRated(false);
         contestEntityService.save(contest);
+        mixed.cloneConfiguration(cid, contest.getId());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void updateContest(AdminContestVO adminContestVo) throws StatusForbiddenException, StatusFailException {
         contestValidator.validateContest(adminContestVo);
+        normalizeMixed(adminContestVo);
+        Contest persisted = mixed.contest(adminContestVo.getId(), true);
+        validateRated(persisted, adminContestVo);
 
         // 获取当前登录的用户
         AccountProfile userRolesVo = (AccountProfile) SecurityUtils.getSubject().getPrincipal();
         // 是否为超级管理员
         boolean isRoot = SecurityUtils.getSubject().hasRole("root");
         // 只有超级管理员和比赛拥有者才能操作
-        if (!isRoot && !userRolesVo.getUid().equals(adminContestVo.getUid())) {
+        if (!isRoot && !userRolesVo.getUid().equals(persisted.getUid())) {
             throw new StatusForbiddenException("对不起，你无权限操作！");
         }
         Contest contest = BeanUtil.copyProperties(adminContestVo, Contest.class, "starAccount");
@@ -193,6 +208,7 @@ public class AdminContestManager {
 
 
         Contest oldContest = contestEntityService.getById(contest.getId());
+        mixed.configure(oldContest, contest, adminContestVo.getMixed());
         boolean isOk = contestEntityService.saveOrUpdate(contest);
         if (isOk) {
             if (!contest.getAuth().equals(Constants.Contest.AUTH_PUBLIC.getCode())) {
@@ -205,6 +221,24 @@ public class AdminContestManager {
         } else {
             throw new StatusFailException("修改失败");
         }
+    }
+
+    private void normalizeMixed(AdminContestVO dto) {
+        if (dto.getMixed() == null) return;
+        dto.setAllowEndSubmit(false);
+        dto.getMixed().setScoreRule("Recent".equals(dto.getOiRankScoreType()) ? "LAST" : "BEST");
+    }
+
+    private void validateRated(Contest previous, AdminContestVO dto) throws StatusFailException {
+        if (dto.getRated() == null) dto.setRated(previous != null && Boolean.TRUE.equals(previous.getRated()));
+        if (Boolean.TRUE.equals(dto.getRated()) && (dto.getGid() != null || !Objects.equals(dto.getAuth(), 0)))
+            throw new StatusFailException("计入站内rating的比赛须为主站公开赛");
+        if (previous != null && previous.getStartTime().getTime() <= System.currentTimeMillis()
+                && (Boolean.TRUE.equals(previous.getRated()) != Boolean.TRUE.equals(dto.getRated())
+                || Boolean.TRUE.equals(previous.getRated()) && (!Objects.equals(previous.getStartTime(), dto.getStartTime())
+                || !Objects.equals(previous.getEndTime(), dto.getEndTime()) || !Objects.equals(previous.getType(), dto.getType())
+                || !Objects.equals(previous.getOiRankScoreType(), dto.getOiRankScoreType()) || !Objects.equals(previous.getAuth(), dto.getAuth()))))
+            throw new StatusFailException("比赛开始后不能更改rating开关、赛制、计分方式或起止时间");
     }
 
     public void changeContestVisible(Long cid, String uid, Boolean visible) throws StatusFailException, StatusForbiddenException {

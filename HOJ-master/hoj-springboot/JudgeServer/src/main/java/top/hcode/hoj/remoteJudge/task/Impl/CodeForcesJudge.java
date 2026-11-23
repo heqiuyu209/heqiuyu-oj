@@ -85,7 +85,7 @@ public class CodeForcesJudge extends RemoteJudgeStrategy {
         if (!homePage.contains("/logout\">") || !homePage.contains("<a href=\"/profile/" + remoteJudgeDTO.getUsername() + "\"")) {
             login();
             if (remoteJudgeDTO.getLoginStatus() != HttpStatus.SC_MOVED_TEMPORARILY) {
-                log.error("[Codeforces] Error Username:[{}], Password:[{}]", remoteJudgeDTO.getUsername(), remoteJudgeDTO.getPassword());
+                log.error("[Codeforces] Login failed for judge task [{}]", remoteJudgeDTO.getJudgeId());
                 String msg = "[Codeforces] Failed to Login, possibly due to incorrect remote judge account or password of codeforces!";
                 throw new RuntimeException(msg);
             }
@@ -99,7 +99,7 @@ public class CodeForcesJudge extends RemoteJudgeStrategy {
             remoteJudgeDTO.setCookies(null);
             login();
             if (remoteJudgeDTO.getLoginStatus() != HttpStatus.SC_MOVED_TEMPORARILY) {
-                log.error("[Codeforces] Error Username:[{}], Password:[{}]", remoteJudgeDTO.getUsername(), remoteJudgeDTO.getPassword());
+                log.error("[Codeforces] Login failed for judge task [{}]", remoteJudgeDTO.getJudgeId());
                 String msg = "[Codeforces] Failed to Login, possibly due to incorrect remote judge account or password of codeforces!";
                 throw new RuntimeException(msg);
             }

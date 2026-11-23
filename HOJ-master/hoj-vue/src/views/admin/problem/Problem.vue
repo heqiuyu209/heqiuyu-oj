@@ -11,6 +11,10 @@
         label-position="top"
         label-width="70px"
       >
+        <el-form-item v-if="embedded" label="开放单题练习">
+          <el-switch :value="problem.auth === 1" @change="problem.auth = $event ? 1 : 2" />
+          <p class="program-publication-help">关闭时仅保存在题库，仍可用于试卷和比赛；开启后可从题目列表单独练习。</p>
+        </el-form-item>
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item
@@ -142,23 +146,7 @@
             :md="6"
             :xs="24"
           >
-            <el-form-item
-              :label="$t('m.Level')"
-              required
-            >
-              <el-select
-                class="difficulty-select"
-                placeholder="Enter the level of problem"
-                v-model="problem.difficulty"
-              >
-                <el-option
-                  :label="getLevelName(key)"
-                  :value="parseInt(key)"
-                  v-for="(value, key, index) in PROBLEM_LEVEL"
-                  :key="index"
-                ></el-option>
-              </el-select>
-            </el-form-item>
+            <el-form-item label="题目 Rating"><el-input-number v-model="problem.rating" :min="0" :max="5000" :step="100" :precision="0" placeholder="未评级" /><p>留空为未评级，不按原难度换算。</p></el-form-item>
           </el-col>
         </el-row>
 
@@ -196,7 +184,7 @@
             :md="4"
             :xs="24"
           >
-            <el-form-item :label="$t('m.Auth')">
+            <el-form-item v-if="!embedded" :label="$t('m.Auth')">
               <el-select
                 v-model="problem.auth"
                 size="small"
@@ -615,7 +603,6 @@
           >
             <el-radio-group
               v-model="problem.judgeCaseMode"
-              @change="switchJudgeCaseMode"
             >
               <el-radio :label="JUDGE_CASE_MODE.DEFAULT">
                 {{ problem.type == 1 ? $t('m.OI_Judge_Case_Default_Mode'): $t('m.ACM_Judge_Case_Default_Mode')}}
@@ -856,6 +843,7 @@
 
         <el-button
           type="primary"
+          :loading="saving"
           @click.native="submit()"
           size="small"
         >{{
@@ -870,6 +858,7 @@
 import utils from "@/common/utils";
 import { mapGetters } from "vuex";
 import api from "@/common/api";
+import authoringGuard from "@/common/authoringGuard";
 import myMessage from "@/common/message";
 import { PROBLEM_LEVEL, JUDGE_CASE_MODE } from "@/common/constants";
 const Editor = () => import("@/components/admin/Editor.vue");
@@ -878,6 +867,8 @@ const AddExtraFile = () => import("@/components/admin/AddExtraFile.vue");
 const CodeMirror = () => import("@/components/admin/CodeMirror.vue");
 export default {
   name: "Problem",
+  mixins: [authoringGuard],
+  props: { embedded: Boolean },
   components: {
     Accordion,
     AddExtraFile,
@@ -886,6 +877,8 @@ export default {
   },
   data() {
     return {
+      saving: false,
+      authoringReady: false,
       rules: {
         title: {
           required: true,
@@ -927,6 +920,7 @@ export default {
         memoryLimit: 256,
         stackLimit: 128,
         difficulty: 0,
+        rating: undefined,
         auth: 1,
         codeShare: true,
         examples: [], // 题面上的样例输入输出
@@ -992,8 +986,8 @@ export default {
   mounted() {
     this.PROBLEM_LEVEL = Object.assign({}, PROBLEM_LEVEL);
     this.JUDGE_CASE_MODE = Object.assign({}, JUDGE_CASE_MODE);
-    this.routeName = this.$route.name;
-    let contestID = this.$route.params.contestId;
+    this.routeName = this.embedded ? "admin-create-problem" : this.$route.name;
+    let contestID = this.embedded ? null : this.$route.params.contestId;
     this.uploadFileUrl = "/api/file/upload-testcase-zip";
     if (
       this.routeName === "admin-edit-problem" ||
@@ -1012,7 +1006,7 @@ export default {
         }
       })
       .catch(() => {});
-    api.getLanguages(this.$route.params.problemId, false).then((res) => {
+    api.getLanguages(this.embedded ? null : this.$route.params.problemId, false).then((res) => {
       let allLanguage = res.data.data;
       this.allLanguage = allLanguage;
       for (let i = 0; i < allLanguage.length; i++) {
@@ -1031,7 +1025,8 @@ export default {
         memoryLimit: 256,
         stackLimit: 128,
         difficulty: 0,
-        auth: 1,
+        rating: undefined,
+        auth: this.embedded ? 2 : 1,
         codeShare: true,
         examples: [],
         spjLanguage: "",
@@ -1068,10 +1063,15 @@ export default {
       }
       this.problem.spjLanguage = "C";
       this.init();
+      if (this.embedded) {
+        this.authoringReady = true;
+        this.$nextTick(this.markAuthoringClean);
+      }
     });
   },
   watch: {
     $route() {
+      if (this.embedded) return;
       this.routeName = this.$route.name;
       if (
         this.routeName === "admin-edit-problem" ||
@@ -1509,6 +1509,7 @@ export default {
       });
     },
     submit() {
+      if (this.saving) return;
       if (!this.problem.problemId) {
         myMessage.error(
           this.$i18n.t("m.Problem_Display_ID") +
@@ -1835,8 +1836,16 @@ export default {
         problemDto["changeJudgeCaseMode"] = false;
       }
 
+      this.saving = true;
       api[funcName](problemDto)
         .then((res) => {
+          if (this.embedded) {
+            this.markAuthoringClean();
+            this.authoringReady = false;
+            myMessage.success("题目已保存到题库");
+            this.$emit("saved", res.data.data);
+            return;
+          }
           if (
             this.routeName === "admin-create-contest-problem" ||
             this.routeName === "admin-edit-contest-problem"
@@ -1862,16 +1871,25 @@ export default {
             }
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { this.saving = false; });
     },
   },
   computed: {
+    authoringState() {
+      return this.embedded && this.authoringReady ? {
+        problem: this.problem, tags: this.problemTags, languages: this.problemLanguages,
+        samples: this.problemSamples, codeTemplates: this.problemCodeTemplate,
+        userExtraFile: this.userExtraFile, judgeExtraFile: this.judgeExtraFile,
+      } : null;
+    },
     ...mapGetters(["userInfo"]),
   },
 };
 </script>
 
 <style scoped>
+.program-publication-help { color: var(--muted); font-size: 13px; line-height: 1.8; }
 /deep/.el-form-item__label {
   padding: 0 !important;
 }

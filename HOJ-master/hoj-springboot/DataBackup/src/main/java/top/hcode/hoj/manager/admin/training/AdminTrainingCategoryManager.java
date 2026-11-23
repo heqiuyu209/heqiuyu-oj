@@ -8,6 +8,7 @@ import top.hcode.hoj.common.exception.StatusFailException;
 import top.hcode.hoj.dao.training.TrainingCategoryEntityService;
 import top.hcode.hoj.pojo.entity.training.TrainingCategory;
 import top.hcode.hoj.shiro.AccountProfile;
+import top.hcode.hoj.manager.oj.AlgorithmCatalog;
 
 import javax.annotation.Resource;
 
@@ -23,6 +24,7 @@ public class AdminTrainingCategoryManager {
 
     @Resource
     private TrainingCategoryEntityService trainingCategoryEntityService;
+    @Resource private AlgorithmCatalog algorithmCatalog;
 
     public TrainingCategory addTrainingCategory(TrainingCategory trainingCategory) throws StatusFailException {
         QueryWrapper<TrainingCategory> trainingCategoryQueryWrapper = new QueryWrapper<>();
@@ -42,6 +44,7 @@ public class AdminTrainingCategoryManager {
     }
 
     public void updateTrainingCategory(TrainingCategory trainingCategory) throws StatusFailException {
+        algorithmCatalog.requireCustomCategory(trainingCategory.getId());
         boolean isOk = trainingCategoryEntityService.updateById(trainingCategory);
         if (!isOk) {
             throw new StatusFailException("更新失败！");
@@ -49,6 +52,7 @@ public class AdminTrainingCategoryManager {
     }
 
     public void deleteTrainingCategory(Long cid) throws StatusFailException {
+        algorithmCatalog.requireCustomCategory(cid);
         boolean isOk = trainingCategoryEntityService.removeById(cid);
         if (!isOk) {
             throw new StatusFailException("删除失败！");

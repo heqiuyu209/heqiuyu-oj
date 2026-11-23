@@ -11,6 +11,7 @@ import top.hcode.hoj.dao.problem.TagEntityService;
 import top.hcode.hoj.pojo.entity.problem.Tag;
 import top.hcode.hoj.pojo.entity.problem.TagClassification;
 import top.hcode.hoj.shiro.AccountProfile;
+import top.hcode.hoj.manager.oj.AlgorithmCatalog;
 
 import java.util.List;
 
@@ -28,6 +29,7 @@ public class AdminTagManager {
 
     @Autowired
     private TagClassificationEntityService tagClassificationEntityService;
+    @Autowired private AlgorithmCatalog algorithmCatalog;
 
     public Tag addTag(Tag tag) throws StatusFailException {
         QueryWrapper<Tag> tagQueryWrapper = new QueryWrapper<>();
@@ -48,6 +50,7 @@ public class AdminTagManager {
     }
 
     public void updateTag(Tag tag) throws StatusFailException {
+        algorithmCatalog.requireCustomTag(tag.getId());
         boolean isOk = tagEntityService.updateById(tag);
         if (!isOk) {
             throw new StatusFailException("更新失败");
@@ -55,6 +58,7 @@ public class AdminTagManager {
     }
 
     public void deleteTag(Long tid) throws StatusFailException {
+        algorithmCatalog.requireCustomTag(tid);
         boolean isOk = tagEntityService.removeById(tid);
         if (!isOk) {
             throw new StatusFailException("删除失败");
@@ -92,6 +96,7 @@ public class AdminTagManager {
     }
 
     public void updateTagClassification(TagClassification tagClassification) throws StatusFailException {
+        algorithmCatalog.requireCustomClassification(tagClassification.getId());
         boolean isOk = tagClassificationEntityService.updateById(tagClassification);
         if (!isOk) {
             throw new StatusFailException("更新失败");
@@ -99,6 +104,7 @@ public class AdminTagManager {
     }
 
     public void deleteTagClassification(Long tcid) throws StatusFailException {
+        algorithmCatalog.requireCustomClassification(tcid);
         boolean isOk = tagClassificationEntityService.removeById(tcid);
         if (!isOk) {
             throw new StatusFailException("删除失败");

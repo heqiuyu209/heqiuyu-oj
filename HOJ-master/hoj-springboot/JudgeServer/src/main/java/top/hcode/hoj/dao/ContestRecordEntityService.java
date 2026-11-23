@@ -13,4 +13,7 @@ import top.hcode.hoj.pojo.entity.contest.ContestRecord;
  */
 public interface ContestRecordEntityService extends IService<ContestRecord> {
     void updateContestRecord(Integer score, Integer status, Long submitId, Integer useTime);
+
+    /** Personal task completion must roll back if its existing record cannot be updated. */
+    void updateContestRecordStrict(Integer score, Integer status, Long submitId, Integer useTime);
 }
