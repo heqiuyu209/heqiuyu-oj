@@ -1,5 +1,12 @@
 # TODO：HOJ 智能编程学习系统
 
+## Codeforces 题面获取与 CPOS 导入
+
+- 原「获取题面」由 `ExternalSyncWorker` 领取题面任务，再由 `CodeforcesStatementClient` 匿名访问 `/problemset/problem/{contestId}/{index}?locale=en`，解析 `.problem-statement` 并保存原文版本。2026-11-26 从 HOJ 后端容器复核 `2290A`，网页请求返回 HTTP 403 与 `cf-mitigated: challenge`，无法进入题面解析。访问拒绝结束本轮获取，已有原文保留。题库目录由官方 `problemset.problems` 独立同步，该 API 提供题号、标题、难度和标签等目录元数据。
+- CPOS 由管理员在浏览器正常打开英文题面后采集。安装了 CPOS Companion 和 VS Code 的 CPOS 扩展时，VS Code 将题面元数据及样例分别写入用户目录 `.cpos-vscode/problems` 和 `.cpos-vscode/samples`。「题库 → 远程题目 → Codeforces → 从 CPOS 批量导入」选择 `.cpos-vscode` 后按同名文件配对。仅使用公开题库路径对应且已在 HOJ 目录中存在的题目，同一题已有原文时跳过。新题保留为待开放，管理员可在现有原文编辑器校对并翻译。
+- CPOS 采集发生在管理员的浏览器里，只能处理实际能打开的页面。批量导入处理已采集的记录。使用改过的 CPOS 样例前需对照源站，缺少题面或样例时先重新采集。适配集中在 CPOS 管理端组件、专用接口和后端导入类，沿用现有原文库，无数据库迁移。
+- 本机 HOJ 已部署。Java 8 定向测试 71 项通过，生产前端构建通过。Chrome 使用合成采集目录验证了文件配对和批量操作，本地 HTTP 与 MySQL 验证了权限、并发去重、待开放及学生读取，测试数据已清理。真实 CF 浏览器采集待验收。证据位于 D:/learning-OS-RAG/data/hoj-cpos-20261126。
+
 更新时间：2026-10-28。`[ ]` 未完成，`[-]` 进行中，`[x]` 已核对或完成。源码存在、测试通过、在线验收、用户验收分别记录；历史验收与分工以 Obsidian《HOJ 项目记忆》为准。
 
 ## 当前迭代：牛客提交历史边界与异常结果（已本地更新，待用户验收）

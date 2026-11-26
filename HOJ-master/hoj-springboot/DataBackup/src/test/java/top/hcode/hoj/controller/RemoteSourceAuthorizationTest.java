@@ -10,8 +10,11 @@ import org.apache.shiro.util.ThreadContext;
 import org.junit.jupiter.api.*;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.test.util.ReflectionTestUtils;
+import top.hcode.hoj.controller.admin.CodeforcesCposImportController;
 import top.hcode.hoj.controller.admin.RemoteSourceController;
 import top.hcode.hoj.manager.oj.external.*;
+import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager;
+import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager.Capture;
 import top.hcode.hoj.pojo.dto.RemoteStatementDTO;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -42,5 +45,26 @@ class RemoteSourceAuthorizationTest {
         }
         verify(statements, times(3)).previewCodeforcesHtml(any());
         verify(statements,times(3)).refresh("key",true);verify(catalogue,times(3)).list(1,null,null,null);verify(catalogue,times(3)).requestSync();verify(statements,times(3)).request("key");verify(statements,times(3)).adminView("key");verify(statements,times(3)).save(any(),eq(false));verify(statements,times(3)).save(any(),eq(true));
+    }
+    @Test void cposImportRequiresAnAuthenticatedProblemAdministrator() {
+        CodeforcesCposImportManager importer = mock(CodeforcesCposImportManager.class);
+        AuthorizationAttributeSourceAdvisor advisor = new AuthorizationAttributeSourceAdvisor();
+        advisor.setSecurityManager(security);
+        ProxyFactory factory = new ProxyFactory(new CodeforcesCposImportController(importer));
+        factory.setProxyTargetClass(true);
+        factory.addAdvisor(advisor);
+        CodeforcesCposImportController cpos = (CodeforcesCposImportController) factory.getProxy();
+        Capture capture = new Capture();
+
+        assertThrows(UnauthenticatedException.class, () -> cpos.importStatement(capture));
+        login("default_user");
+        assertThrows(UnauthorizedException.class, () -> cpos.importStatement(capture));
+        verifyNoInteractions(importer);
+        when(importer.importStatement(capture)).thenReturn(true);
+        for (String role : new String[]{"admin", "root", "problem_admin"}) {
+            login(role);
+            assertEquals(Boolean.TRUE, cpos.importStatement(capture).getData());
+        }
+        verify(importer, times(3)).importStatement(capture);
     }
 }

@@ -15,6 +15,9 @@ import org.springframework.util.StreamUtils;
 import top.hcode.hoj.common.exception.ObjectiveException;
 import top.hcode.hoj.crawler.problem.ProblemStrategy;
 import top.hcode.hoj.manager.admin.problem.RemoteProblemManager;
+import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager;
+import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager.Capture;
+import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager.Sample;
 import top.hcode.hoj.pojo.dto.RemoteStatementDTO;
 import top.hcode.hoj.pojo.dto.RemoteStatementDTO.Content;
 import top.hcode.hoj.pojo.entity.problem.Problem;
@@ -83,6 +86,79 @@ class RemoteSourceManagerTest {
         p.setId(jdbc.queryForObject("SELECT id FROM problem WHERE problem_id=?",Long.class,p.getProblemId()));return p;
     }
     Map<String,Object> library(){return jdbc.queryForMap("SELECT title,description,input,output,hint,examples,time_limit,memory_limit,auth,rating,gmt_modified FROM problem WHERE id=?",pid());}
+
+    private Capture cposCapture() {
+        Capture capture = new Capture();
+        capture.setPlatform("codeforces");
+        capture.setId("4A");
+        capture.setUrl("https://codeforces.com/contest/4/problem/A?locale=en");
+        capture.setStatementHtml("<div class='problem-statement'><div class='header'>"
+                + "<div class='title'>A. Captured problem</div>"
+                + "<div class='time-limit'>1.5 seconds</div><div class='memory-limit'>64 megabytes</div>"
+                + "</div><div><p>Read \\(n\\).</p><script>bad()</script></div></div>");
+        Sample sample = new Sample();
+        sample.setInput(" 1\n<text>\n");
+        sample.setExpectedOutput("42\n");
+        capture.setTests(Collections.singletonList(sample));
+        return capture;
+    }
+
+    @Test void cposImportPreservesPairedSamplesAndSkipsExistingOriginals() {
+        CodeforcesStatementClient client = new CodeforcesStatementClient();
+        try {
+            CodeforcesCposImportManager importer = new CodeforcesCposImportManager(client, statements);
+            Capture capture = cposCapture();
+            assertTrue(importer.importStatement(capture));
+            Map<String,Object> original = statements.adminView(key);
+            assertEquals("Captured problem", library().get("title"));
+            assertEquals(2, ((Number) library().get("auth")).intValue());
+            assertEquals(1500, ((Number) library().get("time_limit")).intValue());
+            assertEquals(64, ((Number) library().get("memory_limit")).intValue());
+            assertEquals("<input> 1\n<text>\n</input><output>42\n</output>", library().get("examples"));
+            assertTrue(library().get("description").toString().contains("\\(n\\)"));
+            assertFalse(library().get("description").toString().contains("bad()"));
+            assertEquals("MANUAL", ((Map<?,?>) original.get("source")).get("origin"));
+            assertEquals(404, assertThrows(ObjectiveException.class, () -> statements.publicView(pid())).getStatus());
+
+            capture.setStatementHtml(capture.getStatementHtml().replace("Captured problem", "Changed"));
+            assertFalse(importer.importStatement(capture));
+            assertEquals(hash(original), hash(statements.adminView(key)));
+            assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version", Integer.class));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test void cposImportVerifiesNumberAndSamplePairBeforeSaving() {
+        CodeforcesStatementClient client = new CodeforcesStatementClient();
+        try {
+            CodeforcesCposImportManager importer = new CodeforcesCposImportManager(client, statements);
+            Capture capture = cposCapture();
+            for (String url : Arrays.asList("https://codeforces.com.evil/contest/4/problem/A",
+                    "https://codeforces.com/contest/4/problem/B", "https://codeforces.com/gym/4/problem/A")) {
+                capture.setUrl(url);
+                assertEquals(400, assertThrows(ObjectiveException.class, () -> importer.importStatement(capture)).getStatus());
+            }
+            capture.setUrl("https://codeforces.com/problemset/problem/4/A");
+            String html = capture.getStatementHtml();
+            capture.setStatementHtml(html.replace("A. Captured", "B. Captured"));
+            assertEquals(400, assertThrows(ObjectiveException.class, () -> importer.importStatement(capture)).getStatus());
+            capture.setStatementHtml(html);
+            capture.setTests(null);
+            assertEquals(400, assertThrows(ObjectiveException.class, () -> importer.importStatement(capture)).getStatus());
+            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM remote_statement_version", Integer.class));
+
+            sync(problem(921, "01", null));
+            capture.setId("92101");
+            capture.setUrl("https://codeforces.com/problemset/problem/921/01");
+            capture.setStatementHtml(html.replace("A. Captured", "01. Captured"));
+            capture.setTests(Collections.emptyList());
+            assertTrue(importer.importStatement(capture));
+            assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM problem WHERE problem_id='CF-92101'", Integer.class));
+        } finally {
+            client.close();
+        }
+    }
 
     @Test void cfHtmlPreviewLeavesTheCatalogueUnpublishedUntilExplicitSave() {
         CodeforcesStatementClient client = new CodeforcesStatementClient();
