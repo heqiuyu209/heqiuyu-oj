@@ -4,6 +4,8 @@
 
 开发入口使用 `compose.yaml` + `compose.dev.yaml`，并从已有本地容器识别、保留已启用的 RAG / 视频 / 重排 / 上下文覆盖文件。原 `compose.yaml` 仍负责生产镜像构建；开发配置只覆盖前端服务，MySQL、Redis、Nacos、业务后端与判题服务继续使用原有本地环境。
 
+采集、校对和批量入库 Codeforces 题面，见 [CPOS 题面导入教程](#cpos-批量导入-codeforces-题面)。
+
 ## 启动、查看与停止
 
 先启动 Docker Desktop（Linux containers），在 Git 根目录 `D:\IDEA\HOJ-master` 执行：
@@ -138,3 +140,60 @@ npm run test:dev -- --hmr
 页面验证、真实账号联调、用户验收和正式发布分别记录；当前结果见上述任务记录。原判题环境、原数据卷和权限规则继续沿用；没有升级 Java 或前端依赖版本，也没有开放到公网。
 
 站内 Rating 浏览器回归：设置 `$env:PAPER_REVIEW_CASE='rating'` 后运行 `node tests/paper-browser.cjs`，使用隔离接口样例验证两种榜单、历史、搜索分页、数值区间和管理字段。真实 Rating 联调另用 `$env:HOJ_LOCAL_RATING_TEST='1'; node tests/rating-local-integration.cjs`；须先完成 `site-rating.sql` 迁移并更新 Java 服务。该脚本仅连接上述本地服务，创建三个随机临时账号和各自的题目、试卷、计分赛，等待后台交卷与 Rating 结算，验证重复通过仅计一次、升降分、题库筛选和个人主页，最后清理自己的数据；预计需要一至两分钟。`PAPER_REVIEW_OUTPUT` 指定报告目录，默认输出到系统临时目录 `hoj-rating-review`；报告中的 `validated` 和 `cleaned` 分别表示业务验证与清理结果。真实混合比赛回归使用 `$env:HOJ_LOCAL_MIXED_CONTEST_TEST='1'; node tests/mixed-contest-local-integration.cjs`，需要已有演示试卷 3；不设置 `HOJ_SEED_MIXED_DEMO` 时仅清理自身临时数据，不新增保留样例。
+
+## CPOS 批量导入 Codeforces 题面
+
+管理员在自己的 Windows 电脑上采集，登录目标 HOJ 后批量导入。每道待导入的新题需要在浏览器正常打开一次，已采集的题可以复用文件。同一批采集文件可以分别导入本机和云端 HOJ。学生在 HOJ 查看已开放的题面。
+
+### 1. 安装采集扩展
+
+1. 在 Windows 本机的 VS Code 按 `Ctrl+Shift+X`，搜索 `sohamaggarwal.cpos-vscode`，安装 **CPOS**。如果提示重新加载窗口，按提示操作。 [VS Code 扩展商店](https://marketplace.visualstudio.com/items?itemName=sohamaggarwal.cpos-vscode)
+2. 在日常用来打开 Codeforces 的 Edge 或 Chrome 安装 **CPOS Companion**。Edge 若提示「允许来自其他商店的扩展」，选「允许」后添加扩展。 [浏览器扩展商店](https://chromewebstore.google.com/detail/cpos-companion/gjnbapmjonegeeamdeahcoojgokeogmm) · [Edge 安装说明](https://support.microsoft.com/zh-cn/edge/add-turn-off-or-remove-extensions-in-microsoft-edge)
+3. 在 VS Code 选择 **文件 → 打开文件夹**，打开一个单独的采集工作目录，例如 `D:\CPOS-Capture`，并保持窗口打开。CPOS 会在工作目录生成代码模板。上述两个扩展即可完成题面采集。 [CPOS 快速开始](https://cpos.sohamaggarwal.com/docs#quick-start)
+
+### 2. 采集一题并检查文件
+
+1. 用安装了 Companion 的浏览器打开 [Codeforces 2290A 英文题面](https://codeforces.com/problemset/problem/2290/A?locale=en)。等英文正文和样例显示。若标签页是在安装扩展前打开的，刷新一次。
+2. 等浏览器显示 `CPOS: Captured … → VS Code`，或在 VS Code 的 CPOS 面板中核对当前题的 **Statement** 和 **Tests**。用同样的方式打开这一批需要入库的其他题页。 [CPOS 浏览器采集说明](https://cpos.sohamaggarwal.com/docs#how-it-works)
+3. 按 `Win+R`，输入 `%USERPROFILE%\.cpos-vscode`，确认有下面两个子目录。每题的文件在两个目录里使用同一个文件名。 [CPOS 缓存实现](https://github.com/Soham109/cpos/blob/main/extensions/vscode/src/extension.ts#L1456-L1482)
+
+   ```text
+   .cpos-vscode/
+   ├── problems/    题面 JSON
+   └── samples/     样例 JSON
+   ```
+
+### 3. 导入本地 HOJ
+
+1. 本地 HOJ 已运行时，打开 [本机 HOJ](http://localhost:8080/home)。第一次搭站先完成 [数据库初始化](../sqlAndsetting/README.md)，已有本地实例按 [本地启动说明](#启动查看与停止) 启动。前后端都应包含 CPOS 导入功能（提交 `b4ca1be`）。如果本地后端需要更新，在 Git 根目录运行 `.\HOJ-master\hoj-deploy\update.ps1 -Service hoj-backend`。如果使用生产前端镜像，按 [生产前端构建说明](#切回生产构建预览) 更新前端。
+2. 登录管理员账号，从头像菜单进管理后台。打开 **题库 → 远程题目 → Codeforces**，确认能搜到 `2290A`。如果目录里还没有这题，点 **更新目录**，等同步完成后再搜。
+3. 在页面上方点 **从 CPOS 批量导入 → 选择采集目录**，选择包含 `problems` 和 `samples` 的整个 `.cpos-vscode` 目录。浏览器弹出目录上传确认时确认选择。核对可导入条数后点 **导入 N 条采集记录**。
+4. 导入结束后，在 **原文与译文** 核对英文正文、输入输出、样例和时空限制。需要中文题面时，在这里校对并保存译文。新题入库后为「待检查 / 未公开」。确认内容后点 **检查与开放**，把权限设为公开并保存，再用普通账号打开题目确认可见。
+
+只选一条新题记录试导时，结果应显示「导入 1」。如果该题已有原文，则会显示在「已有原文」计数中。每批导入使用所选目录中的配对记录。如果只想导入其中几题，可以另建临时目录，保留 `problems` 和 `samples` 两个子目录，并把目标题的同名文件分别复制进去。题面 JSON 的 `id` 字段可用于核对题号。
+
+### 4. 部署到云端 HOJ 并导入
+
+1. 云上初次安装 HOJ 时，从 [HOJ 部署入口](../README.md#二部署) 准备 Linux 基础服务，并按 [数据库初始化与升级说明](../sqlAndsetting/README.md) 初始化数据库。采集扩展和采集文件留在管理员电脑上。
+2. 给云端部署同一版本的 HOJ 前端和后端，版本应包含 `5010557`（网页 HTML 导入）和 `b4ca1be`（CPOS 批量导入）。云端从 Git 更新时，先把这些提交发布到部署分支。CPOS 沿用现有题面表。对于已经运行、且从本仓库 Compose 构建前后端的站点，在云端包含 `compose.yaml` 的目录执行下列命令。站点使用了项目名、环境文件或生产覆盖文件时，在两条命令上沿用原来的 `-p`、`--env-file` 和 `-f` 参数。 [Docker Compose 更新说明](https://docs.docker.com/reference/cli/docker/compose/up/)
+
+   ```bash
+   docker compose -f compose.yaml up -d --build --no-deps hoj-backend hoj-frontend
+   docker compose -f compose.yaml ps hoj-backend hoj-frontend
+   ```
+
+3. 在采集电脑上打开云端 HOJ 的 HTTPS 域名，按 [导入本地 HOJ](#3-导入本地-hoj) 的第 2 到第 4 步操作。网页文件选择框读取的是这台电脑的 `.cpos-vscode`。在云端题目目录核对新增原文、样例和开放权限，再用普通账号验证访问。
+
+本地和云端分别写入各自的 MySQL。云端重新导入同一份 CPOS 采集文件，会保存英文原文和样例。本地已保存的译文、原文修订与开放状态随本地数据库保存。线上已有原文时会跳过该题。
+
+### 常见问题
+
+| 现象 | 处理 |
+| --- | --- |
+| CF 页面有正文，CPOS 没有采集 | 保持 Windows 本机的 VS Code 和采集工作目录打开。在 VS Code 按 `Ctrl+Shift+P`，运行 `CPOS: Start Capture Server`，再刷新题页。 [CPOS 排查说明](https://cpos.sohamaggarwal.com/docs#troubleshooting) |
+| 找不到目录或提示缺少配对样例 | 按第二节检查采集是否完成，确认选中了包含两个子目录的根目录。缺失的题重新采集。 |
+| 云端找不到题号或导入提示题目不在目录 | 在目标 HOJ 的 Codeforces 目录点「更新目录」，等题号出现后重试导入。 |
+| HOJ 的「获取题面」显示 HTTP 403 | 从本机浏览器打开英文题面，等正文正常显示后采集，回 HOJ 使用「从 CPOS 批量导入」。这条路径使用采集文件，目标 HOJ 的 CF 目录仍需有该题。 |
+| 找不到「从 CPOS 批量导入」 | 确认当前登录的是管理员账号，进入远程题目的 Codeforces 标签页，并核对前后端部署版本。 |
+
+本地浏览器和 HTTP/MySQL 导入已用合成采集文件验证。真实 CF 采集和云端部署待按上述步骤验收。 [验证记录](../docs/docs/ai/TODO.md#codeforces-题面获取与-cpos-导入)
