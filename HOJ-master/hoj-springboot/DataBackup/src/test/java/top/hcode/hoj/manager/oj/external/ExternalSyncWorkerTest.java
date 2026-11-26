@@ -57,6 +57,13 @@ class ExternalSyncWorkerTest {
         when(catalogue.claim()).thenReturn(null);when(statementClient.fetch(anyString())).thenThrow(new ObjectiveException(502,"HTTP 403"));worker.tick();
         verify(statements).failed(statement,"HTTP 403");verify(accounts,never()).failed(anyMap(),anyString());verify(catalogue,never()).failed(anyMap(),anyString());
     }
+    @Test void codeforcesAccessRejectionStopsTheCurrentStatementAttempt(){
+        CodeforcesStatementClient.AccessRejected rejection = new CodeforcesStatementClient.AccessRejected();
+        when(catalogue.claim()).thenReturn(null);
+        when(statementClient.fetch(anyString())).thenThrow(rejection);
+        worker.tick();
+        verify(statements).failed(statement, rejection.getMessage(), true);
+    }
     @Test void redisFailureOrBusyGateNeverClaimsOrFetchesWork(){
         when(values.setIfAbsent(anyString(),anyString(),eq(3L),eq(TimeUnit.SECONDS))).thenReturn(false);worker.tick();
         when(values.setIfAbsent(anyString(),anyString(),eq(3L),eq(TimeUnit.SECONDS))).thenThrow(new RuntimeException("offline"));worker.tick();

@@ -37,16 +37,17 @@
       <el-table-column label="操作" min-width="250"><template slot-scope="scope">
         <div class="remote-actions">
           <el-button size="small" :loading="!!busy[scope.row.problemKey]" :disabled="pending(scope.row) || scope.row.importState === 'CONFLICT'" @click="request(scope.row)">{{ scope.row.localId ? '刷新原文' : '获取题面' }}</el-button>
-          <el-button size="small" :disabled="scope.row.importState === 'CONFLICT'" @click="open(scope.row)">原文与译文</el-button>
+          <el-button size="small" :disabled="scope.row.importState === 'CONFLICT'" @click="open(scope.row)">{{ editorLabel(scope.row) }}</el-button>
+          <a v-if="scope.row.importError && scope.row.sourceUrl" :href="scope.row.sourceUrl" target="_blank" rel="noopener noreferrer">查看源站</a>
           <router-link v-if="scope.row.localId && scope.row.importState !== 'CONFLICT'" :to="{ name: 'admin-edit-problem', params: { problemId: scope.row.localId } }">检查与开放</router-link>
         </div>
       </template></el-table-column>
     </el-table>
-    <div class="remote-mobile-list"><article v-for="row in records" :key="row.problemKey"><a class="remote-title" :href="row.sourceUrl" target="_blank" rel="noopener noreferrer">{{ row.displayId }} · {{ row.title }} <i class="el-icon-top-right" /></a><p>{{ difficulty(row) == null ? (platform === 'atcoder' ? '难度未知' : '未评级') : difficultyLabel + ' ' + difficulty(row) }} · {{ row.localId ? (row.localAuth === 1 ? '已开放' : '待检查 / 未公开') : '未入库' }}</p><p class="remote-notice">{{ row.tags.join(' / ') }}</p><p class="remote-notice">{{ stateText(row.importState) }}</p><p v-if="row.translationStale" class="remote-notice">原文已更新，中文待核对</p><p v-if="row.importError" class="remote-error">{{ row.importError }}</p><div class="remote-actions"><el-button size="small" :loading="!!busy[row.problemKey]" :disabled="pending(row) || row.importState === 'CONFLICT'" @click="request(row)">{{ row.localId ? '刷新原文' : '获取题面' }}</el-button><el-button size="small" :disabled="row.importState === 'CONFLICT'" @click="open(row)">原文与译文</el-button><router-link v-if="row.localId && row.importState !== 'CONFLICT'" :to="{ name: 'admin-edit-problem', params: { problemId: row.localId } }">检查与开放</router-link></div></article></div>
+    <div class="remote-mobile-list"><article v-for="row in records" :key="row.problemKey"><a class="remote-title" :href="row.sourceUrl" target="_blank" rel="noopener noreferrer">{{ row.displayId }} · {{ row.title }} <i class="el-icon-top-right" /></a><p>{{ difficulty(row) == null ? (platform === 'atcoder' ? '难度未知' : '未评级') : difficultyLabel + ' ' + difficulty(row) }} · {{ row.localId ? (row.localAuth === 1 ? '已开放' : '待检查 / 未公开') : '未入库' }}</p><p class="remote-notice">{{ row.tags.join(' / ') }}</p><p class="remote-notice">{{ stateText(row.importState) }}</p><p v-if="row.translationStale" class="remote-notice">原文已更新，中文待核对</p><p v-if="row.importError" class="remote-error">{{ row.importError }}</p><div class="remote-actions"><el-button size="small" :loading="!!busy[row.problemKey]" :disabled="pending(row) || row.importState === 'CONFLICT'" @click="request(row)">{{ row.localId ? '刷新原文' : '获取题面' }}</el-button><el-button size="small" :disabled="row.importState === 'CONFLICT'" @click="open(row)">{{ editorLabel(row) }}</el-button><a v-if="row.importError && row.sourceUrl" :href="row.sourceUrl" target="_blank" rel="noopener noreferrer">查看源站</a><router-link v-if="row.localId && row.importState !== 'CONFLICT'" :to="{ name: 'admin-edit-problem', params: { problemId: row.localId } }">检查与开放</router-link></div></article></div>
     <el-pagination :current-page="page" :page-size="30" :total="total" layout="prev, pager, next, total" @current-change="changePage" />
     <p v-if="platform === 'nowcoder'" class="remote-footnote">来源 Rating 来自牛客公开目录，与站内 Rating 分开展示；普通题和比赛题分别保留来源编号。中文为原文，English 译文由管理员核对录入。</p>
     <p v-if="platform === 'atcoder'" class="remote-footnote">难度估计来自 AtCoder Problems，不是官方评级或站内 Rating；新入库题的站内 Rating 留空。未提供英文的旧题需要管理员补录英文原文。</p>
-    <p class="remote-footnote">题面无法获取时，可打开源站后录入原文。刷新原文会保留题库中的编辑；新获取的题目默认不公开。</p>
+    <p class="remote-footnote">{{ platform === 'codeforces' ? 'CF 获取失败时，可在原文编辑器导入网页 HTML。' : '题面无法获取时，可打开源站后录入原文。' }}新入库题目保存后待检查与开放。</p>
     <el-dialog :visible.sync="visible" :title="target ? target.displayId + ' · 原文与译文' : '原文与译文'" width="90%" top="5vh" append-to-body :close-on-click-modal="false" :before-close="closeEditor" custom-class="remote-statement-dialog">
       <div v-loading="opening">
         <template v-if="detail && form">
@@ -60,6 +61,13 @@
             <p>自动获取的新原文会同步到未修改的题库副本；题面有手工修改时保留整份副本。原文改变后，译文需重新核对；人工保存原文会关闭自动检查。</p>
           </div>
           <el-alert v-if="detail.translationStale" title="原文已更新，旧译文已停止展示。请切换译文，核对后重新保存。" type="warning" :closable="false" show-icon />
+          <codeforces-html-import
+            v-if="platform === 'codeforces' && language === sourceLanguage"
+            :key="identity + ':' + target.problemKey + ':' + epoch"
+            :problem-key="target.problemKey"
+            :disabled="saving || policySaving"
+            @parsed="applyCodeforcesHtml"
+          />
           <remote-translation-draft v-if="detail.source && language === translationLanguage" :key="identity + ':' + target.problemKey + ':' + language + ':' + detail.source.contentHash" ref="translationDraft" :problem-key="target.problemKey" :source-hash="detail.source.contentHash" :target-language="translationLanguage === 'zh' ? 'zh-CN' : 'en'" :disabled="saving || policySaving || applyingTranslation" @draft="hasTranslationDraft = $event" @apply="applyTranslation" />
           <el-form ref="remoteForm" label-position="top" class="remote-form" :disabled="saving">
             <el-form-item label="标题" required><el-input v-model="form.title" maxlength="255" /></el-form-item>
@@ -82,8 +90,9 @@ import utils from '@/common/utils';
 import Editor from '@/components/admin/Editor';
 import authoringGuard, { confirmAuthoringDiscard } from '@/common/authoringGuard';
 import RemoteTranslationDraft from '@/components/admin/RemoteTranslationDraft';
+import CodeforcesHtmlImport from '@/components/admin/CodeforcesHtmlImport';
 export default {
-  name: 'RemoteSources', components: { Editor, RemoteTranslationDraft }, mixins: [authoringGuard],
+  name: 'RemoteSources', components: { Editor, RemoteTranslationDraft, CodeforcesHtmlImport }, mixins: [authoringGuard],
   data: () => ({ hasTranslationDraft: false, applyingTranslation: false, formBaseline: '', examplesRaw: '', examplesBaseline: '', platform: 'codeforces', sourceId: '', discovering: false, policySaving: false, loading: false, syncing: false, opening: false, saving: false, records: [], total: 0, status: {}, page: 1, keyword: '', ratingMin: undefined, ratingMax: undefined, filters: {}, busy: {}, visible: false, target: null, detail: null, form: null, language: 'en', editorKey: 0, epoch: 0, listEpoch: 0, disposed: false }),
   computed: {
     sourceLanguage() { return this.platform === 'nowcoder' ? 'zh' : 'en'; },
@@ -97,6 +106,10 @@ export default {
   mounted() { this.load(); this.poll = setInterval(() => { if (!this.loading && !document.hidden) this.load(false); }, 15000); },
   beforeDestroy() { this.disposed = true; this.epoch++; this.listEpoch++; clearInterval(this.poll); },
   methods: {
+    editorLabel(row) {
+      if (row.localId) return '原文与译文';
+      return this.platform === 'codeforces' ? '导入或录入原文' : '手动录入原文';
+    },
     difficulty(row) { return this.platform === 'nowcoder' ? row.sourceRating : this.platform === 'atcoder' ? row.estimatedDifficulty : row.rating; },
     async changePlatform(platform) {
       if (!['codeforces', 'atcoder', 'nowcoder'].includes(platform) || platform === this.platform || !await this.discard()) return;
@@ -139,8 +152,33 @@ export default {
       const version = this.language === this.sourceLanguage ? this.detail.source : this.detail.translation;
       const source = this.detail.source && this.detail.source.content;
       const content = version ? version.content : { title: source ? source.title : this.target.title, description: '', input: '', output: '', hint: '', examples: '', timeLimit: 1000, memoryLimit: 256 };
-      this.form = { ...content, examples: utils.stringToExamples(content.examples || '') }; this.formBaseline = JSON.stringify(this.form); this.editorKey++; this.markAuthoringClean();
-      this.examplesRaw = content.examples || ''; this.examplesBaseline = JSON.stringify(this.form.examples);
+      this.fillForm(content);
+      this.formBaseline = JSON.stringify(this.form);
+      this.markAuthoringClean();
+    },
+    fillForm(content) {
+      this.form = { ...content, examples: utils.stringToExamples(content.examples || '') };
+      this.examplesRaw = content.examples || '';
+      this.examplesBaseline = JSON.stringify(this.form.examples);
+      this.editorKey++;
+    },
+    async applyCodeforcesHtml(preview) {
+      if (!this.visible || !this.form || this.saving || this.policySaving || this.platform !== 'codeforces' || this.language !== this.sourceLanguage) return;
+      const epoch = this.epoch, identity = this.identity, before = JSON.stringify(this.form);
+      const current = () => this.current(epoch, identity) && this.visible && this.target.problemKey === preview.problemKey;
+      if (!current()) return;
+
+      const confirm = [];
+      if (preview.catalogTitle && preview.catalogTitle !== preview.content.title) {
+        confirm.push('网页标题「' + preview.content.title + '」与目录标题「' + preview.catalogTitle + '」有差异，请先核对题号。');
+      }
+      if (before !== this.formBaseline) confirm.push('填入的内容会替换当前编辑中的原文。');
+      if (confirm.length) {
+        try { await this.$confirm(confirm.join(''), '填入 CF 题面', { type: 'warning' }); } catch (_) { return; }
+      }
+      if (!current() || this.saving || this.policySaving || before !== JSON.stringify(this.form)) return;
+      this.fillForm(preview.content);
+      this.$message.success('题面已填入，请校对后保存');
     },
     async changeLanguage(language) { if (this.saving || this.policySaving || this.applyingTranslation || language === this.language || !await this.discard() || !this.visible) return; this.epoch++; this.language = language; this.resetForm(); },
     async applyTranslation(draft) {
@@ -154,8 +192,7 @@ export default {
         const detail = (await api.remoteStatement(draft.problemKey)).data.data;
         if (!current() || JSON.stringify(this.form) !== before) return;
         if (!detail.source || detail.source.contentHash !== draft.sourceHash) { this.$message.warning('原文已更新，请重新打开题目后生成译文。当前编辑已保留。'); return; }
-        this.form = { ...draft.content, examples: utils.stringToExamples(draft.content.examples || '') }; this.editorKey++;
-        this.examplesRaw = draft.content.examples || ''; this.examplesBaseline = JSON.stringify(this.form.examples);
+        this.fillForm(draft.content);
         if (this.$refs.translationDraft) this.$refs.translationDraft.markApplied();
         this.$nextTick(() => { if (current() && this.$refs.remoteForm) this.$refs.remoteForm.$el.scrollIntoView({ block: 'start', behavior: 'auto' }); });
       } catch (_) {} finally { if (this.current(epoch, identity)) this.applyingTranslation = false; }

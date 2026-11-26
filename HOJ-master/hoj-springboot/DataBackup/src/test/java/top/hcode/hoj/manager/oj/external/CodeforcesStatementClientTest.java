@@ -32,6 +32,36 @@ class CodeforcesStatementClientTest {
         assertTrue(c.getDescription().contains("$n$"));assertFalse(c.getDescription().contains("$$$"));assertFalse(c.getDescription().contains("script"));assertFalse(c.getDescription().contains("untrusted"));assertFalse(c.getInput().contains("section-title"));
         assertEquals("<input>2\n3 < 4</input><output>7\n8</output>",c.getExamples());assertTrue(c.getHint().contains("Explanation"));
     }
+    @Test void offlinePreviewAcceptsPageOrFragmentAndRecoversRenderedMath() {
+        String rendered = body.replace("$$$n$$$",
+                "<span class='MathJax_Preview'>duplicate</span><span class='MathJax'>duplicate</span>"
+                        + "<script type='math/tex'>n^2</script>");
+        Content result = client.preview("<html><body>" + rendered + "</body></html>",
+                "cf:contest:4:A", "https://codeforces.com/contest/4/problem/A?locale=en");
+        assertEquals("Count integers", result.getTitle());
+        assertEquals(1500, result.getTimeLimit());
+        assertEquals(256, result.getMemoryLimit());
+        assertTrue(result.getDescription().contains("$n^2$"));
+        assertFalse(result.getDescription().contains("duplicate"));
+        assertFalse(result.getDescription().contains("<script"));
+        assertEquals("<input>2\n3 < 4</input><output>7\n8</output>", result.getExamples());
+        assertEquals(result.getTitle(), client.preview(rendered, "cf:contest:4:A", null).getTitle());
+    }
+
+    @Test void offlinePreviewRejectsMismatchedAndPartialPages() {
+        assertEquals(400, assertThrows(ObjectiveException.class,
+                () -> client.preview(body, "cf:contest:4:A", "https://codeforces.com/problemset/problem/5/A")).getStatus());
+        assertEquals(400, assertThrows(ObjectiveException.class,
+                () -> client.preview(body, "cf:contest:4:B", null)).getStatus());
+        assertEquals(400, assertThrows(ObjectiveException.class,
+                () -> client.preview(body + body, "cf:contest:4:A", null)).getStatus());
+        assertEquals(400, assertThrows(ObjectiveException.class,
+                () -> client.preview("<title>Just a moment</title>", "cf:contest:4:A", null)).getStatus());
+        String incomplete = body.replace("<pre><div>7</div><div>8</div></pre>", "");
+        assertEquals(400, assertThrows(ObjectiveException.class,
+                () -> client.preview(incomplete, "cf:contest:4:A", null)).getStatus());
+    }
+
     @Test void challengesAndRedirectsAndPartialStatementsNeverPublishBlankContent(){
         status=403;assertTrue(assertThrows(ObjectiveException.class,()->client.fetch("cf:contest:4:A")).getMessage().contains("403"));
         status=302;assertThrows(ObjectiveException.class,()->client.fetch("cf:contest:4:A"));assertEquals(0,redirected.get());

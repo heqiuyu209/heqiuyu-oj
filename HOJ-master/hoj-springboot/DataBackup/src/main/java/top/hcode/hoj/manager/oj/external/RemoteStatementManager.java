@@ -25,6 +25,7 @@ public class RemoteStatementManager {
     @Autowired private ObjectMapper json;
     @Autowired private RemoteProblemManager remoteProblems;
     @Autowired private NowCoderCatalogManager nowcoderCatalogue;
+    @Autowired private CodeforcesStatementClient codeforcesStatements;
     private static final long REFRESH_INTERVAL=24*60*60*1000L;
     protected long now(){return System.currentTimeMillis();}
     protected String uid(){return ShiroUtils.getProfile().getUid();}
@@ -78,7 +79,8 @@ public class RemoteStatementManager {
         String key=(String)job.get("problem_key");if(!nowcoder(key))throw new ObjectiveException(400,"牛客来源编号无效");lockCatalogue(key);if(!leased(job))return null;
         if(!workerAuthorized(job))throw new ObjectiveException(403,"请求账号或题目权限已变化");nowcoderCatalogue.discovered(key,source);publishSource(key,normalize(source.content,key),"SOURCE",(String)job.get("requested_by"),(String)job.get("requested_author"));return null;
     });}
-    public void failed(Map<String,Object> job,String reason){tx(()->{if(!leased(job))return null;int failures=((Number)job.get("failures")).intValue()+1;boolean terminal=failures>=3;boolean auto=ExternalAccountManager.flag(jdbc.queryForObject("SELECT auto_refresh FROM remote_problem_import WHERE problem_key=?",Object.class,job.get("problem_key")));jdbc.update("UPDATE remote_problem_import SET state=?,failures=?,last_error=?,next_run_at=?,last_checked_at=?,lease_token=NULL,lease_until=NULL WHERE problem_key=?",terminal?"FAILED":"BACKOFF",failures,RemoteCatalogManager.limited(reason,200),terminal?(auto?new Timestamp(now()+REFRESH_INTERVAL):null):new Timestamp(now()+60000L*(1L<<(failures-1))),time(),job.get("problem_key"));return null;});}
+    public void failed(Map<String,Object> job,String reason){failed(job,reason,false);}
+    void failed(Map<String,Object> job,String reason,boolean accessRejected){tx(()->{if(!leased(job))return null;int failures=((Number)job.get("failures")).intValue()+1;boolean terminal=failures>=3 || accessRejected;boolean auto=ExternalAccountManager.flag(jdbc.queryForObject("SELECT auto_refresh FROM remote_problem_import WHERE problem_key=?",Object.class,job.get("problem_key")));jdbc.update("UPDATE remote_problem_import SET state=?,failures=?,last_error=?,next_run_at=?,last_checked_at=?,lease_token=NULL,lease_until=NULL WHERE problem_key=?",terminal?"FAILED":"BACKOFF",failures,RemoteCatalogManager.limited(reason,200),terminal?(auto?new Timestamp(now()+REFRESH_INTERVAL):null):new Timestamp(now()+60000L*(1L<<(failures-1))),time(),job.get("problem_key"));return null;});}
     /** Updating the policy invalidates pending callbacks as well as the old schedule. */
     public Map<String,Object> refresh(String key,Boolean enabled){
         if(enabled==null)throw new ObjectiveException(400,"请选择是否自动刷新");catalogue(key);Map<String,Object> actor=actor();editable(key,actor);
@@ -135,6 +137,20 @@ public class RemoteStatementManager {
                 key,actor,author,time(),pid,hash,catalogue.get("content_hash"),fromSource,fromSource?time():null,fromSource?time():null,null,fromSource,fromSource,fromSource);
         jdbc.update("UPDATE remote_problem_import SET next_run_at=CASE WHEN auto_refresh=1 THEN ? ELSE NULL END WHERE problem_key=?",new Timestamp(now()+REFRESH_INTERVAL),key);
     }
+    public Map<String, Object> previewCodeforcesHtml(RemoteStatementDTO.HtmlPreview dto) {
+        if (dto == null) throw new ObjectiveException(400, "题面 HTML 不能为空");
+        String key = dto.getProblemKey();
+        CodeforcesStatementClient.sourceUrl(key);
+        Map<String, Object> account = actor();
+        Map<String, Object> catalog = catalogue(key);
+        editable(key, account);
+        Content content = normalize(codeforcesStatements.preview(dto.getHtml(), key, dto.getPageUrl()), key);
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("content", content);
+        preview.put("catalogTitle", catalog.get("title"));
+        return preview;
+    }
+
     public Map<String,Object> save(RemoteStatementDTO dto,boolean translation){
         if(dto==null)throw new ObjectiveException(400,"题面不能为空");String key=dto.getProblemKey();catalogue(key);Map<String,Object> actor=actor();editable(key,actor);
         tx(()->{lockCatalogue(key);actor();editable(key,actor);

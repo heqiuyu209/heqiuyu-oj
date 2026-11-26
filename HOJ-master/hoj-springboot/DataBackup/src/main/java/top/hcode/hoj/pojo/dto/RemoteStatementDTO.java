@@ -10,6 +10,14 @@ public class RemoteStatementDTO {
     private String sourceHash;
     private Boolean autoRefresh;
     private Content content;
+
+    @Getter @Setter
+    public static class HtmlPreview {
+        private String problemKey;
+        private String html;
+        private String pageUrl;
+    }
+
     @Getter @Setter
     public static class Content {
         private String title,description,input,output,examples,hint;

@@ -84,6 +84,31 @@ class RemoteSourceManagerTest {
     }
     Map<String,Object> library(){return jdbc.queryForMap("SELECT title,description,input,output,hint,examples,time_limit,memory_limit,auth,rating,gmt_modified FROM problem WHERE id=?",pid());}
 
+    @Test void cfHtmlPreviewLeavesTheCatalogueUnpublishedUntilExplicitSave() {
+        CodeforcesStatementClient client = new CodeforcesStatementClient();
+        try {
+            ReflectionTestUtils.setField(statements, "codeforcesStatements", client);
+            RemoteStatementDTO.HtmlPreview input = new RemoteStatementDTO.HtmlPreview();
+            input.setProblemKey(key);
+            input.setHtml("<div class='problem-statement'><div class='header'><div class='title'>A. Example</div>"
+                    + "<div class='time-limit'>1 second</div><div class='memory-limit'>256 megabytes</div></div>"
+                    + "<div><p>Read $$$n$$$.</p><script>unused()</script></div></div>");
+            Map<String, Object> result = statements.previewCodeforcesHtml(input);
+            Content parsed = (Content) result.get("content");
+            assertEquals("Problem 4A", result.get("catalogTitle"));
+            assertTrue(parsed.getDescription().contains("$n$"));
+            assertFalse(parsed.getDescription().contains("unused"));
+            assertNull(statements.adminView(key).get("source"));
+            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM remote_problem_import WHERE problem_key=?", Integer.class, key));
+            assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM problem WHERE problem_id='CF-4A'", Integer.class));
+            Map<String, Object> saved = statements.save(dto(parsed, null), false);
+            assertNotNull(saved.get("source"));
+            assertEquals(2, ((Number) library().get("auth")).intValue());
+        } finally {
+            client.close();
+        }
+    }
+
     @Test void translationSourceRechecksActualRolesOwnershipVisibilityAndActiveStatus(){
         english("Source");assertNotNull(statements.translationSource(key).get("source"));
         actor="bob";privileged=true;jdbc.update("UPDATE user_role SET role_id=1 WHERE uid='bob'");assertNotNull(statements.translationSource(key).get("source"));

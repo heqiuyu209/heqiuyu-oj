@@ -25,6 +25,12 @@ public class RemoteSourceController {
     public CommonResult<Map<String,Object>> request(@RequestBody RemoteStatementDTO dto){return call(()->statements.request(dto.getProblemKey()));}
     @GetMapping("/statements") @RequiresAuthentication @RequiresRoles(value={"root","admin","problem_admin"},logical=Logical.OR)
     public CommonResult<Map<String,Object>> statement(@RequestParam String problemKey){return call(()->statements.adminView(problemKey));}
+    @PostMapping("/statements/html-preview")
+    @RequiresAuthentication
+    @RequiresRoles(value = {"root", "admin", "problem_admin"}, logical = Logical.OR)
+    public CommonResult<Map<String, Object>> htmlPreview(@RequestBody RemoteStatementDTO.HtmlPreview dto) {
+        return call(() -> statements.previewCodeforcesHtml(dto));
+    }
     @PostMapping("/statements/en") @RequiresAuthentication @RequiresRoles(value={"root","admin","problem_admin"},logical=Logical.OR)
     public CommonResult<Map<String,Object>> english(@RequestBody RemoteStatementDTO dto){return call(()->statements.save(dto,false));}
     @PostMapping("/statements/zh") @RequiresAuthentication @RequiresRoles(value={"root","admin","problem_admin"},logical=Logical.OR)

@@ -84,7 +84,11 @@ public class ExternalSyncWorker {
         } catch(Exception e) {
             if(job!=null)try{
                 String reason=e instanceof ObjectiveException?e.getMessage():"同步未完成，已保留已有记录，稍后自动重试";
-                if("NOWCODER_PRACTICE".equals(kind))nowcoderPractice.failed(job,reason);else if("NOWCODER_CONTEXT".equals(kind))nowcoderContexts.failed(job,reason);else if("NOWCODER_CATALOG".equals(kind))nowcoderCatalogue.failed(job,reason);else if("STATEMENT".equals(kind) && RemoteStatementManager.nowcoder((String)job.get("problem_key")) && e instanceof ObjectiveException && ((ObjectiveException)e).getStatus()==429)statements.defer(job);else if("CATALOG".equals(kind))catalogue.failed(job,reason);else if("STATEMENT".equals(kind))statements.failed(job,reason);else if("ATCODER_CATALOG".equals(kind))atcoderCatalogue.failed(job,reason);else accounts.failed(job,reason);
+                if("NOWCODER_PRACTICE".equals(kind))nowcoderPractice.failed(job,reason);else if("NOWCODER_CONTEXT".equals(kind))nowcoderContexts.failed(job,reason);else if("NOWCODER_CATALOG".equals(kind))nowcoderCatalogue.failed(job,reason);else if("STATEMENT".equals(kind) && RemoteStatementManager.nowcoder((String)job.get("problem_key")) && e instanceof ObjectiveException && ((ObjectiveException)e).getStatus()==429)statements.defer(job);else if("CATALOG".equals(kind))catalogue.failed(job,reason);
+                else if("STATEMENT".equals(kind)){
+                    if(e instanceof CodeforcesStatementClient.AccessRejected)statements.failed(job,reason,true);
+                    else statements.failed(job,reason);
+                }else if("ATCODER_CATALOG".equals(kind))atcoderCatalogue.failed(job,reason);else accounts.failed(job,reason);
             }catch(Exception ignored){/* A lease can be recovered after expiry. */}
         }
     }
