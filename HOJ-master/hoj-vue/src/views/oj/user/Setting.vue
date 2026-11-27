@@ -14,15 +14,21 @@
         <component :is="UserInfo"></component>
       </el-collapse-item>
       <el-collapse-item name="Platforms"><template slot="title"><i class="el-icon-connection" /> 跨平台账号关联</template><ExternalAccounts v-if="activeName === 'Platforms' && currentUid" :uid="currentUid" /></el-collapse-item>
+      <el-collapse-item name="Capture">
+        <template slot="title"><i class="el-icon-collection" /> 浏览器题面采集</template>
+        <CaptureConnection v-if="activeName === 'Capture' && currentUid" :key="currentUid + ':' + $store.getters.authEpoch" />
+      </el-collapse-item>
     </el-collapse>
   </el-card>
 </template>
 <script>
 import ExternalAccounts from '@/components/oj/learning/ExternalAccounts';
+import CaptureConnection from '@/components/oj/setting/CaptureConnection';
 const Account = () => import('@/components/oj/setting/Account');
 const UserInfo = () => import('@/components/oj/setting/UserInfo');
 export default {
   components: {
+    CaptureConnection,
     ExternalAccounts,
     Account,
     UserInfo,

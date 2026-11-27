@@ -4,6 +4,7 @@
       <div><h2>{{ sourceName }} 题目目录</h2><p>{{ platform === 'nowcoder' ? '公开 ACM 目录每小时检查，首轮分批补齐；比赛题可按编号查找。' : platform === 'atcoder' ? '每小时更新目录，定时更新 AtCoder Problems 难度估计。' : '每小时更新来源题号、rating 和标签。' }}选题后获取原文，检查完成再开放到题库。</p></div>
       <div class="remote-actions">
         <CodeforcesCposImport v-if="platform === 'codeforces'" :key="identity" @imported="load(false)" />
+        <RemoteCaptureQueue :key="'capture:' + identity" @imported="load(false)" />
         <el-button :loading="syncing" :disabled="status.state === 'RUNNING'" icon="el-icon-refresh" @click="sync">更新目录</el-button>
       </div>
     </header>
@@ -95,8 +96,9 @@ import authoringGuard, { confirmAuthoringDiscard } from '@/common/authoringGuard
 import RemoteTranslationDraft from '@/components/admin/RemoteTranslationDraft';
 import CodeforcesHtmlImport from '@/components/admin/CodeforcesHtmlImport';
 import CodeforcesCposImport from '@/components/admin/CodeforcesCposImport';
+import RemoteCaptureQueue from '@/components/admin/RemoteCaptureQueue';
 export default {
-  name: 'RemoteSources', components: { Editor, RemoteTranslationDraft, CodeforcesHtmlImport, CodeforcesCposImport }, mixins: [authoringGuard],
+  name: 'RemoteSources', components: { Editor, RemoteTranslationDraft, CodeforcesHtmlImport, CodeforcesCposImport, RemoteCaptureQueue }, mixins: [authoringGuard],
   data: () => ({ hasTranslationDraft: false, applyingTranslation: false, formBaseline: '', examplesRaw: '', examplesBaseline: '', platform: 'codeforces', sourceId: '', discovering: false, policySaving: false, loading: false, syncing: false, opening: false, saving: false, records: [], total: 0, status: {}, page: 1, keyword: '', ratingMin: undefined, ratingMax: undefined, filters: {}, busy: {}, visible: false, target: null, detail: null, form: null, language: 'en', editorKey: 0, epoch: 0, listEpoch: 0, disposed: false }),
   computed: {
     sourceLanguage() { return this.platform === 'nowcoder' ? 'zh' : 'en'; },

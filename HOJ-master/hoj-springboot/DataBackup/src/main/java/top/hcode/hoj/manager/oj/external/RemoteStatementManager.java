@@ -117,6 +117,10 @@ public class RemoteStatementManager {
         jdbc.update("UPDATE problem SET title=?,description=?,input=?,output=?,hint=?,examples=?,time_limit=?,memory_limit=?,gmt_modified=? WHERE id=?",content.getTitle(),content.getDescription(),content.getInput(),content.getOutput(),content.getHint(),content.getExamples(),content.getTimeLimit(),content.getMemoryLimit(),time(),existing.get("id"));
     }
     private void publishSource(String key,Content content,String origin,String actor,String author){
+        publishSource(key,content,origin,actor,author,2);
+    }
+
+    private void publishSource(String key,Content content,String origin,String actor,String author,int auth){
         Map<String,Object> previous="SOURCE".equals(origin)?current(key):null;
         Map<String,Object> catalogue=catalogue(key);boolean at=atcoder(key),nc=nowcoder(key);String oj=nc?"NC":at?"AC":"CF";String body=write(content),hash=RemoteCatalogManager.hash(body);long version=version(key,sourceLanguage(key),body,hash,origin,actor);
         jdbc.update("INSERT INTO remote_statement_current(problem_key,version_id) VALUES(?,?) ON DUPLICATE KEY UPDATE version_id=VALUES(version_id)",key,version);
@@ -124,7 +128,7 @@ public class RemoteStatementManager {
         if(existing==null){
             boolean localEditor=nc || at && jdbc.queryForObject("SELECT COUNT(*) FROM language WHERE oj='AC'",Integer.class)==0;
             if(jdbc.queryForObject("SELECT COUNT(*) FROM language WHERE oj=?",Integer.class,localEditor?"ME":oj)==0)throw new ObjectiveException(400,"尚未配置 "+(localEditor?"本站编辑器":oj+" 远程")+"语言，请先在系统中配置");
-            Problem p=new Problem().setProblemId(display(key)).setTitle(content.getTitle()).setAuthor(author).setType(0).setJudgeMode("default").setJudgeCaseMode("default").setAuth(2).setIsRemote(true).setIsGroup(false).setOpenCaseResult(true).setIsRemoveEndBlank(false).setDifficulty(1).setRating((Integer)catalogue.get("rating")).setTimeLimit(content.getTimeLimit()).setMemoryLimit(content.getMemoryLimit()).setDescription(content.getDescription()).setInput(content.getInput()).setOutput(content.getOutput()).setHint(content.getHint()).setExamples(content.getExamples()).setSource("<a href=\""+sourceUrl(key)+"\" target=\"_blank\" rel=\"noopener noreferrer\">"+(nc?"牛客":at?"AtCoder":"Codeforces")+"</a>");
+            Problem p=new Problem().setProblemId(display(key)).setTitle(content.getTitle()).setAuthor(author).setType(0).setJudgeMode("default").setJudgeCaseMode("default").setAuth(auth).setIsRemote(true).setIsGroup(false).setOpenCaseResult(true).setIsRemoveEndBlank(false).setDifficulty(1).setRating((Integer)catalogue.get("rating")).setTimeLimit(content.getTimeLimit()).setMemoryLimit(content.getMemoryLimit()).setDescription(content.getDescription()).setInput(content.getInput()).setOutput(content.getOutput()).setHint(content.getHint()).setExamples(content.getExamples()).setSource("<a href=\""+sourceUrl(key)+"\" target=\"_blank\" rel=\"noopener noreferrer\">"+(nc?"牛客":at?"AtCoder":"Codeforces")+"</a>");
             List<Tag> tags=new ArrayList<>();try{for(com.fasterxml.jackson.databind.JsonNode tag:json.readTree((String)catalogue.get("tags_json")))tags.add(new Tag().setName(tag.asText()));}catch(Exception e){throw new IllegalStateException(e);}
             ProblemStrategy.RemoteProblemInfo info=new ProblemStrategy.RemoteProblemInfo().setProblem(p).setTagList(tags).setRemoteOJ(nc?null:at?Constants.RemoteOJ.ATCODER:Constants.RemoteOJ.CODEFORCES);
             Problem saved=localEditor?remoteProblems.adminAddOtherOJProblem(info,oj,true):remoteProblems.adminAddOtherOJProblem(info,oj);if(saved==null)throw new ObjectiveException(500,"题目入库失败");pid=saved.getId();
@@ -149,6 +153,18 @@ public class RemoteStatementManager {
         preview.put("content", content);
         preview.put("catalogTitle", catalog.get("title"));
         return preview;
+    }
+
+    boolean publishCapturedOriginal(String key, Content content) {
+        return tx(() -> {
+            lockCatalogue(key);
+            Map<String, Object> operator = actor();
+            catalogue(key);
+            if (local(key) != null) return false;
+            publishSource(key, normalize(content, key), "MANUAL",
+                    (String) operator.get("uuid"), (String) operator.get("username"), 1);
+            return true;
+        });
     }
 
     public Map<String,Object> save(RemoteStatementDTO dto,boolean translation){

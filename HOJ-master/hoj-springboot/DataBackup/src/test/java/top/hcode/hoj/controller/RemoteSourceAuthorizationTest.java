@@ -9,13 +9,16 @@ import org.apache.shiro.subject.*;
 import org.apache.shiro.util.ThreadContext;
 import org.junit.jupiter.api.*;
 import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 import top.hcode.hoj.controller.admin.CodeforcesCposImportController;
 import top.hcode.hoj.controller.admin.RemoteSourceController;
+import top.hcode.hoj.controller.oj.RemoteCaptureController;
 import top.hcode.hoj.manager.oj.external.*;
 import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager;
 import top.hcode.hoj.manager.oj.external.cpos.CodeforcesCposImportManager.Capture;
 import top.hcode.hoj.pojo.dto.RemoteStatementDTO;
+import java.util.Collections;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -66,5 +69,36 @@ class RemoteSourceAuthorizationTest {
             assertEquals(Boolean.TRUE, cpos.importStatement(capture).getData());
         }
         verify(importer, times(3)).importStatement(capture);
+    }
+
+    @Test void browserCaptureReviewAndSiteSwitchKeepTheirSeparatePermissions() {
+        RemoteCaptureManager manager = mock(RemoteCaptureManager.class);
+        AuthorizationAttributeSourceAdvisor advisor = new AuthorizationAttributeSourceAdvisor();
+        advisor.setSecurityManager(security);
+        ProxyFactory factory = new ProxyFactory(new RemoteCaptureController(manager));
+        factory.setProxyTargetClass(true);
+        factory.addAdvisor(advisor);
+        RemoteCaptureController captures = (RemoteCaptureController) factory.getProxy();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThrows(UnauthenticatedException.class, () -> captures.issueCredential(response));
+        assertThrows(UnauthenticatedException.class, captures::queue);
+        login("default_user");
+        captures.issueCredential(response);
+        assertEquals("no-store", response.getHeader("Cache-Control"));
+        assertThrows(UnauthorizedException.class, captures::queue);
+        assertThrows(UnauthorizedException.class, () -> captures.approve(Collections.singletonList("cf:contest:4:A")));
+        assertThrows(UnauthorizedException.class, () -> captures.preview("cf:contest:4:A"));
+        assertThrows(UnauthorizedException.class, () -> captures.discard("cf:contest:4:A"));
+        for (String role : new String[]{"admin", "problem_admin"}) {
+            login(role);
+            captures.queue();
+            captures.approve(Collections.singletonList("cf:contest:4:A"));
+            assertThrows(UnauthorizedException.class, () -> captures.policy(true));
+        }
+        login("root");
+        captures.policy(true);
+        verify(manager, times(2)).queue();
+        verify(manager, times(2)).approveBatch(Collections.singletonList("cf:contest:4:A"));
+        verify(manager).setEnabled(true);
     }
 }
