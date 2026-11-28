@@ -4,15 +4,18 @@
       <el-tab-pane label="草稿板" name="scratchpad" lazy>
         <ProblemScratchpad />
       </el-tab-pane>
-      <el-tab-pane label="笔记" name="notes" lazy>
-        <el-input v-model="notes" type="textarea" :rows="6" aria-label="本题笔记"
-          placeholder="记录本题思路、卡点和复杂度" @input="save" />
-        <small class="muted">{{ saveNotice }}</small>
+      <el-tab-pane label="笔记" name="notes" class="learning-action-pane" lazy>
+        <LearningNoteEditor :key="notesKey" v-model="notes" :active="tab === 'notes'" @input="save" />
+        <div class="learning-note-actions">
+          <small class="muted">{{ saveNotice }}</small>
+          <LearningNoteExport :key="notesKey" :problem="exportProblem" :read-code="readCode" :notes="notes" />
+        </div>
       </el-tab-pane>
-      <el-tab-pane label="计划" name="plan" lazy>
-        <el-input v-model="plan" type="textarea" :rows="4" aria-label="下一步训练计划"
-          placeholder="例如，补两道二分边界题，再复盘本题" @input="save" />
-        <small class="muted">{{ saveNotice }}</small>
+      <el-tab-pane label="待办" name="todo" class="learning-action-pane" lazy>
+        <LearningTodoList :storage-key="todoKey" :legacy-plan-key="notesKey" />
+      </el-tab-pane>
+      <el-tab-pane label="番茄钟" name="timer" class="learning-action-pane" lazy>
+        <LearningPomodoro :storage-key="timerKey" />
       </el-tab-pane>
       <el-tab-pane v-if="showRecommendations" label="推荐" name="recommend" lazy>
         <LearningRecommendations v-if="viewerUid" :uid="viewerUid" compact />
@@ -26,12 +29,16 @@
 import { draftKey } from '@/common/learning';
 import { readPreference, savePreference } from '@/common/appearance';
 import ProblemScratchpad from '@/components/oj/problem/ProblemScratchpad';
+import LearningNoteEditor from './LearningNoteEditor';
+import LearningNoteExport from './LearningNoteExport';
+import LearningTodoList from './LearningTodoList';
+import LearningPomodoro from './LearningPomodoro';
 import LearningRecommendations from './LearningRecommendations';
 
 export default {
-  components: { ProblemScratchpad, LearningRecommendations },
-  props: { showRecommendations: Boolean },
-  data: () => ({ tab: 'scratchpad', notes: '', plan: '', saved: true }),
+  components: { ProblemScratchpad, LearningNoteEditor, LearningNoteExport, LearningTodoList, LearningPomodoro, LearningRecommendations },
+  props: { showRecommendations: Boolean, exportProblem: Object, readCode: Function },
+  data: () => ({ tab: 'scratchpad', notes: '', saved: true }),
   computed: {
     viewerUid() {
       const { userInfo, isAuthenticated } = this.$store.getters;
@@ -40,17 +47,23 @@ export default {
     saveNotice() {
       return this.saved ? '保存在当前浏览器。' : '当前浏览器无法保存，请复制备份。';
     },
-    key() {
-      return 'notes:' + draftKey(this.$store.getters.userInfo.uid, this.$route.params);
+    notesKey() {
+      return 'notes:' + draftKey(this.viewerUid, this.$route.params);
+    },
+    todoKey() {
+      const { contestID, groupID } = this.$route.params;
+      return 'todos:' + draftKey(this.viewerUid, contestID ? { contestID, groupID } : {});
+    },
+    timerKey() {
+      return 'pomodoro:' + draftKey(this.viewerUid);
     },
   },
   watch: {
-    key: {
+    notesKey: {
       immediate: true,
-      handler() {
-        const data = readPreference(this.key, {});
-        this.notes = data.notes || '';
-        this.plan = data.plan || '';
+      handler(key) {
+        const data = readPreference(key, {});
+        this.notes = typeof data.notes === 'string' ? data.notes : '';
         this.saved = true;
       },
     },
@@ -63,7 +76,8 @@ export default {
       this.$store.dispatch('changeModalStatus', { mode: 'login', visible: true });
     },
     save() {
-      this.saved = savePreference(this.key, { notes: this.notes, plan: this.plan });
+      const previous = readPreference(this.notesKey, {});
+      this.saved = savePreference(this.notesKey, { ...previous, notes: this.notes });
     },
   },
 };
@@ -72,6 +86,10 @@ export default {
 <style scoped>
 .learning-panel { min-width: 0; }
 .learning-panel ::v-deep .el-tabs__header { margin: 0; padding-inline: 10px; }
-.learning-panel ::v-deep .el-tabs__item { padding-inline: 9px; font-size: 13px; }
-.learning-panel small { display: block; margin-top: 10px; }
+.learning-panel ::v-deep .el-tabs__item { padding-inline: 7px; font-size: 13px; }
+.learning-note-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+@media (max-width: 767px) {
+  /* Let controls scroll above the floating AI assistant at the bottom of the page. */
+  .learning-action-pane { padding-bottom: 88px; }
+}
 </style>

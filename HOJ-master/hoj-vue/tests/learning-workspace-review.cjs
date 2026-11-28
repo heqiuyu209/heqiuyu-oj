@@ -47,10 +47,16 @@ async function review({ ev, cdp, route, shot, requests }) {
     await until(() => ev('!!document.querySelector(' + selector + ')'), 'Learning tool did not appear: ' + name);
     await ev('document.querySelector(' + selector + ').click()');
   };
-  const field = name => 'document.querySelector(' + JSON.stringify(panel + ' #pane-' + name + ' textarea') + ')';
-  const readField = name => ev(field(name) + '.value');
-  const writeField = (name, value) => ev('(() => { const input=' + field(name) + '; input.value=' +
+  const element = selector => 'document.querySelector(' + JSON.stringify(panel + ' ' + selector) + ')';
+  const notes = element('#pane-notes .CodeMirror') + '?.CodeMirror';
+  const writeNote = value => ev(notes + '.setValue(' + JSON.stringify(value) + ')');
+  const click = selector => ev(element(selector) + '.click()');
+  const writeField = (selector, value) => ev('(() => { const input=' + element(selector) + '; input.value=' +
     JSON.stringify(value) + '; input.dispatchEvent(new Event("input", { bubbles: true })); })()');
+  const todoTitles = () => ev('Array.from(document.querySelectorAll(' + JSON.stringify(panel + ' .todo-title') +
+    '), title => title.textContent)');
+  const time = () => ev(element('.pomodoro-time') + '.textContent.trim()');
+  const timerAction = () => click('.pomodoro-primary');
   const text = () => ev('document.querySelector(' + JSON.stringify(panel) + ')?.innerText || ""');
   const mode = label => ev('(function(){ const button = Array.from(document.querySelectorAll(".workspace-actions button"))' +
     '.find(node => node.textContent.trim() === ' + JSON.stringify(label) + '); button.click(); })()');
@@ -67,7 +73,7 @@ async function review({ ev, cdp, route, shot, requests }) {
   await until(() => ev('!!document.querySelector(' + canvas + ')'), 'Scratchpad did not appear');
   const tabs = JSON.stringify(panel + ' .el-tabs__item');
   assert.deepEqual(await ev('Array.from(document.querySelectorAll(' + tabs + '), tab=>tab.textContent.trim())'),
-    ['草稿板', '笔记', '计划', '推荐']);
+    ['草稿板', '笔记', '待办', '番茄钟', '推荐']);
   const brush = JSON.stringify(panel + ' .scratchpad-brush');
   const showsBrush = () => ev('!!document.querySelector(' + brush + ')');
   const clickTool = label => ev('Array.from(document.querySelectorAll(' + JSON.stringify(panel + ' .scratchpad-tool') +
@@ -119,10 +125,96 @@ async function review({ ev, cdp, route, shot, requests }) {
   assert.equal(countReads(), initial, 'Opening the scratchpad must not fetch a profile or recommendations');
 
   await pick('notes');
-  assert.equal(await readField('notes'), '原题的复盘');
-  await pick('plan');
-  assert.equal(await readField('plan'), '旧计划');
-  await writeField('plan', '先检查两个边界样例');
+  assert.equal(await ev(notes + '.getValue()'), '原题的复盘');
+  await writeNote('');
+  await ev(notes + '.focus()');
+  await cdp('Input.insertText', { text: '## 标题' });
+  await until(() => ev(notes + '.getValue() === "## 标题"'), 'The Markdown editor did not accept typing');
+  const delimiter = element('.learning-note-editor .cm-formatting-header');
+  assert(await ev('getComputedStyle(' + delimiter + ').display !== "none"'), 'The edited line should display its syntax');
+  await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 });
+  await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await until(() => ev(notes + '.getValue() === "## 标题\\n" && getComputedStyle(' + delimiter + ').display === "none"'),
+    'Pressing Enter should reveal the formatted heading');
+  assert(await ev('Array.from(document.querySelectorAll(".learning-note-editor .cm-header-2")).some(node => node.textContent === "标题" && node.offsetWidth > 0)'));
+  await ev(notes + '.setCursor(0, 4)');
+  await until(() => ev('getComputedStyle(' + delimiter + ').display !== "none"'), 'Returning to the heading should reveal its Markdown');
+
+  await ev(`window.noteExports = [];
+    window.showSaveFilePicker = async options => {
+      const entry = { options, text: '', saved: false };
+      window.noteExports.push(entry);
+      return { name: options.suggestedName, createWritable: async () => ({
+        write: async text => { entry.text = text; },
+        close: async () => { entry.saved = true; },
+      }) };
+    };`);
+  const dialog = '.problem-note-export-dialog';
+  const exportNote = async index => {
+    await ev('document.querySelector(' + JSON.stringify(dialog + ' .el-dialog__footer .el-button--primary') + ').click()');
+    await until(() => ev('!!window.noteExports[' + index + ']?.saved'), 'The Markdown file was not saved');
+    return ev('window.noteExports[' + index + ']');
+  };
+  await click('.learning-note-export > button');
+  const onlyNotes = await exportNote(0);
+  assert.equal(onlyNotes.options.suggestedName, 'P1000.md');
+  assert.deepEqual(onlyNotes.options.types[0].accept, { 'text/markdown': ['.md'] });
+  assert(onlyNotes.text.startsWith('# 二分查找：第一个不小于目标的数\n'));
+  assert(onlyNotes.text.includes('- 题号：P1000\n'));
+  assert(onlyNotes.text.includes('](<' + await ev('location.origin') + '/problem/P1000>)'));
+  assert(onlyNotes.text.includes('## 笔记\n\n## 标题') && !onlyNotes.text.includes('## 题面') && !onlyNotes.text.includes('## 代码'));
+  const code = 'int main() { /* ``` */ return 0; }';
+  await ev("document.querySelector('[data-panel=editor] .CodeMirror').CodeMirror.setValue(" + JSON.stringify(code) + ')');
+  await click('.learning-note-export > button');
+  for (const section of ['statement', 'code', 'notes']) {
+    await ev('document.querySelector(' + JSON.stringify(dialog + ' input[type=checkbox][value=' + section + ']') + ').click()');
+  }
+  const withStatementAndCode = await exportNote(1);
+  assert(withStatementAndCode.text.includes('## 题面\n') && withStatementAndCode.text.includes('### 描述\n'));
+  assert(withStatementAndCode.text.includes('## 代码\n\n````') && withStatementAndCode.text.includes(code));
+  assert(!withStatementAndCode.text.includes('## 笔记'), 'Unchecked notes should not be exported');
+  await writeNote('补充原题复盘');
+  checks.push('Markdown headings preview in place on Enter, remain editable, and selected export sections are written as a local Markdown file.');
+  await pick('todo');
+  assert.deepEqual(await todoTitles(), ['旧计划'], 'The old plan should be available as a task');
+  await writeField('.todo-add input', '做一道数组题');
+  await click('.todo-add button');
+  assert.deepEqual(await todoTitles(), ['旧计划', '做一道数组题']);
+  await click('.todo-row:last-child button[aria-label="编辑待办"]');
+  await writeField('.todo-edit textarea', '先检查两个边界样例');
+  await click('.todo-edit button[type=submit]');
+  await click('.todo-row:last-child input[type=checkbox]');
+  assert(await ev(element('.todo-row:last-child input[type=checkbox]') + '.checked'));
+  await click('.todo-row:first-child button[aria-label="删除待办"]');
+  assert.deepEqual(await todoTitles(), ['先检查两个边界样例']);
+
+  await pick('timer');
+  assert.equal(await time(), '25:00');
+  await ev('window.originalStudyClock=Date.now; window.studyClock=Date.now(); Date.now=()=>window.studyClock');
+  try {
+    await timerAction();
+    await ev('window.studyClock += 60000');
+    await until(async () => await time() === '24:00', 'The timer did not count down');
+    await timerAction();
+    await ev('window.studyClock += 120000');
+    assert.equal(await time(), '24:00', 'A paused timer must keep its remaining time');
+    await timerAction();
+    await mode('简洁双栏');
+    await ev('window.studyClock += 2000');
+    await mode('学习模式');
+    await pick('timer');
+    assert.equal(await time(), '23:58', 'The timer should recover its deadline after remount');
+    await ev('window.studyClock += 24 * 60000');
+    await until(async () => await time() === '00:00', 'Expired focus time should reach zero');
+    assert((await text()).includes('专注时间到了'), 'The timer should show its completion message');
+    await timerAction();
+    assert.equal(await time(), '05:00', 'The next round should be a five-minute break');
+    await click('.pomodoro-actions button:last-child');
+    assert.equal(await time(), '05:00');
+  } finally {
+    await ev('Date.now=window.originalStudyClock');
+  }
+  checks.push('The focus timer pauses, restores its deadline after remount and offers a break when it expires.');
   await pick('recommend');
   await until(async () => (await text()).includes(candidateTitle), 'The workspace did not show personalized exercises');
   assert((await text()).includes('基础算法仍有练习空间'));
@@ -155,27 +247,37 @@ async function review({ ev, cdp, route, shot, requests }) {
   await ev('document.querySelector("' + panel + ' .recommendation-title a").click()');
   await until(() => ev("location.pathname === '/problem/CF-4A'"), 'Clicking the recommendation did not open the problem');
   await pick('notes');
-  assert.equal(await readField('notes'), '', 'Notes from the previous problem leaked into the next problem');
-  await pick('plan');
-  assert.equal(await readField('plan'), '', 'Plan from the previous problem leaked into the next problem');
+  assert.equal(await ev(notes + '.getValue()'), '', 'Notes from the previous problem leaked into the next problem');
+  await pick('todo');
+  assert.deepEqual(await todoTitles(), ['先检查两个边界样例'], 'Practice problems should share the account task list');
+  await pick('timer');
+  assert.equal(await time(), '05:00', 'Problem navigation reset the timer mode');
   await route('/problem/P1000');
   await pick('notes');
-  assert.equal(await readField('notes'), '原题的复盘');
-  await pick('plan');
-  assert.equal(await readField('plan'), '先检查两个边界样例');
-  checks.push('Recommendations navigate to the expected problem. The separate notes and plan tabs preserve existing data and isolate it by problem.');
+  assert.equal(await ev(notes + '.getValue()'), '补充原题复盘');
+  await pick('todo');
+  assert.deepEqual(await todoTitles(), ['先检查两个边界样例'], 'A deleted legacy task must not be imported again');
+  assert(await ev(element('.todo-row input[type=checkbox]') + '.checked'), 'The completion flag did not persist');
+  checks.push('Recommendations navigate to the problem. Notes stay with their problem, and editing and checking tasks persist across problems.');
 
   await pick('recommend');
   await until(async () => (await text()).includes(candidateTitle), 'The original candidate list is missing');
   await signIn('workspace-bob');
   await until(async () => (await text()).includes(otherTitle), 'Recommendations did not refresh for the new account');
   assert(!(await text()).includes(candidateTitle), 'Previous account recommendation is still visible');
+  await pick('todo');
+  assert.deepEqual(await todoTitles(), [], 'Tasks from the other account are visible');
+  await pick('timer');
+  assert.equal(await time(), '25:00', 'The other account timer is visible');
+  await signIn('workspace-alice');
   await route('/contest/1/problem/P1000/full-screen');
   await pick('notes');
   assert(!await ev('!!document.querySelector("' + panel + ' #tab-recommend")'), 'Contest problem shows the practice recommendation tab');
-  assert(await ev('!!' + field('notes')), 'Contest route should keep its local notes');
+  assert(await ev('!!' + notes), 'Contest route should keep its local notes');
+  await pick('todo');
+  assert.deepEqual(await todoTitles(), [], 'Practice tasks appear in the contest list');
   assert(!requests.some(r => r.path === '/api/ai/recommendations/explain'), 'Opening the workspace must not request a model');
-  checks.push('Account changes reload the plan and contest problems keep notes without exposing the practice recommendation.');
+  checks.push('Account switches isolate timers and tasks. Contest workspaces have their own task list.');
   await ev(app + '.$store.commit("clearUserInfoAndToken")');
   await route('/problem/P1000');
   await mode('简洁双栏');

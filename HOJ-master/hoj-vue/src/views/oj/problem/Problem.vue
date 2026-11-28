@@ -724,7 +724,8 @@
         </div>
         </template>
         <template #learning>
-          <LearningPanel :show-recommendations="!$route.params.contestID" />
+          <LearningPanel :show-recommendations="!$route.params.contestID"
+            :export-problem="loading ? null : problemData.problem" :read-code="!isObjective ? readProblemEditor : null" />
         </template>
       </WorkspaceLayout>
     </div>
@@ -927,6 +928,11 @@ export default {
     this.resizeWatchHeight();
   },
   methods: {
+    readProblemEditor() {
+      const component = this.$refs.codeEditor;
+      const editor = component && component.editor;
+      return { code: editor ? editor.getValue() : this.code, language: this.language };
+    },
     changeRemoteLanguage({ pid, language, content }) {
       if (this.contestID || this.groupID || !this.remoteBaseProblem || this.remoteBaseProblem.id !== pid || this.problemData.problem.id !== pid) return;
       const problem = { ...this.remoteBaseProblem };
