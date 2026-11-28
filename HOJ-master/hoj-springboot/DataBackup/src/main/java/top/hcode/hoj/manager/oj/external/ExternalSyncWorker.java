@@ -36,9 +36,12 @@ public class ExternalSyncWorker {
     @PreDestroy public void close() { worker.shutdownNow(); }
     public void tick() {
         Map<String,Object> job=null;String kind=null;
+        String slotToken=UUID.randomUUID().toString();
+        boolean hasSlot=false;
         try {
             // Shared across backend instances. Redis outages fail closed rather than flooding the source.
-            if(!Boolean.TRUE.equals(redis.opsForValue().setIfAbsent("external:cf:public-api",UUID.randomUUID().toString(),3,TimeUnit.SECONDS))) return;
+            hasSlot=Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(RemoteReadRateGate.SHARED_SYNC_KEY,slotToken,3,TimeUnit.SECONDS));
+            if(!hasSlot) return;
             // Share the source-rate gate across providers and fairly rotate every kind of work.
             int first=(int)(turn++%7);
             for(int n=0;n<7 && job==null;n++){
@@ -90,6 +93,10 @@ public class ExternalSyncWorker {
                     else statements.failed(job,reason);
                 }else if("ATCODER_CATALOG".equals(kind))atcoderCatalogue.failed(job,reason);else accounts.failed(job,reason);
             }catch(Exception ignored){/* A lease can be recovered after expiry. */}
+        } finally {
+            if(hasSlot && job==null)try{
+                RemoteReadRateGate.releaseUnusedSyncSlot(redis,slotToken);
+            }catch(Exception ignored){/* The slot expires on its own. */}
         }
     }
 }

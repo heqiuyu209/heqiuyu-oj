@@ -1888,3 +1888,64 @@ CREATE TABLE IF NOT EXISTS remote_capture_queue (
     queued_at DATETIME(3) NULL,
     KEY remote_capture_ready (state, queued_at, problem_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS codeforces_sync_scope (
+    kind VARCHAR(12) NOT NULL,
+    scope_id BIGINT NOT NULL,
+    uid VARCHAR(32) NOT NULL,
+    account_id BIGINT NULL,
+    handle_key VARCHAR(64) NOT NULL,
+    PRIMARY KEY (kind,scope_id,uid),
+    KEY idx_cf_sync_scope_account (account_id),
+    CONSTRAINT fk_cf_sync_scope_account FOREIGN KEY (account_id) REFERENCES external_account(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS codeforces_sync_cursor (
+    account_id BIGINT NOT NULL PRIMARY KEY,
+    synced_at DATETIME(3) NOT NULL,
+    CONSTRAINT fk_cf_sync_cursor_account FOREIGN KEY (account_id) REFERENCES external_account(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS codeforces_sync_projection (
+    kind VARCHAR(12) NOT NULL,
+    scope_id BIGINT NOT NULL,
+    slot_id BIGINT NOT NULL,
+    external_id BIGINT NOT NULL,
+    submit_id BIGINT UNSIGNED NOT NULL,
+    PRIMARY KEY (kind,scope_id,slot_id,external_id),
+    UNIQUE KEY uk_cf_sync_judge (submit_id),
+    CONSTRAINT fk_cf_sync_projection_judge FOREIGN KEY (submit_id) REFERENCES judge(submit_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS codeforces_browser_submit (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    owner_uid VARCHAR(32) NOT NULL,
+    account_id BIGINT NOT NULL,
+    handle_key VARCHAR(64) NOT NULL,
+    pid BIGINT UNSIGNED NOT NULL,
+    problem_key VARCHAR(120) NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    claim_hash CHAR(64) NOT NULL,
+    receipt_hash CHAR(64) NULL,
+    code MEDIUMTEXT NOT NULL,
+    code_hash CHAR(64) NOT NULL,
+    cpp_standard CHAR(2) NOT NULL,
+    source_language VARCHAR(128) NULL,
+    state VARCHAR(16) NOT NULL,
+    error_code VARCHAR(32) NULL,
+    baseline_id BIGINT NULL,
+    remote_id BIGINT NULL,
+    submit_id BIGINT UNSIGNED NULL,
+    verdict VARCHAR(32) NULL,
+    sent_at DATETIME(3) NULL,
+    created_at DATETIME(3) NOT NULL,
+    updated_at DATETIME(3) NOT NULL,
+    next_check_at DATETIME(3) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_cf_browser_request (owner_uid, request_id),
+    UNIQUE KEY uk_cf_browser_receipt (remote_id),
+    KEY idx_cf_browser_account (account_id, state, updated_at),
+    KEY idx_cf_browser_latest (owner_uid, pid, id),
+    KEY idx_cf_browser_created (state, created_at),
+    KEY idx_cf_browser_sent (state, sent_at),
+    KEY idx_cf_browser_due (state, next_check_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

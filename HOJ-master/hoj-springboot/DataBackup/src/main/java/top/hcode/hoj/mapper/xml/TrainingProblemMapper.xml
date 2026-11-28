@@ -91,6 +91,9 @@
                 left join
             (
                 SELECT DISTINCT pid FROM user_acproblem where uid = #{uid}
+                UNION
+                SELECT pid FROM judge WHERE uid = #{uid} AND cid = 0 AND gid IS NULL
+                    AND paper_run_id IS NULL AND status = 0 AND judger = 'CodeforcesSync'
             ) b
             on a.pid = b.pid
         where b.pid is not null

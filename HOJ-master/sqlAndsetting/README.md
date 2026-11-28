@@ -1,5 +1,7 @@
 > 这是 HOJ 数据库初始化文件、增量结构与服务配置文件。
 
+2026-11-26 Codeforces 成绩同步：已有库在 `external-learning.sql` 之后执行可重复的 `codeforces-sync.sql`，再更新业务后端和前端。新库由 Compose 自动加载 `07-codeforces-sync.sql`。同步从已完成的公开记录扫描补入关联题目、训练、比赛和答卷，通过源站提交编号去重。
+
 2026-11-05 CF账号分页一致性升级：已有库先执行 `external-cf-pagination.sql`，再更新业务后端。脚本仅向 `external_sync_job` 添加可空 `cf_head_hash CHAR(64)`，可重复执行，不清空游标、账号、提交或其他平台数据；新库的 `hoj.sql` / `external-learning.sql` 已包含此列。不要对旧库重跑完整初始化或删除数据卷。
 
 新CF扫描按500条请求、相邻页重叠1条校验原始ID；遇到短尾页或增量checkpoint后，进入内部 `VERIFY_STATUS` 阶段重取首屏，核验后才更新成功时间、checkpoint并按全量语义清理未见提交。ghost参与位置校验但不计学习证据；空历史也要复核两次。漂移时保留缓存、换扫描世代并退避至少1分钟，从PROFILE重新开始；成功PROFILE/RATING会重置临时失败计数，不承诺跨多轮漂移退避逐轮增长。旧的无首屏指纹在途游标会自动重开。公开API不是原子快照，此机制校验遍历边界与首屏稳定性，不保证任意并发来源修改下的瞬时完整历史。

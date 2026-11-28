@@ -38,7 +38,7 @@ public class LearningProfileManager {
     }
     private List<Map<String, Object>> programmingEvidence(String uid, boolean details) {
         String extra = details ? ",p.title,COUNT(*) AS submissions,MIN(j.submit_time) AS first_at,MAX(j.submit_time) AS last_at,MIN(CASE WHEN j.status=0 THEN j.submit_time ELSE NULL END) AS first_solved_at" : "";
-        return jdbc.queryForList("SELECT p.id,p.problem_id,p.is_remote,p.rating,MAX(CASE WHEN j.status=0 THEN 1 ELSE 0 END) AS solved" + extra + " FROM judge j JOIN problem p ON p.id=j.pid JOIN user_info u ON u.uuid=j.uid WHERE j.uid=? AND j.paper_run_id IS NULL AND j.cid=0 AND j.gid IS NULL AND j.status IN (-3,-2,-1,0,1,2,3,8) AND p.auth=1 AND (p.is_group=0 OR p.is_group IS NULL) AND (p.author IS NULL OR p.author<>u.username) GROUP BY p.id,p.problem_id,p.is_remote,p.rating" + (details ? ",p.title" : ""), uid);
+        return jdbc.queryForList("SELECT p.id,p.problem_id,p.is_remote,p.rating,MAX(CASE WHEN j.status=0 THEN 1 ELSE 0 END) AS solved" + extra + " FROM judge j JOIN problem p ON p.id=j.pid JOIN user_info u ON u.uuid=j.uid WHERE j.uid=? AND j.paper_run_id IS NULL AND j.cid=0 AND j.gid IS NULL AND COALESCE(j.judger,'')<>'CodeforcesSync' AND j.status IN (-3,-2,-1,0,1,2,3,8) AND p.auth=1 AND (p.is_group=0 OR p.is_group IS NULL) AND (p.author IS NULL OR p.author<>u.username) GROUP BY p.id,p.problem_id,p.is_remote,p.rating" + (details ? ",p.title" : ""), uid);
     }
 
     public Map<Long, Set<String>> publicProgrammingGroups(String uid) {

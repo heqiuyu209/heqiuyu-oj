@@ -358,7 +358,7 @@
                 <span
                   @click="showSubmitDetail(row)"
                   style="color: rgb(87, 163, 243); font-size: .8125rem;"
-                >{{ row.language }}
+                >{{ row.language || '—' }}
                 </span>
               </el-tooltip>
             </template>
@@ -370,7 +370,7 @@
             show-overflow
           >
             <template v-slot="{ row }">
-              <span v-if="row.judger">{{ row.judger }}</span>
+              <span v-if="row.judger">{{ row.judger === 'CodeforcesSync' ? 'Codeforces' : row.judger }}</span>
               <span v-else>--</span>
             </template>
           </vxe-table-column>
@@ -411,6 +411,7 @@
           >
             <template v-slot="{ row }">
               <vxe-button
+                v-if="row.judger !== 'CodeforcesSync'"
                 status="primary"
                 @click="handleRejudge(row)"
                 size="mini"

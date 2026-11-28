@@ -63,6 +63,17 @@ class PaperProgramManagerTest {
         problems.selectById(1L).setIsRemote(false).setJudgeMode("spj"); assertThrows(ObjectiveException.class, () -> manager.available(1L));
         problems.selectById(1L).setJudgeMode("default").setAuth(2); assertThrows(ObjectiveException.class, () -> manager.available(1L));
     }
+    @Test void publicCodeforcesProblemFreezesWithoutLocalCasesAndCannotDispatchCode() {
+        freeze();
+        problems.selectById(1L).setIsRemote(true).setProblemId("CF-4A").setJudgeMode(null);
+        clearInvocations(cases);
+        Long id = manager.freeze(7L, "PROGRAMMING:1", "alice", 1L);
+        assertEquals("CF-4A", manager.snapshot(id).getProblem().getProblemId());
+        assertTrue(manager.snapshot(id).getCases().isEmpty());
+        assertTrue(manager.snapshot(id).getLanguages().isEmpty());
+        assertThrows(ObjectiveException.class, () -> manager.submit(7L, id, "alice", "C++", "code"));
+        verifyNoInteractions(cases, judges, dispatcher);
+    }
     @Test void privateReferencesRequireSourcePermissionButAuthorizedCollectionCanFreezeThemForStudents() {
         freeze();
         Problem privateProblem = problems.selectById(1L).setAuth(2).setAuthor("alice");

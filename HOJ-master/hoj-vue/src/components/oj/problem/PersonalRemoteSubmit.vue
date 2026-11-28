@@ -2,13 +2,31 @@
   <section class="personal-remote-submit" aria-label="远程提交">
     <div class="remote-heading">
       <strong><i class="el-icon-connection" /> {{ platformName }} 提交</strong>
-      <el-radio-group v-if="!isNowCoder" v-model="mode" size="mini" :disabled="busy" @change="modeChanged">
+      <el-radio-group v-if="!isNowCoder && !codeforcesPracticeUrl" v-model="mode" size="mini" :disabled="busy" @change="modeChanged">
         <el-radio-button label="personal">本人账号</el-radio-button>
         <el-radio-button label="public">公共账号</el-radio-button>
       </el-radio-group>
     </div>
-    <p v-if="mode === 'public'" class="remote-note">使用站点提供的远程判题账号，点击下方提交按钮。</p>
-    <template v-else>
+    <div v-if="codeforcesPracticeUrl" class="remote-browser">
+      <div class="remote-tools">
+        <el-button size="small" icon="el-icon-document-copy" :disabled="!code.trim()" @click="copyCode">复制代码</el-button>
+        <a :href="codeforcesPracticeUrl" target="_blank" rel="noopener noreferrer" class="el-button el-button--default el-button--small">去 Codeforces 提交 <i class="el-icon-top-right" aria-hidden="true" /></a>
+      </div>
+      <CodeforcesPracticeSync
+        v-if="actor"
+        :key="actor + ':' + $store.getters.authEpoch + ':' + sourceProblem"
+        :problem="sourceProblem"
+        :scope="codeforcesSyncScope"
+        :browser-submit="!codeforcesSyncScope && $route.path.startsWith('/problem/')"
+        :code="code"
+        :language="language"
+        :disabled="disabled"
+        @synced="$emit('synced')"
+      />
+      <p v-else class="remote-note"><el-button type="text" @click="login">登录 HOJ</el-button>后可同步 CF 公开记录。</p>
+    </div>
+    <p v-if="mode === 'public' && !codeforcesPracticeUrl" class="remote-note">使用站点提供的远程判题账号，点击下方提交按钮。</p>
+    <template v-else-if="!codeforcesPracticeUrl">
       <div v-if="!actor" class="remote-empty"><span>登录后，使用自己的平台账号提交。</span><el-button size="small" @click="login">登录</el-button></div>
       <template v-else>
         <el-alert v-if="error" :title="error" type="warning" :closable="false" class="remote-error" />
@@ -36,22 +54,24 @@
         <p v-if="isNowCoder && submissionSupported === false" class="remote-note remote-preflight">牛客提交当前暂未开放，可先核对账号与源站语言。</p>
         <p v-else-if="isNowCoder" class="remote-note remote-preflight">牛客使用本人账号和源站语言提交。若源站是否受理尚未确认，本次提交会保留待核对，请先核对状态。</p>
         <p class="remote-note">源站语言用于本次提交；下方语言用于代码高亮和本站自测。</p>
-        <div v-if="pending || task" class="remote-progress" role="status" aria-live="polite">
-          <div><strong>{{ progressLabel }}</strong><span v-if="submitId" class="remote-id">#{{ submitId }}</span></div>
-          <p v-if="task && task.error_code">{{ taskError }}</p>
-          <p v-else-if="pending && !submitId">提交尚未确认，请先核对原请求。重试会沿用同一个请求编号。</p>
-          <div class="remote-progress-actions">
-            <el-button type="text" size="small" :disabled="busy" @click="check">核对状态</el-button>
-            <el-button v-if="task && task.state === 'NEEDS_REVIEW'" type="text" size="small" :disabled="busy" @click="reconcile">核对源站结果</el-button>
-            <el-button v-if="task && Number(task.submit_attempts) === 0 && ['QUEUED', 'PREPARING'].includes(task.state)" type="text" size="small" :disabled="busy" @click="cancel">取消本次提交</el-button>
-          </div>
-        </div>
       </template>
     </template>
+    <div v-if="showProgress" class="remote-progress" role="status" aria-live="polite">
+      <div><strong>{{ progressLabel }}</strong><span v-if="submitId" class="remote-id">#{{ submitId }}</span></div>
+      <p v-if="task && task.error_code">{{ taskError }}</p>
+      <p v-else-if="pending && !submitId">提交尚未确认，请先核对原请求。重试会沿用同一个请求编号。</p>
+      <div class="remote-progress-actions">
+        <el-button type="text" size="small" :disabled="busy" @click="check">核对状态</el-button>
+        <el-button v-if="task && task.state === 'NEEDS_REVIEW'" type="text" size="small" :disabled="busy" @click="reconcile">核对源站结果</el-button>
+        <el-button v-if="task && Number(task.submit_attempts) === 0 && ['QUEUED', 'PREPARING'].includes(task.state)" type="text" size="small" :disabled="busy" @click="cancel">取消本次提交</el-button>
+      </div>
+    </div>
   </section>
 </template>
 <script>
 import api from '@/common/api';
+import CodeforcesPracticeSync from './CodeforcesPracticeSync.vue';
+import { codeforcesProblemUrl } from '@/common/externalApi';
 import RemoteCredentialSettings from '@/components/oj/learning/RemoteCredentialSettings.vue';
 import { responseData, errorMessage, requestId } from '@/common/objective';
 import { readPreference, savePreference } from '@/common/appearance';
@@ -61,18 +81,26 @@ const terminal = ['COMPLETED', 'FAILED', 'CANCELLED'];
 const draftHint = code => { let a = 2166136261, b = 5381; for (let i = 0; i < code.length; i++) { a = Math.imul(a ^ code.charCodeAt(i), 16777619); b = Math.imul(b, 33) ^ code.charCodeAt(i); } return code.length + ':' + (a >>> 0) + ':' + (b >>> 0); };
 export default {
   name: 'PersonalRemoteSubmit',
-  components: { RemoteCredentialSettings },
-  props: { scope: { type: Object, required: true }, code: { type: String, default: '' }, sourceProblem: { type: String, default: '' }, disabled: Boolean },
+  components: { CodeforcesPracticeSync, RemoteCredentialSettings },
+  props: { scope: { type: Object, required: true }, code: { type: String, default: '' }, language: { type: String, default: '' }, sourceProblem: { type: String, default: '' }, disabled: Boolean },
   data: () => ({ mode: 'personal', submissionSupported: null, accounts: [], accountId: null, languages: {}, languageId: '', offerId: '', error: '', busy: false, loadingAccounts: false, loadingLanguages: false, pending: null, submitId: null, task: null, verdict: null, resultHidden: false, epoch: 0, languageEpoch: 0, accountEpoch: 0, statusEpoch: 0, timer: null, disposed: false }),
   computed: {
     actor() { return this.$store.getters.isAuthenticated ? this.$store.getters.userInfo.uid || '' : ''; },
     context() { return JSON.stringify([this.actor, this.scope.pid, this.scope.cid || 0, this.scope.tid || 0, this.scope.gid || 0]); },
     storageKey() { return 'personal-remote:' + this.context; },
     isNowCoder() { return this.sourceProblem.startsWith('NC-'); },
+    codeforcesPracticeUrl() {
+      return codeforcesProblemUrl(this.sourceProblem);
+    },
+    codeforcesSyncScope() {
+      const { pid, cid, tid, gid } = this.scope;
+      return cid || tid || gid ? { displayId: pid, contestId: cid || null, trainingId: tid || null, groupId: gid || null } : null;
+    },
     platformName() { return this.isNowCoder ? '牛客' : this.sourceProblem.startsWith('AC-') ? 'AtCoder' : 'Codeforces'; },
     selected() { return this.accounts.find(account => account.id === this.accountId); },
+    showProgress() { return !!(this.actor && (this.pending || this.task) && (this.codeforcesPracticeUrl || this.mode === 'personal')); },
     activeTask() { return this.task && !terminal.includes(this.task.state); },
-    canSubmit() { return !!(this.submissionSupported === true && this.actor && !this.disabled && !this.busy && !this.loadingLanguages && this.selected && this.selected.authorized && this.offerId && this.languageId && this.code.trim() && !this.activeTask && (!this.pending || this.submitId || this.pending.accountId === this.accountId && this.pending.languageId === this.languageId && this.pending.draft === draftHint(this.code))); },
+    canSubmit() { return !!(!this.codeforcesPracticeUrl && this.submissionSupported === true && this.actor && !this.disabled && !this.busy && !this.loadingLanguages && this.selected && this.selected.authorized && this.offerId && this.languageId && this.code.trim() && !this.activeTask && (!this.pending || this.submitId || this.pending.accountId === this.accountId && this.pending.languageId === this.languageId && this.pending.draft === draftHint(this.code))); },
     progressLabel() {
       if (!this.task) return '等待确认提交';
       if (this.task.state === 'COMPLETED') return this.resultHidden ? '判题完成，结果按比赛规则开放' : ({ 0: 'Accepted', '-1': 'Wrong Answer', '-2': 'Compile Error', 1: 'Time Limit Exceeded', 2: 'Memory Limit Exceeded', 3: 'Runtime Error', 4: 'System Error' }[this.verdict] || '判题完成');
@@ -84,13 +112,17 @@ export default {
   beforeDestroy() { this.disposed = true; this.epoch++; clearTimeout(this.timer); },
   methods: {
     current(epoch, context) { return !this.disposed && epoch === this.epoch && context === this.context; },
-    modeChanged() { this.$emit('active', this.mode === 'personal'); },
+    modeChanged() { this.$emit('active', !!this.codeforcesPracticeUrl || this.mode === 'personal'); },
     login() { this.$store.dispatch('changeModalStatus', { visible: true }); },
+    async copyCode() {
+      try { await this.$copyText(this.code); this.$message.success('已复制代码'); }
+      catch (_) { this.$message.error('复制失败，请从编辑器手动复制'); }
+    },
     reset() {
       this.epoch++; this.languageEpoch++; this.accountEpoch++; this.statusEpoch++; clearTimeout(this.timer);
       this.submissionSupported = null; this.accounts = []; this.accountId = null; this.languages = {}; this.languageId = ''; this.offerId = ''; this.error = ''; this.busy = false; this.loadingAccounts = false; this.loadingLanguages = false; this.task = null; this.submitId = null; this.pending = null; this.verdict = null; this.resultHidden = false;
       this.modeChanged();
-      if (this.actor) { const saved = readPreference(this.storageKey, null); if (saved && saved.requestId) { this.pending = saved; this.submitId = saved.submitId || null; this.check(); } this.refreshAccounts(); }
+      if (this.actor) { const saved = readPreference(this.storageKey, null); if (saved && saved.requestId) { this.pending = saved; this.submitId = saved.submitId || null; this.check(); } if (!this.codeforcesPracticeUrl) this.refreshAccounts(); }
     },
     accountChanged() { this.languageEpoch++; this.loadingLanguages = false; this.offerId = ''; this.languages = {}; this.languageId = ''; this.error = ''; },
     async refreshAccounts() {
@@ -158,7 +190,9 @@ export default {
 .remote-fields label { display: grid; gap: 6px; font-size: 13px; color: var(--muted, #68828f); }
 .remote-fields .el-select { width: 100%; min-width: 0; }
 .personal-remote-submit /deep/ .el-input.is-disabled .el-input__inner { background: var(--soft); color: var(--muted); border-color: var(--line); }
-.remote-tools a { font-size: 13px; color: var(--accent, #2086a2); }
+.remote-tools a:not(.el-button) { font-size: 13px; color: var(--accent, #2086a2); }
+.remote-browser { margin-top: 12px; }
+.remote-browser .el-button { margin: 0; }
 .remote-note,.remote-progress p { margin: 10px 0 0; font-size: 12px; line-height: 1.7; color: var(--muted, #68828f); }
 .remote-error { margin-top: 12px; }
 .remote-progress { margin-top: 14px; padding: 12px 14px; border-left: 3px solid var(--accent, #2086a2); background: var(--soft, #f1f7fa); border-radius: 0 6px 6px 0; }

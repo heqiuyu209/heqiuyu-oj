@@ -88,6 +88,7 @@ services:
       - ./sqlAndsetting/learning-training-plan.sql:/opt/hoj/learning-training-plan.sql:ro
       - ./sqlAndsetting/nowcoder-practice-init.sql:/docker-entrypoint-initdb.d/06-nowcoder-practice.sql:ro
       - ./sqlAndsetting/nowcoder-practice.sql:/opt/hoj/nowcoder-practice.sql:ro
+      - ./sqlAndsetting/codeforces-sync.sql:/docker-entrypoint-initdb.d/07-codeforces-sync.sql:ro
     healthcheck:
       test:
         - CMD-SHELL

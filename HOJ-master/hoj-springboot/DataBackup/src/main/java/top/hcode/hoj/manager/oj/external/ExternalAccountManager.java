@@ -81,7 +81,9 @@ public class ExternalAccountManager {
         tx(() -> {
             Map<String,Object> account=owned(id,true);
             if(account.get("verified_identity")!=null) throw new ObjectiveException(400,"该账号已经验证");
-            String code="HOJ-"+UUID.randomUUID().toString().replace("-","");
+            String random=UUID.randomUUID().toString().replace("-","");
+            // Codeforces caps the organization's English name at 30 characters.
+            String code="HOJ-"+("CODEFORCES".equals(account.get("platform")) ? random.substring(0,24) : random);
             jdbc.update("UPDATE external_account SET proof_code=?,proof_expires_at=?,verification_note=NULL WHERE id=?",code,new Timestamp(now()+30*60*1000L),id);return null;
         });return mine();
     }

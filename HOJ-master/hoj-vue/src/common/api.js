@@ -49,6 +49,7 @@ axios.interceptors.request.use(
     return config;
   },
   error => {
+    if (error.config && error.config.hojInlineError) return Promise.reject(error);
     // NProgress.done();
     mMessage.error(error.response.data.msg);
     if (!isMobile) {
@@ -73,6 +74,7 @@ axios.interceptors.response.use(
     if (response.data.status === 200 || response.data.status == undefined) {
       return Promise.resolve(response);
     } else {
+      if (response.config && response.config.hojInlineError) return Promise.reject(response);
       mMessage.error(response.data.msg);
       if (!isMobile) {
         Vue.prototype.$notify.error({
@@ -91,6 +93,7 @@ axios.interceptors.response.use(
     // NProgress.done();
     if (error.response) {
       const config = error.response.config || error.config;
+      const inlineError = config && config.hojInlineError;
       if (config && config.headers && config.headers.Authorization && config.hojAuthEpoch !== store.getters.authEpoch) return Promise.reject(new axios.Cancel('Previous login session'));
       if (error.response.headers['refresh-token']) { // token续约！！
         store.commit('refreshUserToken', error.response.headers['authorization'])
@@ -98,12 +101,13 @@ axios.interceptors.response.use(
       if (error.response.data instanceof Blob) { // 如果是文件操作的返回，由后续进行处理
         return Promise.resolve(error.response);
       }
+      if (inlineError && ![401, 403].includes(error.response.status)) return Promise.reject(error);
       switch (error.response.status) {
         // 401: 未登录 token过期
         // 未登录则跳转登录页面，并携带当前页面的路径
         // 在登录成功后返回当前页面，这一步需要在登录页操作。
         case 401:
-          if (error.response.data.msg) {
+          if (!inlineError && error.response.data.msg) {
             mMessage.error(error.response.data.msg);
             if (!isMobile) {
               Vue.prototype.$notify.error({
@@ -124,7 +128,7 @@ axios.interceptors.response.use(
         // 403
         // 无权限访问或操作的请求
         case 403:
-          if (error.response.data.msg) {
+          if (!inlineError && error.response.data.msg) {
             mMessage.error(error.response.data.msg);
             if (!isMobile) {
               Vue.prototype.$notify.error({
@@ -167,6 +171,7 @@ axios.interceptors.response.use(
       }
       return Promise.reject(error);
     } else { //处理断网或请求超时，请求没响应
+      if (error.config && error.config.hojInlineError) return Promise.reject(error);
       if (error.code == 'ECONNABORTED' || error.message.includes('timeout')) {
         mMessage.error(i18n.t('m.Request_timed_out_please_try_again_later'));
       } else {

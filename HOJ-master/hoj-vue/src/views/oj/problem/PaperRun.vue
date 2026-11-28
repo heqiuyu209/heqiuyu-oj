@@ -13,10 +13,10 @@
         <template #statement><article class="paper-statement"><el-tag effect="plain" size="small">{{ question.kind === 'PROGRAMMING' ? '编程题' : questionTypes[question.questionType] }}</el-tag><h2>{{ question.title }}</h2><div class="origin"><span><i class="el-icon-collection-tag" /> 来源：{{ question.source || '本校题库' }}</span><span>{{ question.maxScore }} 分</span><span>Rating {{ question.rating == null ? '未评级' : question.rating }}</span><span>题号 {{ question.problemId || question.referenceId }}</span></div>
           <template v-if="question.kind === 'PROGRAMMING'"><p class="limits">时间 {{ question.timeLimit }} ms · 内存 {{ question.memoryLimit }} MB</p><h3>题目描述</h3><div class="statement-html" v-dompurify-html="safe(question.stem)" /><h3>输入</h3><div v-dompurify-html="safe(question.input)" /><h3>输出</h3><div v-dompurify-html="safe(question.output)" /><div v-for="(example, exampleIndex) in examples" :key="exampleIndex" class="examples"><h3>样例 {{ exampleIndex + 1 }}</h3><p>输入</p><pre>{{ example.input }}</pre><p>输出</p><pre>{{ example.output }}</pre></div></template>
           <template v-else><h3>题目描述</h3><p class="stem">{{ question.stem }}</p></template>
-          <div class="rules"><h3>作答规则</h3><p>{{ run.programMode === 'LIVE' ? '编程题可多次提交判题；仅保存草稿不参与计分。' : '编程题先保存代码，交卷后统一评测。' }}{{ run.scoreRule === 'BEST' ? ' 编程题取最高分。' : ' 编程题取最后一次提交的分数。' }} 客观题交卷后统一判分。</p><p>{{ run.contestId ? '标准答案' : '答案与成绩' }}：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}<br>解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}</p><p>本次作答使用开卷时的题目版本；{{ run.contestId ? '比赛与练习记录独立。' : '套卷与单题记录独立。' }}</p></div>
+          <div class="rules"><h3>作答规则</h3><p>{{ question.codeforcesProblem ? '请在有效作答时间内到 Codeforces 提交，再回到此处同步。' : run.programMode === 'LIVE' ? '编程题可多次提交判题；仅保存草稿不参与计分。' : '编程题先保存代码，交卷后统一评测。' }}{{ run.scoreRule === 'BEST' ? ' 编程题取最高分。' : ' 编程题取最后一次提交的分数。' }} 客观题交卷后统一判分。</p><p>{{ run.contestId ? '标准答案' : '答案与成绩' }}：{{ releaseLabel(run.answerPolicy, run.answerReleaseAt) }}<br>解析：{{ releaseLabel(run.explanationPolicy, run.explanationReleaseAt) }}</p><p>本次作答使用开卷时的题目版本；{{ run.contestId ? '比赛与练习记录独立。' : '套卷与单题记录独立。' }}</p></div>
         <AiProblemHelp :reference="{ kind: 'PAPER_RUN', runId: run.id, questionKey: question.key }" :title="question.title" />
         </article></template>
-        <template #editor><PaperProgramAnswer v-if="question.kind === 'PROGRAMMING'" ref="answer" :key="run.id + ':' + question.key" :problem="question" :live="run.programMode === 'LIVE'" :finished="finished" :loading="saving" @save="saveProgram" @submit="submitProgram" /><ObjectiveAnswer v-else ref="answer" :key="run.id + ':' + question.key" :problem="question" enabled mode="PAPER" :run-id="'paper:' + run.id" :finished="finished" :loading="saving" @submit="saveObjective" /></template>
+        <template #editor><PaperProgramAnswer v-if="question.kind === 'PROGRAMMING'" ref="answer" :key="run.id + ':' + question.key" :run-id="run.id" :problem="question" :live="run.programMode === 'LIVE'" :finished="finished" :loading="saving" @save="saveProgram" @submit="submitProgram" @synced="poll" /><ObjectiveAnswer v-else ref="answer" :key="run.id + ':' + question.key" :problem="question" enabled mode="PAPER" :run-id="'paper:' + run.id" :finished="finished" :loading="saving" @submit="saveObjective" /></template>
       </WorkspaceLayout>
       <div class="finish-actions"><p>{{ finished ? '本次答卷已结束，可从入口再次查看。' : '可以逐题保存和修改；交卷后不能修改答案。' }}</p><el-button v-if="!finished" type="primary" :loading="saving" @click="finish">交卷并结束作答 <i class="el-icon-check" /></el-button></div>
     </template>
@@ -73,7 +73,8 @@ export default {
     },
     async finish() {
       if (this.saving || this.finished) return; const current = this.context(), id = this.run.id;
-      const notice = this.run.programMode === 'LIVE' ? '编程题按已经提交判题的代码计分，未提交的草稿不计分。' : '已保存的编程代码将在交卷后统一评测。';
+      const local = this.run.programMode === 'LIVE' ? '本地编程题按已提交的代码计分。' : '已保存的本地编程题代码将在交卷后评测。';
+      const notice = this.run.items.some(item => item.codeforcesProblem) ? local + ' Codeforces 题按有效时间内的原站提交计分。' : local;
       try { await this.$confirm('确认交卷？当前修改会先保存，交卷后不能修改。' + notice, '交卷', { type: 'warning', confirmButtonText: '保存并交卷' }); } catch (_) { return; }
       if (!current()) return;
       if (this.dirty()) { const editor = this.$refs.answer; if (!await this.save(this.question.kind === 'PROGRAMMING' ? editor.payload : { selectedAnswers: editor.selected })) return; }

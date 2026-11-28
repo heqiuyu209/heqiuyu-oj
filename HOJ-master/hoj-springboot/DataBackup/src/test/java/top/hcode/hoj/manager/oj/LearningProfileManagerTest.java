@@ -31,7 +31,7 @@ class LearningProfileManagerTest {
         jdbc = new JdbcTemplate(source); jdbc.execute("DROP ALL OBJECTS"); json = new ObjectMapper();
         jdbc.execute("CREATE TABLE user_info(uuid VARCHAR(32),username VARCHAR(32),status INT DEFAULT 0)");
         jdbc.execute("CREATE TABLE problem(id BIGINT PRIMARY KEY,rating INT,auth INT,is_group BOOLEAN DEFAULT FALSE,author VARCHAR(32),problem_id VARCHAR(100),is_remote BOOLEAN DEFAULT FALSE)");
-        jdbc.execute("CREATE TABLE judge(submit_id BIGINT PRIMARY KEY,uid VARCHAR(32),pid BIGINT,cid BIGINT DEFAULT 0,gid BIGINT,paper_run_id BIGINT,status INT)");
+        jdbc.execute("CREATE TABLE judge(submit_id BIGINT PRIMARY KEY,uid VARCHAR(32),pid BIGINT,cid BIGINT DEFAULT 0,gid BIGINT,paper_run_id BIGINT,status INT,judger VARCHAR(20))");
         jdbc.execute("CREATE TABLE tag(id BIGINT PRIMARY KEY,name VARCHAR(100),gid BIGINT)");
         jdbc.execute("CREATE TABLE problem_tag(pid BIGINT,tid BIGINT)");
         jdbc.execute("CREATE TABLE algorithm_topic(code VARCHAR(80),problem_tag_id BIGINT,training_category_id BIGINT,tag_classification_id BIGINT)");
@@ -69,6 +69,13 @@ class LearningProfileManagerTest {
         program(9,1400,1,false,"coach"); judge(9,9,0,null,null,-1);
         assertEquals(1L,overall(manager.profile("a")).get("attempted"));
         assertEquals(0L,overall(manager.profile("a")).get("solved"));
+    }
+    @Test void mirroredCodeforcesReceiptDoesNotCountAsAnHojSolve() {
+        program(1,800,1,false,"coach"); judge(1,1,0,null,null,0);
+        jdbc.update("UPDATE problem SET is_remote=TRUE,problem_id='CF-4A' WHERE id=1");
+        jdbc.update("UPDATE judge SET judger='CodeforcesSync' WHERE submit_id=1");
+        assertEquals(0L, overall(manager.profile("a")).get("solved"));
+        assertTrue(manager.publicProgrammingEvidence("a").isEmpty());
     }
     @Test void objectiveEvidenceUsesFrozenAnswersAndCountsConceptsSeparatelyWithoutLeakingAnswers() throws Exception {
         ObjectiveDTO.Question frozen=question(1,"AFTER_ANSWER"); objective(frozen,"coach",true,true);
@@ -132,7 +139,7 @@ class LearningProfileManagerTest {
     void program(long id,Integer rating,int auth,boolean group,String author) {
         jdbc.update("INSERT INTO problem(id,rating,auth,is_group,author) VALUES(?,?,?,?,?)",id,rating,auth,group,author); jdbc.update("INSERT INTO problem_tag VALUES(?,11)",id);
     }
-    void judge(long id,long pid,long cid,Long gid,Long paper,int status) { jdbc.update("INSERT INTO judge VALUES(?,'a',?,?,?,?,?)",id,pid,cid,gid,paper,status); }
+    void judge(long id,long pid,long cid,Long gid,Long paper,int status) { jdbc.update("INSERT INTO judge(submit_id,uid,pid,cid,gid,paper_run_id,status) VALUES(?,'a',?,?,?,?,?)",id,pid,cid,gid,paper,status); }
     ObjectiveDTO.Question question(long id,String policy) {
         ObjectiveDTO.Question q=new ObjectiveDTO.Question(); q.setId(id); q.setQuestionType("SINGLE_CHOICE"); q.setTitle("choice"); q.setCorrectAnswers(Collections.singletonList("A")); q.setTagIds(Collections.singletonList(12L)); q.setAnswerPolicy(policy); return q;
     }

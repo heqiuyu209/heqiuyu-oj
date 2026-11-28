@@ -31,6 +31,15 @@ public class CodeforcesDataClient {
         else if ("RATING".equals(stage)) { method="user.rating"; query="handle="+handle; }
         else if (("STATUS".equals(stage) || "VERIFY_STATUS".equals(stage)) && from>0) { method="user.status"; query="handle="+handle+"&from="+from+"&count=500"; }
         else throw new IllegalArgumentException("Unknown sync stage");
+        return request(method, query, catalogue);
+    }
+
+    public JsonNode recentBrowserSubmissions(String handle) {
+        if (handle == null || !handle.matches("[A-Za-z0-9_.-]{1,64}")) throw new ObjectiveException(400,"CF 用户名格式无效");
+        return request("user.status", "handle=" + handle + "&from=1&count=40", false);
+    }
+
+    private JsonNode request(String method, String query, boolean catalogue) {
         HttpGet request = new HttpGet(endpoint(method,query));
         ScheduledFuture<?> timeout=deadlines.schedule(request::abort,catalogue?45:20,TimeUnit.SECONDS);
         try (CloseableHttpClient client=HttpClients.custom().disableAutomaticRetries().disableRedirectHandling().disableCookieManagement().disableContentCompression()

@@ -11,6 +11,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import top.hcode.hoj.common.exception.ObjectiveException;
 import top.hcode.hoj.judge.self.JudgeDispatcher;
+import top.hcode.hoj.manager.oj.external.CodeforcesSyncManager;
 import top.hcode.hoj.mapper.*;
 import top.hcode.hoj.pojo.dto.PaperProgramSnapshotDTO;
 import top.hcode.hoj.pojo.entity.judge.Judge;
@@ -44,17 +45,20 @@ public class PaperProgramManager {
         Problem problem = problemMapper.selectById(id);
         require(problem != null && Objects.equals(problem.getAuth(), 1) && !Boolean.TRUE.equals(problem.getIsGroup()),
                 "只能引用已公开的主题库编程题");
-        require(!Boolean.TRUE.equals(problem.getIsRemote()) && "default".equals(problem.getJudgeMode()),
-                "混合试卷首版支持本地标准判题，请选择本地非特判编程题");
+        require(supported(problem), "请选择本地标准判题或公开的 Codeforces 题目");
         return problem;
     }
 
     private Problem collectionProblem(Long id) {
         Problem problem = problemMapper.selectById(id);
         require(problem != null && !Boolean.TRUE.equals(problem.getIsGroup()), "请选择主题库编程题");
-        require(!Boolean.TRUE.equals(problem.getIsRemote()) && "default".equals(problem.getJudgeMode()),
-                "混合试卷支持本地标准判题，请选择本地非特判编程题");
+        require(supported(problem), "请选择本地标准判题或公开的 Codeforces 题目");
         return problem;
+    }
+
+    private boolean supported(Problem problem) {
+        return !Boolean.TRUE.equals(problem.getIsRemote()) && "default".equals(problem.getJudgeMode())
+                || Objects.equals(problem.getAuth(), 1) && CodeforcesSyncManager.isCodeforcesProblem(problem);
     }
 
     /** Only administrators who can read the source may create a reference to a private problem. */
@@ -69,16 +73,19 @@ public class PaperProgramManager {
 
     public List<Map<String, Object>> choices(String keyword) {
         QueryWrapper<Problem> query = new QueryWrapper<>();
-        query.select("id", "problem_id", "title", "source", "auth").eq("is_remote", false)
-                .eq("judge_mode", "default").and(q -> q.eq("is_group", false).or().isNull("is_group"));
+        query.select("id", "problem_id", "title", "source", "auth", "is_remote", "judge_mode")
+                .and(q -> q.eq("is_remote", false).eq("judge_mode", "default")
+                        .or(cf -> cf.eq("is_remote", true).eq("auth", 1).likeRight("problem_id", "CF-")))
+                .and(q -> q.eq("is_group", false).or().isNull("is_group"));
         if (!SecurityUtils.getSubject().hasRole("root") && !SecurityUtils.getSubject().hasRole("problem_admin")) {
             require(ShiroUtils.getProfile() != null, "请先登录");
             query.and(q -> q.eq("auth", 1).or().eq("author", ShiroUtils.getProfile().getUsername()));
         }
         if (keyword != null && !keyword.trim().isEmpty()) {
-            require(keyword.length() <= 100, "搜索词过长"); query.like("title", keyword.trim());
+            require(keyword.length() <= 100, "搜索词过长");
+            query.and(q -> q.like("title", keyword.trim()).or().like("problem_id", keyword.trim()));
         }
-        return problemMapper.selectList(query.orderByDesc("id").last("LIMIT 100")).stream().map(p -> {
+        return problemMapper.selectList(query.orderByDesc("id").last("LIMIT 100")).stream().filter(this::supported).map(p -> {
             Map<String, Object> row = new LinkedHashMap<>(); row.put("id", p.getId());
             row.put("problemId", p.getProblemId()); row.put("title", p.getTitle()); row.put("source", p.getSource()); row.put("auth", p.getAuth()); return row;
         }).collect(Collectors.toList());
@@ -102,6 +109,13 @@ public class PaperProgramManager {
     PaperProgramSnapshotDTO captureForCollection(Long problemId) {
         jdbc.queryForList("SELECT id FROM problem WHERE id=? FOR UPDATE", problemId);
         Problem problem = collectionProblem(problemId);
+        if (CodeforcesSyncManager.isCodeforcesProblem(problem)) {
+            PaperProgramSnapshotDTO snapshot = new PaperProgramSnapshotDTO();
+            snapshot.setProblem(problem);
+            snapshot.setCases(Collections.emptyList());
+            snapshot.setLanguages(Collections.emptyList());
+            return snapshot;
+        }
         List<ProblemCase> cases = caseMapper.selectList(new QueryWrapper<ProblemCase>().eq("pid", problemId).eq("status", 0).orderByAsc("id"));
         require(!cases.isEmpty(), "编程题缺少可用测试数据");
         long size = 0;
@@ -150,7 +164,9 @@ public class PaperProgramManager {
 
     public void validate(Long snapshotId, String language, String code) {
         require(code != null && !code.trim().isEmpty() && code.length() <= 65535, "请填写不超过 65535 字的代码");
-        require(snapshot(snapshotId).getLanguages().contains(language), "请选择本题支持的语言");
+        PaperProgramSnapshotDTO snapshot = snapshot(snapshotId);
+        require(!CodeforcesSyncManager.isCodeforcesProblem(snapshot.getProblem()), "请在 Codeforces 提交并同步公开结果");
+        require(snapshot.getLanguages().contains(language), "请选择本题支持的语言");
     }
 
     public void rateLimit(String uid) {
@@ -216,7 +232,8 @@ public class PaperProgramManager {
 
     public void retry(Long runId, String uid, boolean contest) {
         List<Judge> failed = judgeMapper.selectList(new QueryWrapper<Judge>()
-                .eq("paper_run_id", runId).eq("uid", uid).in("status", Arrays.asList(4, 10)));
+                .eq("paper_run_id", runId).eq("uid", uid).in("status", Arrays.asList(4, 10))
+                .and(q -> q.isNull("judger").or().ne("judger", CodeforcesSyncManager.JUDGER)));
         if (failed.isEmpty()) return;
         if (contest) contestAccess(); else checkAccess();
         rateLimit(uid);
@@ -230,8 +247,9 @@ public class PaperProgramManager {
     }
 
     public List<Judge> submissions(Long runId, Long snapshotId, String uid) {
-        return judgeMapper.selectList(new QueryWrapper<Judge>().select("submit_id", "status", "score", "time", "memory", "error_message", "submit_time")
-                .eq("paper_run_id", runId).eq("paper_snapshot_id", snapshotId).eq("uid", uid).orderByAsc("submit_id"));
+        return judgeMapper.selectList(new QueryWrapper<Judge>().select("submit_id", "status", "score", "time", "memory", "error_message", "submit_time", "vjudge_submit_id")
+                .eq("paper_run_id", runId).eq("paper_snapshot_id", snapshotId).eq("uid", uid)
+                .last("ORDER BY CASE WHEN vjudge_submit_id IS NOT NULL THEN submit_time END, COALESCE(vjudge_submit_id,submit_id), submit_id"));
     }
 }
 

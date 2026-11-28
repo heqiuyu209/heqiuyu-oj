@@ -82,6 +82,22 @@ class ExternalAccountManagerTest {
         actor="bob";long second=link();String other=proof(second);ready(other);apply(json.createArrayNode());
         assertEquals(false,own().get("verified"));assertTrue(own().get("verificationNote").toString().contains("其他"));assertTrue(accounts(manager.publicView("bob")).isEmpty());
     }
+    @Test void replacesOversizedCodeforcesProofAndVerifiesTheNewCode() {
+        long id=link();
+        String old="HOJ-0123456789abcdef0123456789abcdef";
+        jdbc.update("UPDATE external_account SET proof_code=?,proof_expires_at=? WHERE id=?",old,new Timestamp(clock+60000L),id);
+
+        String code=proof(id);
+        assertTrue(code.matches("HOJ-[0-9a-f]{24}"));
+        apply(profile(old));
+        assertEquals(false,own().get("verified"));
+
+        clock+=60000L;
+        manager.requestSync(id,true);
+        apply(profile(code));
+        assertEquals(true,own().get("verified"));
+        assertFalse(own().containsKey("proofCode"));
+    }
     @Test void wrongAndExpiredProofsCannotPublishAccount() {
         long id=link();String code=proof(id);ready("wrong");apply(json.createArrayNode());assertEquals(false,own().get("verified"));
         clock+=31*60000L;assertThrows(ObjectiveException.class,()->manager.requestSync(id,true));manager.requestSync(id,false);ready(code);apply(json.createArrayNode());assertEquals(false,own().get("verified"));

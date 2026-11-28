@@ -422,7 +422,7 @@
                           <el-button
                             type="text"
                             @click="showSubmitDetail(row)"
-                          >{{ row.language }}</el-button>
+                          >{{ row.judger === 'CodeforcesSync' ? 'Codeforces' : row.language }}</el-button>
                         </el-tooltip>
                       </template>
                     </vxe-table-column>
@@ -495,8 +495,10 @@
               :scope="{ pid: problemID, cid: contestID, tid: trainingID, gid: groupID }"
               :source-problem="problemData.problem.problemId || ''"
               :code="code"
+              :language="language"
               :disabled="problemSubmitDisabled || submitDisabled"
               @active="personalRemoteActive = $event"
+              @synced="activeName === 'mySubmission' && getMySubmission()"
             />
             <CodeMirror
               ref="codeEditor"

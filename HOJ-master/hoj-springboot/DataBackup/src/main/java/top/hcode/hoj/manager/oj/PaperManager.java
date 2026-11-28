@@ -10,6 +10,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import top.hcode.hoj.common.exception.ObjectiveException;
+import top.hcode.hoj.manager.oj.external.CodeforcesSyncManager;
 import top.hcode.hoj.pojo.dto.*;
 import top.hcode.hoj.pojo.entity.judge.Judge;
 import top.hcode.hoj.pojo.entity.problem.Problem;
@@ -80,6 +81,39 @@ public class PaperManager {
         else if (row.get("contest_id") != null) mixed.access(number(row.get("contest_id")), false);
         else paper(number(row.get("paper_id")), false, false);
         return row;
+    }
+
+    public void requireCodeforcesSyncItem(long runId, String key, String problemId) {
+        Map<String, Object> run = ownedRun(runId, false);
+        PaperDTO.SnapshotItem item = item(snapshot(run), key);
+        if (!"PROGRAMMING".equals(item.getKind())) throw fail(404, "此题不支持 Codeforces 结果同步");
+        Problem problem = programs.snapshot(item.getProgramSnapshotId()).getProblem();
+        if (!CodeforcesSyncManager.isCodeforcesProblem(problem) || !problemId.equals(problem.getProblemId()))
+            throw fail(404, "此题不支持 Codeforces 结果同步");
+    }
+
+    public List<CodeforcesSyncManager.Target> codeforcesSyncTargets(long runId, String user) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT r.*,c.start_time,c.end_time,v.started_at,v.ends_at FROM paper_run r "
+                        + "LEFT JOIN contest c ON c.id=r.contest_id LEFT JOIN contest_virtual_run v ON v.id=r.virtual_run_id AND v.uid=r.uid "
+                        + "WHERE r.id=? AND r.uid=?", runId, user);
+        if (rows.isEmpty()) return Collections.emptyList();
+        Map<String, Object> run = rows.get(0);
+        Object start = run.get("contest_id") != null ? run.get("start_time")
+                : run.get("virtual_run_id") != null ? run.get("started_at") : run.get("gmt_create");
+        Object end = run.get("contest_id") != null ? run.get("end_time") : run.get("ends_at");
+        if (!(start instanceof java.util.Date) || competition(run) && !(end instanceof java.util.Date)) return Collections.emptyList();
+        long from = ((java.util.Date) start).getTime();
+        long until = end == null ? Long.MAX_VALUE : ((java.util.Date) end).getTime();
+        if ("FINISHED".equals(run.get("state"))) until = Math.min(until, ((java.util.Date) run.get("gmt_modified")).getTime());
+        List<CodeforcesSyncManager.Target> targets = new ArrayList<>();
+        for (PaperDTO.SnapshotItem item : snapshot(run).getItems()) {
+            if (!"PROGRAMMING".equals(item.getKind())) continue;
+            Problem problem = programs.snapshot(item.getProgramSnapshotId()).getProblem();
+            if (CodeforcesSyncManager.isCodeforcesProblem(problem))
+                targets.add(CodeforcesSyncManager.Target.paper(runId, item.getProgramSnapshotId(), problem, from, until));
+        }
+        return targets;
     }
     private Map<String, Object> virtualRow(Map<String, Object> run) {
         if (run.get("virtual_run_id") == null) return null;
@@ -340,7 +374,8 @@ public class PaperManager {
             boolean limited = false;
             for (PaperDTO.SnapshotItem item : snapshot.getItems()) {
                 PaperDTO.SavedAnswer answer = answers.get(item.getKey());
-                if ("PROGRAMMING".equals(item.getKind()) && answer != null && answer.getCode() != null && !answer.getCode().trim().isEmpty()) {
+                if ("PROGRAMMING".equals(item.getKind()) && answer != null && answer.getCode() != null && !answer.getCode().trim().isEmpty()
+                        && !CodeforcesSyncManager.isCodeforcesProblem(programs.snapshot(item.getProgramSnapshotId()).getProblem())) {
                     if (!limited) { programs.rateLimit(uid()); limited = true; }
                     programs.submit(id, item.getProgramSnapshotId(), uid(), answer.getLanguage(), answer.getCode());
                 }
@@ -412,6 +447,7 @@ public class PaperManager {
             } else {
                 PaperProgramSnapshotDTO program = programs.snapshot(item.getProgramSnapshotId()); Problem p = program.getProblem();
                 row.put("rating", p.getRating()); row.put("title", p.getTitle()); row.put("questionType", "PROGRAMMING"); row.put("source", p.getSource()); row.put("problemId", p.getProblemId());
+                if (CodeforcesSyncManager.isCodeforcesProblem(p)) row.put("codeforcesProblem", p.getProblemId());
                 row.put("stem", p.getDescription()); row.put("input", p.getInput()); row.put("output", p.getOutput()); row.put("examples", p.getExamples());
                 row.put("timeLimit", p.getTimeLimit()); row.put("memoryLimit", p.getMemoryLimit()); row.put("languages", program.getLanguages());
                 row.put("language", saved.getLanguage()); row.put("code", saved.getCode() == null ? "" : saved.getCode());
@@ -433,6 +469,7 @@ public class PaperManager {
                     for (Judge submission : submissions) {
                         Map<String, Object> result = new LinkedHashMap<>();
                         result.put("id", submission.getSubmitId()); result.put("status", submission.getStatus());
+                        if (submission.getVjudgeSubmitId() != null) result.put("codeforcesSubmissionId", Long.toString(submission.getVjudgeSubmitId()));
                         result.put("time", submission.getTime()); result.put("memory", submission.getMemory());
                         if (!pending(submission)) result.put("score", programScore(submission, program, item.getScore()));
                         if (Objects.equals(submission.getStatus(), -2)) {

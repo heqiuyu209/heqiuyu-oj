@@ -61,6 +61,11 @@ public class RejudgeManager {
         if (personalRemoteSubmissionGuard.managed(submitId)) throw new StatusFailException("个人远程提交请从提交详情核对源站结果，不能通过旧重判入口重新投递");
     }
 
+    private void requireJudgeable(Judge judge) throws StatusFailException {
+        if (judge == null) throw new StatusFailException("错误：该提交数据已不存在！");
+        if ("CodeforcesSync".equals(judge.getJudger())) throw new StatusFailException("请使用 Codeforces 记录同步刷新判定");
+    }
+
     private static List<Integer> penaltyStatus = Arrays.asList(
             Constants.Judge.STATUS_PRESENTATION_ERROR.getStatus(),
             Constants.Judge.STATUS_WRONG_ANSWER.getStatus(),
@@ -72,7 +77,8 @@ public class RejudgeManager {
     public Judge rejudge(Long submitId) throws StatusFailException {
         requireLegacySubmission(submitId);
         Judge judge = judgeEntityService.getById(submitId);
-        if (judge != null && judge.getPaperRunId() != null) throw new StatusFailException("套卷提交不参与题库重判");
+        requireJudgeable(judge);
+        if (judge.getPaperRunId() != null) throw new StatusFailException("套卷提交不参与题库重判");
 
         boolean isContestSubmission = judge.getCid() != 0;
 
@@ -96,6 +102,7 @@ public class RejudgeManager {
         QueryWrapper<Judge> queryWrapper = new QueryWrapper<>();
         queryWrapper.isNull("paper_run_id");
         queryWrapper.notInSql("submit_id", "SELECT submit_id FROM personal_remote_task");
+        queryWrapper.and(q -> q.isNull("judger").or().ne("judger", "CodeforcesSync"));
         queryWrapper.eq("cid", cid).eq("pid", pid);
         List<Judge> rejudgeList = judgeEntityService.list(queryWrapper);
 
@@ -131,6 +138,7 @@ public class RejudgeManager {
     @Transactional(rollbackFor = Exception.class)
     public boolean checkAndUpdateJudge(Boolean isContestSubmission, Judge judge, Long submitId) throws StatusFailException {
         requireLegacySubmission(submitId);
+        requireJudgeable(judge);
         // 如果是非比赛题目
         boolean resetContestRecordResult = true;
         if (!isContestSubmission) {
@@ -228,9 +236,7 @@ public class RejudgeManager {
                 .select("submit_id", "status", "judger", "cid", "pid", "uid")
                 .eq("submit_id", submitId);
         Judge judge = judgeEntityService.getOne(judgeQueryWrapper);
-        if (judge == null) {
-            throw new StatusFailException("错误：该提交数据已不存在！");
-        }
+        requireJudgeable(judge);
         if (judge.getStatus().equals(Constants.Judge.STATUS_JUDGING.getStatus())
                 || judge.getStatus().equals(Constants.Judge.STATUS_COMPILING.getStatus())
                 || judge.getStatus().equals(Constants.Judge.STATUS_PENDING.getStatus())) {
@@ -321,9 +327,7 @@ public class RejudgeManager {
                 .eq("submit_id", submitId)
                 .last("for update");
         Judge judge = judgeEntityService.getOne(judgeQueryWrapper);
-        if (judge == null) {
-            throw new StatusFailException("错误：该提交数据已不存在！");
-        }
+        requireJudgeable(judge);
         if (judge.getStatus().equals(Constants.Judge.STATUS_JUDGING.getStatus())
                 || judge.getStatus().equals(Constants.Judge.STATUS_COMPILING.getStatus())
                 || (judge.getStatus().equals(Constants.Judge.STATUS_PENDING.getStatus())

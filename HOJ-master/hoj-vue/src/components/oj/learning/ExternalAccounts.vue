@@ -15,7 +15,25 @@
         <p v-if="owner && account.lastError" class="source-notice source-error">{{ account.lastError }}</p>
         <p v-if="owner && account.verificationNote" class="source-notice">{{ account.verificationNote }}</p>
         <div v-if="owner" class="source-actions"><el-button v-if="!account.verified" size="small" :disabled="!!busy" @click="act('externalProof', account.id)">{{ account.proofCode ? '更换校验码' : '验证账号归属' }}</el-button><el-button size="small" :disabled="!!busy" @click="act('externalSync', account.id)">请求同步</el-button><remote-credential-settings v-if="account.verified" :account="account" /><el-button type="text" :disabled="!!busy" @click="unlink(account)">解除关联</el-button></div>
-        <div v-if="owner && account.proofCode" class="source-proof"><strong>在 {{ platformName(account.platform) }} 公开资料中完成一次校验</strong><p>将以下校验码追加到 {{ proofField(account.platform) }}，保存后点击“检查校验码”。验证完成后可以移除该校验码。</p><code>{{ account.proofCode }}</code><div><span>有效至 {{ date(account.proofExpiresAt) }}</span><el-button size="small" type="primary" :loading="busy === 'externalVerify:' + account.id" :disabled="!!busy" @click="act('externalVerify', account.id)">检查校验码</el-button></div><small>检查会进入后台同步队列，每个账号一分钟可请求一次。{{ account.platform === 'ATCODER' ? 'AtCoder 验证仅证明校验时的账号归属，平台未提供可核验的永久用户编号。' : '' }}</small></div>
+        <p v-if="owner && account.platform === 'CODEFORCES' && account.proofCode && account.proofCode.length > 30" class="source-notice source-error">
+          旧校验码超过 CF 的 30 字符上限，请点「更换校验码」。
+        </p>
+        <div v-else-if="owner && account.proofCode" class="source-proof">
+          <strong>验证 {{ platformName(account.platform) }} 账号归属</strong>
+          <ol>
+            <li v-if="account.platform === 'CODEFORCES'"><a href="https://codeforces.com/settings/social" target="_blank" rel="noopener noreferrer">打开 CF 社交资料设置</a>，登录对应账号。</li>
+            <li v-else><a :href="account.profileUrl" target="_blank" rel="noopener noreferrer">打开源站个人主页</a>，登录对应账号。</li>
+            <li v-if="account.platform === 'CODEFORCES'">暂时把 Organization（组织）改为下方校验码。若弹出 New organization，把同一码填入 English name 并保存，再保存资料设置。</li>
+            <li v-else>把校验码追加到 {{ proofField(account.platform) }}，保存公开资料。</li>
+            <li>回本站点「检查校验码」。显示「归属已验证」后，即可恢复刚才修改的资料。</li>
+          </ol>
+          <div>
+            <code>{{ account.proofCode }}</code>
+            <el-button size="small" :disabled="!!busy" icon="el-icon-document-copy" @click="copyProof(account.proofCode)">复制校验码</el-button>
+          </div>
+          <div><span>有效至 {{ date(account.proofExpiresAt) }}</span><el-button size="small" type="primary" :loading="busy === 'externalVerify:' + account.id" :disabled="!!busy" @click="act('externalVerify', account.id)">检查校验码</el-button></div>
+          <small>检查进入后台队列，每个账号一分钟可请求一次。{{ account.platform === 'ATCODER' ? 'AtCoder 验证只确认校验时的账号归属。' : '' }}</small>
+        </div>
         <now-coder-contest-context v-if="account.platform === 'NOWCODER' && account.contestContext" :context="account.contestContext" :owner="owner" />
         <now-coder-practice-context v-if="account.platform === 'NOWCODER' && account.practiceContext" :context="account.practiceContext" :owner="owner" />
         <details v-if="account.attempted !== null" class="source-details"><summary>知识方向与最近评级赛 <span><template v-if="account.individualStatusVerified !== false && account.platform === 'CODEFORCES'">{{ value(account.individualSolved) }} 道个人通过题 · </template>{{ value(account.ratedContests) }} 场评级赛</span></summary><div class="source-depth"><div class="source-coverage"><h3>个人通过的知识方向</h3><p v-if="account.coverageAvailable === false" class="source-notice">来源未提供可靠的算法分类，暂不绘制知识方向分布。</p><div v-for="axis in account.coverage" :key="axis.code"><span>{{ axis.name }}</span><meter min="0" :max="coverageMaximum(account)" :value="axis.solved">{{ axis.solved }}</meter><strong>{{ axis.solved }}</strong></div></div><div class="source-history"><h3>最近评级赛</h3><p v-if="!account.ratingHistory.length">暂无公开评级记录</p><ol v-else><li v-for="event in account.ratingHistory" :key="event.contestId"><a :href="event.contestUrl || 'https://codeforces.com/contest/' + event.contestId" target="_blank" rel="noopener noreferrer">{{ event.title }}</a><span>第 {{ event.contestRank }} 名 · {{ event.newRating }} <small>{{ event.newRating - event.oldRating >= 0 ? '+' : '' }}{{ event.newRating - event.oldRating }}</small></span></li></ol></div></div></details>
@@ -48,7 +66,11 @@ export default {
     value(value) { return value === null || value === undefined ? '—' : value; },
     platformName(platform) { return ({ CODEFORCES: 'Codeforces', ATCODER: 'AtCoder', NOWCODER: '牛客' })[platform] || platform; },
     ratingLabel(platform) { return ({ CODEFORCES: 'CF Rating', ATCODER: '算法 Rating', NOWCODER: '牛客 Rating' })[platform] || 'Rating'; },
-    proofField(platform) { return platform === 'NOWCODER' ? '牛客个人资料的公开简介中' : platform === 'ATCODER' ? 'AtCoder Settings → My Profile → Affiliation（所属）字段' : 'CF Settings → Social → Organization（组织）字段'; },
+    proofField(platform) { return platform === 'NOWCODER' ? '牛客个人资料的公开简介中' : 'AtCoder Settings → My Profile → Affiliation（所属）字段'; },
+    async copyProof(code) {
+      try { await this.$copyText(code); this.$message.success('已复制校验码'); }
+      catch (_) { this.$message.error('复制失败，请选中校验码手动复制'); }
+    },
     date(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—'; },
     state(account) { return ({ QUEUED: '等待同步', RUNNING: '正在同步', BACKOFF: '稍后重试', IDLE: account.stale ? '记录待更新' : '已同步' })[account.syncState] || '等待同步'; },
     coverageMaximum(account) { return Math.max(1, ...account.coverage.map(axis => axis.solved)); },
