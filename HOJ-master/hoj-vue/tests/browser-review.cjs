@@ -479,7 +479,9 @@ function fixture(req) {
   await ev(`${component("WorkspaceLayout")}.preset(true)`);
   await sleep(250);
   await shot("learning");
-  await ev(`${component("WorkspaceLayout")}.swap()`);
+  await ev(
+    `document.querySelector('[data-panel="statement"]').closest('.workspace-card').querySelector('button[title="向后移动"]').click()`
+  );
   report.checks.swapped = await ev(`${component("WorkspaceLayout")}.order`);
   fs.writeFileSync(
     path.join(root, "source-review-partial.json"),

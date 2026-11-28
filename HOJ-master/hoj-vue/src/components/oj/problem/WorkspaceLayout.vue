@@ -5,11 +5,9 @@
       <div class="workspace-actions">
         <el-button size="mini" :type="!learning ? 'primary' : 'default'" @click="preset(false)">简洁双栏</el-button>
         <el-button v-if="allowLearning" size="mini" :type="learning ? 'primary' : 'default'" @click="preset(true)">学习模式</el-button>
-        <el-button size="mini" @click="swap">左右互换</el-button>
-        <el-button size="mini" @click="reset">重置布局</el-button>
       </div>
     </div>
-    <div class="workspace-grid" ref="grid">
+    <div class="workspace-grid" :class="{ 'match-panel-heights': matchPanelHeights && !expanded }" ref="grid">
       <template v-for="(panel, index) in visiblePanels">
         <section :key="panel" class="workspace-card" :class="{ expanded: expanded === panel }"
           :style="{ flexGrow: weights[panel] }" @dragover.prevent @drop.prevent="drop(panel)">
@@ -40,7 +38,9 @@ export default {
   props: {
     editorTitle: { type: String, default: '编程与自测' },
     statementTitle: { type: String, default: '题目与提交记录' },
+    learningTitle: { type: String, default: '学习记录' },
     allowLearning: { type: Boolean, default: true },
+    matchPanelHeights: Boolean,
     preferenceKey: { type: String, default: 'workspace-v1' },
   },
   data() {
@@ -57,7 +57,7 @@ export default {
     return { ...state, dragging: '', expanded: '', saved: true };
   },
   computed: {
-    titles() { return { statement: this.statementTitle, editor: this.editorTitle, learning: '学习记录' }; },
+    titles() { return { statement: this.statementTitle, editor: this.editorTitle, learning: this.learningTitle }; },
     visiblePanels() { return this.order.filter(id => id !== 'learning' || this.allowLearning && this.learning); },
   },
   mounted() { this.observe(); window.addEventListener('keydown', this.escape); },
@@ -65,8 +65,6 @@ export default {
   methods: {
     persist() { this.saved = savePreference(this.preferenceKey, { order: this.order, learning: this.learning, weights: this.weights, heights: this.heights }); this.$nextTick(() => this.$emit('resize')); },
     preset(learning) { this.learning = learning; this.expanded = ''; this.order = defaults().order; this.weights = learning ? { statement: 36, editor: 40, learning: 24 } : defaults().weights; this.persist(); this.$nextTick(this.observe); },
-    reset() { Object.assign(this, defaults()); this.expanded = ''; this.persist(); this.$nextTick(this.observe); },
-    swap() { const a = this.order.indexOf('statement'); const b = this.order.indexOf('editor'); const next = [...this.order]; next[a] = 'editor'; next[b] = 'statement'; this.order = next; this.persist(); },
     startDrag(event, panel) { this.dragging = panel; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', panel); },
     drop(target) { if (!this.dragging || target === this.dragging) return; const next = [...this.order]; const a = next.indexOf(this.dragging); const b = next.indexOf(target); [next[a], next[b]] = [next[b], next[a]]; this.order = next; this.dragging = ''; this.persist(); },
     move(panel, direction) { const index = this.visiblePanels.indexOf(panel); const target = this.visiblePanels[index + direction]; if (target) { this.dragging = panel; this.drop(target); } },
@@ -102,6 +100,12 @@ export default {
 .workspace-card.expanded { position: fixed; inset: 88px 18px 48px; z-index: 1998; }
 .with-question-navigation .workspace-card.expanded { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 .expanded .workspace-card-body { height: calc(100% - 50px) !important; resize: none; }
+@media (min-width: 768px) {
+  .workspace-grid.match-panel-heights { align-items: stretch; }
+  .match-panel-heights .workspace-card { display: flex; flex-direction: column; }
+  .match-panel-heights .workspace-card-body { flex: 1 1 auto; }
+  .match-panel-heights .workspace-card-body:not([data-panel="editor"]) { contain: size; }
+}
 @media(max-width: 1100px) { .workspace-toolbar { align-items: flex-start; flex-direction: column; } }
 @media(max-width: 767px) { .workspace-grid { display: block; } .workspace-card { margin-bottom: 16px; } .workspace-split { display: none; } .workspace-card.expanded { inset: 68px 6px 12px; } .workspace-toolbar .muted { font-size: 12px; } }
 </style>

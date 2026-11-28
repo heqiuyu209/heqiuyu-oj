@@ -6,7 +6,8 @@
     </el-alert>
     <div id="problem-main">
       <!--problem main-->
-      <WorkspaceLayout :editor-title="isObjective ? '作答区' : '编程与自测'" @resize="refreshWorkspaceEditor">
+      <WorkspaceLayout :editor-title="isObjective ? '作答区' : '编程与自测'"
+        learning-title="学习工具" :match-panel-heights="!isObjective" @resize="refreshWorkspaceEditor">
         <template #statement>
         <div class="problem-left">
           <el-tabs
